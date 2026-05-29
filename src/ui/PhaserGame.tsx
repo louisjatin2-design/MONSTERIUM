@@ -5,7 +5,7 @@ import { GameConfig } from '@game/GameConfig';
 export const PhaserGame = forwardRef<Phaser.Game | null>((_, ref) => {
   const gameRef = useRef<Phaser.Game | null>(null);
 
-  useImperativeHandle(ref, () => gameRef.current);
+  useImperativeHandle(ref, () => gameRef.current!);
 
   useEffect(() => {
     if (gameRef.current) return;

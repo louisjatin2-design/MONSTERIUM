@@ -84,16 +84,13 @@ export class Island extends Phaser.Scene {
       }
     }
 
-    // Subscribe to store for new buildings
-    this.unsubscribe = useGameStore.subscribe(
-      (s) => s.buildings,
-      (buildings) => {
-        const islandId = useGameStore.getState().currentIslandId;
-        for (const b of Object.values(buildings)) {
+    // Subscribe to store for new buildings (Zustand v5 single-callback form)
+    this.unsubscribe = useGameStore.subscribe((state) => {
+        const islandId = state.currentIslandId;
+        for (const b of Object.values(state.buildings)) {
           if (b.islandId === islandId && !this.buildingSprites.has(b.instanceId)) {
             this.spawnBuilding(b);
           }
-          // Update construction state
           const sprite = this.buildingSprites.get(b.instanceId);
           if (sprite) sprite.setUnderConstruction(b.constructionEndMs !== null);
         }
