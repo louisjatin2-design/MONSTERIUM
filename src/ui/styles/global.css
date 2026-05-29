@@ -1,0 +1,75 @@
+.panel {
+  position: absolute;
+  background: rgba(10, 10, 30, 0.95);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: #ffffff;
+  font-family: 'Segoe UI', sans-serif;
+  pointer-events: auto;
+  overflow: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+}
+
+.panel-title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffd700;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255,215,0,0.3);
+  padding-bottom: 8px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary { background: #226622; color: #fff; }
+.btn-danger  { background: #662222; color: #fff; }
+.btn-info    { background: #224488; color: #fff; }
+.btn-gold    { background: #886622; color: #fff; }
+
+.close-btn {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+}
+.close-btn:hover { color: #fff; }
+
+.rarity-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  margin-left: 4px;
+}
+
+.monster-card {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.monster-card:hover {
+  background: rgba(255,255,255,0.14);
+}
+
+.gold-text    { color: #ffd700; }
+.diamond-text { color: #44ddff; }
+.food-text    { color: #88ff44; }

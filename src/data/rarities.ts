@@ -1,0 +1,68 @@
+import type { RarityType } from '@gtypes/game';
+
+export const RARITY_RANK: Record<RarityType, number> = {
+  Common:       0,
+  Rare:         1,
+  SuperRare:    2,
+  Epic:         3,
+  Legendary:    4,
+  Elite:        5,
+  Mythic:       6,
+  Transcendent: 7,
+};
+
+export const RARITY_COLORS: Record<RarityType, string> = {
+  Common:       '#888888',
+  Rare:         '#4488FF',
+  SuperRare:    '#AA44FF',
+  Epic:         '#FF8800',
+  Legendary:    '#FFDD00',
+  Elite:        '#00FFCC',
+  Mythic:       '#FF44AA',
+  Transcendent: '#FFFFFF',
+};
+
+export const RARITY_HATCH_TIME_SEC: Record<RarityType, number> = {
+  Common:       30,
+  Rare:         120,
+  SuperRare:    600,
+  Epic:         1800,
+  Legendary:    7200,
+  Elite:        21600,
+  Mythic:       86400,
+  Transcendent: 259200,
+};
+
+export const RARITY_FEED_MULTIPLIER: Record<RarityType, number> = {
+  Common:       1.0,
+  Rare:         1.5,
+  SuperRare:    2.0,
+  Epic:         3.0,
+  Legendary:    5.0,
+  Elite:        8.0,
+  Mythic:       12.0,
+  Transcendent: 20.0,
+};
+
+// Minigame difficulty modifier (additive to base difficulty)
+export const RARITY_MINIGAME_DIFFICULTY: Record<RarityType, number> = {
+  Common:       0,
+  Rare:         1,
+  SuperRare:    2,
+  Epic:         3,
+  Legendary:    4,
+  Elite:        5,
+  Mythic:       6,
+  Transcendent: 7,
+};
+
+export const RARITY_GOLD_RATE: Record<RarityType, number> = {
+  Common:        50,
+  Rare:         100,
+  SuperRare:    200,
+  Epic:         400,
+  Legendary:    800,
+  Elite:       1500,
+  Mythic:      2500,
+  Transcendent: 5000,
+};
