@@ -14,14 +14,15 @@ export class Preload extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    let progress = 0;
-    const tick = this.time.addEvent({
+    const STEPS = 30;
+    let step = 0;
+    this.time.addEvent({
       delay: 30,
-      repeat: 30,
+      repeat: STEPS - 1,
       callback: () => {
-        progress += 1 / 31;
-        bar.width = 296 * Math.min(progress, 1);
-        if (progress >= 1) {
+        step++;
+        bar.width = Math.floor(296 * step / STEPS);
+        if (step >= STEPS) {
           this.time.delayedCall(200, () => this.scene.start('MainMenu'));
         }
       },
