@@ -9,11 +9,9 @@ import '../styles/global.css';
 interface StoryMapProps { onClose: () => void; }
 
 export function StoryMap({ onClose }: StoryMapProps) {
-  const { storyProgress, monsters, trophies } = useGameStore(s => ({
-    storyProgress: s.storyProgress,
-    monsters: s.monsters,
-    trophies: s.trophies,
-  }));
+  const storyProgress = useGameStore(s => s.storyProgress);
+  const monsters      = useGameStore(s => s.monsters);
+  const trophies      = useGameStore(s => s.trophies);
   const advanceStory = useGameStore(s => s.advanceStory);
   const addGold = useGameStore(s => s.addGold);
   const addPlayerXp = useGameStore(s => s.addPlayerXp);

@@ -10,13 +10,11 @@ interface HUDProps {
 }
 
 export function HUD({ onPokedex, onStory, onShop }: HUDProps) {
-  const { gold, diamonds, food, playerLevel, playerXp } = useGameStore(s => ({
-    gold:        s.gold,
-    diamonds:    s.diamonds,
-    food:        s.food,
-    playerLevel: s.playerLevel,
-    playerXp:    s.playerXp,
-  }));
+  const gold        = useGameStore(s => s.gold);
+  const diamonds    = useGameStore(s => s.diamonds);
+  const food        = useGameStore(s => s.food);
+  const playerLevel = useGameStore(s => s.playerLevel);
+  const playerXp    = useGameStore(s => s.playerXp);
 
   const xpToNext = Math.floor(100 * Math.pow(playerLevel, 1.5));
   const xpPercent = Math.min(100, (playerXp / xpToNext) * 100);

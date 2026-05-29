@@ -13,16 +13,14 @@ interface HabitatPanelProps {
 }
 
 export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
-  const { building, monsters, food, allMonsters } = useGameStore(s => ({
-    building: s.buildings[instanceId],
-    monsters: s.buildings[instanceId]?.monsterIds.map(id => s.monsters[id]).filter(Boolean) ?? [],
-    food: s.food,
-    allMonsters: s.monsters,
-  }));
-  const collectGold = useGameStore(s => s.collectGold);
-  const feedMonster = useGameStore(s => s.feedMonster);
+  const building        = useGameStore(s => s.buildings[instanceId]);
+  const allMonsters     = useGameStore(s => s.monsters);
+  const food            = useGameStore(s => s.food);
+  const collectGold     = useGameStore(s => s.collectGold);
+  const feedMonster     = useGameStore(s => s.feedMonster);
   const assignToHabitat = useGameStore(s => s.assignToHabitat);
   const removeFromHabitat = useGameStore(s => s.removeFromHabitat);
+  const monsters = building?.monsterIds.map(id => allMonsters[id]).filter(Boolean) ?? [];
 
   if (!building) return null;
   const def = BUILDING_DEFS[building.defId];
