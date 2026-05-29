@@ -24,7 +24,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           phaser: ['phaser'],
-          react:  ['react', 'react-dom'],
         },
       },
     },
