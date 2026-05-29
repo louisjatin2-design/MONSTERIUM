@@ -75,11 +75,11 @@ export default function App() {
   const isBattleActive = activePanel?.type === 'battle';
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' }}>
       <PhaserGame ref={phaserRef} />
 
       {/* React overlay — pointer-events: none except on active children */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 100 }}>
+      <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, pointerEvents: 'none', zIndex: 100 }}>
         <HUD
           onPokedex={() => setActivePanel({ type: 'pokedex' })}
           onStory={() => setActivePanel({ type: 'story' })}

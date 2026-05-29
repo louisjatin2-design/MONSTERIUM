@@ -6,9 +6,17 @@
     <title>MONSTERIUM</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #0a0a1a; overflow: hidden; width: 100vw; height: 100vh; }
-      #root { width: 100vw; height: 100vh; position: relative; }
+      html, body { background: #0a0a1a; overflow: hidden; width: 100%; height: 100%; }
+      #root { position: fixed; top: 0; right: 0; bottom: 0; left: 0; }
     </style>
+    <script>
+      // Fix iOS Safari 100vh bug — set CSS variable to real viewport height
+      function setVH() {
+        document.documentElement.style.setProperty('--vh', window.innerHeight * 0.01 + 'px');
+      }
+      setVH();
+      window.addEventListener('resize', setVH);
+    </script>
   </head>
   <body>
     <div id="root"></div>
