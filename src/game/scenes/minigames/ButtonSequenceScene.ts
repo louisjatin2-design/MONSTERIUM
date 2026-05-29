@@ -115,6 +115,27 @@ export class ButtonSequenceScene extends Phaser.Scene {
     for (const key of KEYS) {
       this.input.keyboard?.on(`keydown-${key}`, () => this.onKeyPress(key));
     }
+
+    // On-screen touch buttons (always shown — works on both touch and desktop)
+    const btnSize = 64;
+    const btnSpacing = 12;
+    const btnY = height - 70;
+    const totalBtnW = KEYS.length * (btnSize + btnSpacing) - btnSpacing;
+    const btnStartX = width / 2 - totalBtnW / 2 + btnSize / 2;
+
+    KEYS.forEach((key, i) => {
+      const bx = btnStartX + i * (btnSize + btnSpacing);
+      const bg = this.add.rectangle(bx, btnY, btnSize, btnSize, KEY_COLORS[key] ?? 0x888888)
+        .setStrokeStyle(2, 0xffffff)
+        .setInteractive({ useHandCursor: true });
+      this.add.text(bx, btnY, key, {
+        fontSize: '26px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0.5).setDepth(1);
+
+      bg.on('pointerdown', () => this.onKeyPress(key));
+      bg.on('pointerover', () => bg.setFillStyle(0xffffff, 0.3));
+      bg.on('pointerout', () => bg.setFillStyle(KEY_COLORS[key] ?? 0x888888));
+    });
   }
 
   private onKeyPress(key: string) {
