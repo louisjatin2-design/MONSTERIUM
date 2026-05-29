@@ -1,23 +1,25 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import Phaser from 'phaser';
-import { GameConfig } from '@game/GameConfig';
+import type Phaser from 'phaser';
 
 export const PhaserGame = forwardRef<Phaser.Game | null>((_, ref) => {
   const gameRef = useRef<Phaser.Game | null>(null);
 
-  useImperativeHandle(ref, () => gameRef.current!);
+  useImperativeHandle(ref, () => gameRef.current as Phaser.Game);
 
   useEffect(() => {
     if (gameRef.current) return;
 
-    const game = new Phaser.Game({
-      ...GameConfig,
-      parent: 'game-container',
+    // Dynamic import keeps Phaser out of React's static bundle.
+    // React now initialises before Phaser loads, preventing the iOS Safari
+    // cross-chunk dependency that caused error #185.
+    import('@game/PhaserInit').then(({ startPhaser }) => {
+      if (!gameRef.current) {
+        gameRef.current = startPhaser('game-container');
+      }
     });
-    gameRef.current = game;
 
     return () => {
-      game.destroy(true);
+      gameRef.current?.destroy(true);
       gameRef.current = null;
     };
   }, []);
