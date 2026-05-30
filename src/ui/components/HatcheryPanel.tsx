@@ -71,7 +71,9 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
                   <div style={{ height: 6, background: '#333', borderRadius: 3 }}>
                     <div style={{
                       height: '100%', background: '#4488ff', borderRadius: 3,
-                      width: `${100 - (remaining / (egg.hatchEndMs - (egg.hatchEndMs - remaining - (egg.hatchEndMs - egg.hatchEndMs)))) * 100}%`,
+                      width: `${Math.min(100, Math.max(0,
+                        (1 - remaining / (egg.hatchEndMs - egg.hatchStartMs)) * 100
+                      ))}%`,
                       transition: 'width 1s',
                     }} />
                   </div>

@@ -7,6 +7,7 @@ export const GameEvents = {
   OPEN_BUILD_MENU:      'open-build-menu',
   OPEN_BREEDING_PANEL:  'open-breeding-panel',
   OPEN_HATCHERY_PANEL:  'open-hatchery-panel',
+  OPEN_FARM_PANEL:      'open-farm-panel',
   OPEN_POKEDEX:         'open-pokedex',
   OPEN_SHOP:            'open-shop',
   BATTLE_STARTED:       'battle-started',

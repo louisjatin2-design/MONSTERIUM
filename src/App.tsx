@@ -9,6 +9,7 @@ import { Pokedex } from '@ui/components/Pokedex';
 import { StoryMap } from '@ui/components/StoryMap';
 import { ShopPanel } from '@ui/components/ShopPanel';
 import { BattleHUD } from '@ui/components/BattleHUD';
+import { FarmPanel } from '@ui/components/FarmPanel';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
 import type Phaser from 'phaser';
@@ -16,6 +17,7 @@ import type Phaser from 'phaser';
 export type ActivePanel =
   | null
   | { type: 'habitat'; instanceId: string }
+  | { type: 'farm'; instanceId: string }
   | { type: 'build'; tileX: number; tileY: number }
   | { type: 'breeding' }
   | { type: 'hatchery' }
@@ -38,6 +40,7 @@ export default function App() {
   // Subscribe to EventBus events from Phaser scenes
   useEffect(() => {
     const onOpenHabitat  = (d: { instanceId: string }) => setActivePanel({ type: 'habitat', instanceId: d.instanceId });
+    const onOpenFarm     = (d: { instanceId: string }) => setActivePanel({ type: 'farm', instanceId: d.instanceId });
     const onOpenBuild    = (d: { tileX: number; tileY: number }) => setActivePanel({ type: 'build', tileX: d.tileX, tileY: d.tileY });
     const onOpenBreeding = () => setActivePanel({ type: 'breeding' });
     const onOpenHatchery = () => setActivePanel({ type: 'hatchery' });
@@ -47,6 +50,7 @@ export default function App() {
     const onBattleEnd    = () => setActivePanel(null);
 
     EventBus.on(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
+    EventBus.on(GameEvents.OPEN_FARM_PANEL,    onOpenFarm);
     EventBus.on(GameEvents.OPEN_BUILD_MENU, onOpenBuild);
     EventBus.on(GameEvents.OPEN_BREEDING_PANEL, onOpenBreeding);
     EventBus.on(GameEvents.OPEN_HATCHERY_PANEL, onOpenHatchery);
@@ -57,6 +61,7 @@ export default function App() {
 
     return () => {
       EventBus.off(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
+      EventBus.off(GameEvents.OPEN_FARM_PANEL,    onOpenFarm);
       EventBus.off(GameEvents.OPEN_BUILD_MENU, onOpenBuild);
       EventBus.off(GameEvents.OPEN_BREEDING_PANEL, onOpenBreeding);
       EventBus.off(GameEvents.OPEN_HATCHERY_PANEL, onOpenHatchery);
@@ -79,7 +84,7 @@ export default function App() {
     <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' }}>
       <PhaserGame ref={phaserRef} />
 
-      {/* Backdrop: blocks Phaser input and tab-focus when a panel is open */}
+      {/* Backdrop: blocks Phaser input when a panel is open */}
       {hasPanelOpen && (
         <div
           style={{
@@ -93,14 +98,16 @@ export default function App() {
         />
       )}
 
-      {/* React overlay — pointer-events: none except on active children */}
-      <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, pointerEvents: 'none', zIndex: 100 }}>
-        <HUD
-          onPokedex={() => setActivePanel({ type: 'pokedex' })}
-          onStory={() => setActivePanel({ type: 'story' })}
-          onShop={() => setActivePanel({ type: 'shop' })}
-        />
+      {/* HUD — lives OUTSIDE the pointer-events:none overlay so iOS properly
+          routes touch events to it without leaking through to the canvas */}
+      <HUD
+        onPokedex={() => setActivePanel({ type: 'pokedex' })}
+        onStory={() => setActivePanel({ type: 'story' })}
+        onShop={() => setActivePanel({ type: 'shop' })}
+      />
 
+      {/* Panel overlay — pointer-events: none so empty areas pass through to Phaser */}
+      <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, pointerEvents: 'none', zIndex: 100 }}>
         {activePanel?.type === 'build' && (
           <BuildMenu
             tileX={activePanel.tileX}
@@ -110,6 +117,9 @@ export default function App() {
         )}
         {activePanel?.type === 'habitat' && (
           <HabitatPanel instanceId={activePanel.instanceId} onClose={closePanel} />
+        )}
+        {activePanel?.type === 'farm' && (
+          <FarmPanel instanceId={activePanel.instanceId} onClose={closePanel} />
         )}
         {activePanel?.type === 'breeding' && (
           <BreedingPanel onClose={closePanel} />

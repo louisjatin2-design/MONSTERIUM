@@ -219,10 +219,15 @@ export const useGameStore = create<GameStore>()(
       collectGold: (instanceId) => {
         const b = get().buildings[instanceId];
         if (!b) return;
+        const def = BUILDING_DEFS[b.defId];
         const accumulated = b.goldAccumulated;
         if (accumulated <= 0) return;
         set((s) => {
-          s.gold += Math.floor(accumulated);
+          if (def?.category === 'Farm') {
+            s.food += Math.floor(accumulated);
+          } else {
+            s.gold += Math.floor(accumulated);
+          }
           s.buildings[instanceId].goldAccumulated = 0;
           s.buildings[instanceId].lastCollectedMs = Date.now();
         });
@@ -371,10 +376,12 @@ export const useGameStore = create<GameStore>()(
         const def = MONSTER_DEFS[monsterDefId];
         if (!def) return;
         const hatchSec = hatchTimeOverrideSec ?? RARITY_HATCH_TIME_SEC[def.rarity];
+        const now = Date.now();
         const egg: Egg = {
           id: 'egg_' + uid(),
           monsterDefId,
-          hatchEndMs: Date.now() + hatchSec * 1000,
+          hatchStartMs: now,
+          hatchEndMs: now + hatchSec * 1000,
           hatcherySlot: get().eggs.length,
           isUnique,
           parentIds,
@@ -466,16 +473,13 @@ export const useGameStore = create<GameStore>()(
               }
             }
 
-            // Accumulate food for Farms
+            // Accumulate food for Farms (same pattern as gold: player clicks to collect)
             if (def?.category === 'Farm' && !b.constructionEndMs) {
               const levelData = def.levels[b.level - 1];
               if (levelData?.foodPerHour) {
                 const elapsed = (now - b.lastCollectedMs) / 3_600_000;
-                const produced = Math.floor(levelData.foodPerHour * elapsed);
-                if (produced > 0) {
-                  s.food += produced;
-                  b.lastCollectedMs = now;
-                }
+                const maxAccum = levelData.foodPerHour * 8; // 8-hour cap
+                b.goldAccumulated = Math.min(levelData.foodPerHour * elapsed, maxAccum);
               }
             }
           }

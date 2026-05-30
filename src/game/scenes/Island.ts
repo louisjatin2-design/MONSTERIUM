@@ -166,8 +166,7 @@ export class Island extends Phaser.Scene {
         EventBus.emit(GameEvents.OPEN_HATCHERY_PANEL, {});
         break;
       case 'Farm':
-        // Collect food (farms auto-collect in tickTimers) — just show a notification
-        useGameStore.getState().collectGold(building.instanceId);
+        EventBus.emit(GameEvents.OPEN_FARM_PANEL, { instanceId: building.instanceId });
         break;
     }
   }

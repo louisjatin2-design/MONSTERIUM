@@ -130,6 +130,7 @@ export interface IslandDef {
 export interface Egg {
   id: string;
   monsterDefId: string;
+  hatchStartMs: number;
   hatchEndMs: number;
   hatcherySlot: number;
   isUnique: boolean;
