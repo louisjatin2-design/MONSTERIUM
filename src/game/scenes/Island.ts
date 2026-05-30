@@ -5,22 +5,32 @@ import { BUILDING_DEFS } from '@data/buildings';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { GridTile } from '@game/objects/GridTile';
 import { BuildingSprite } from '@game/objects/BuildingSprite';
+import { MonsterSprite } from '@game/objects/MonsterSprite';
+import {
+  project, worldToGrid, pointInPolygon, footprintCorners,
+  GRID_COLS, GRID_ROWS, CONTENT_W, CONTENT_H, ISLAND_CENTER, TILE_W,
+} from '@game/iso';
 import type { BuildingInstance } from '@gtypes/game';
-
-const TILE_SIZE = 64;
 
 export class Island extends Phaser.Scene {
   private tiles: GridTile[][] = [];
   private buildingSprites: Map<string, BuildingSprite> = new Map();
+  private residentSprites: Map<string, MonsterSprite[]> = new Map();
+  private residentSignature: Map<string, string> = new Map();
+  private placementHighlight?: Phaser.GameObjects.Graphics;
   private unsubscribe?: () => void;
+
   private isDragging = false;
+  private dragMoved = false;
   private dragStartX = 0;
   private dragStartY = 0;
   private camStartX = 0;
   private camStartY = 0;
+
   private placementMode = false;
   private placementDefId = '';
-  private placementHighlights: Phaser.GameObjects.Rectangle[] = [];
+  private hoverCol = -1;
+  private hoverRow = -1;
 
   constructor() { super('Island'); }
 
@@ -29,128 +39,113 @@ export class Island extends Phaser.Scene {
     const islandDef = ISLAND_DEFS[state.currentIslandId];
     if (!islandDef) return;
 
-    const totalW = 20 * TILE_SIZE;
-    const totalH = 15 * TILE_SIZE;
+    this.cameras.main.setBackgroundColor(0x5fc4e8); // bright sky/sea
 
-    // Draw tile grid
-    for (let row = 0; row < 15; row++) {
+    // Draw isometric tile grid.
+    for (let row = 0; row < GRID_ROWS; row++) {
       this.tiles[row] = [];
-      for (let col = 0; col < 20; col++) {
+      for (let col = 0; col < GRID_COLS; col++) {
         const isLand = islandDef.tileMask[row][col];
-        const tile = new GridTile(this, col, row, TILE_SIZE, isLand);
-        this.tiles[row][col] = tile;
-
-        if (isLand) {
-          tile.setInteractive({ useHandCursor: true });
-          tile.on('pointerdown', () => this.onTileClick(col, row));
-          tile.on('pointerover', () => {
-            if (!this.placementMode) tile.highlight(0x5aad64);
-          });
-          tile.on('pointerout', () => tile.resetColor());
-        }
+        this.tiles[row][col] = new GridTile(this, col, row, isLand);
       }
     }
 
-    // Camera setup
-    this.cameras.main.setBounds(0, 0, totalW, totalH);
-    this.cameras.main.setBackgroundColor(0x1a3a5a);
+    // Camera bounds + center on the island.
+    this.cameras.main.setBounds(0, 0, CONTENT_W, CONTENT_H);
+    this.cameras.main.centerOn(ISLAND_CENTER.x, ISLAND_CENTER.y);
 
-    // Center camera on island center
-    this.cameras.main.centerOn(totalW / 2, totalH / 2);
+    // Spawn pre-placed buildings + their residents.
+    for (const b of Object.values(state.buildings)) {
+      if (b.islandId === state.currentIslandId) this.spawnBuilding(b);
+    }
 
-    // Drag to pan
+    // Pointer handling: drag-to-pan + tap detection.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (p.button === 0 && !this.placementMode) {
-        this.isDragging = true;
-        this.dragStartX = p.x;
-        this.dragStartY = p.y;
-        this.camStartX = this.cameras.main.scrollX;
-        this.camStartY = this.cameras.main.scrollY;
-      }
+      this.isDragging = true;
+      this.dragMoved = false;
+      this.dragStartX = p.x;
+      this.dragStartY = p.y;
+      this.camStartX = this.cameras.main.scrollX;
+      this.camStartY = this.cameras.main.scrollY;
     });
+
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (this.isDragging) {
-        this.cameras.main.scrollX = this.camStartX - (p.x - this.dragStartX);
-        this.cameras.main.scrollY = this.camStartY - (p.y - this.dragStartY);
+      if (this.isDragging && !this.placementMode) {
+        const dx = p.x - this.dragStartX;
+        const dy = p.y - this.dragStartY;
+        if (Math.abs(dx) + Math.abs(dy) > 6) this.dragMoved = true;
+        this.cameras.main.scrollX = this.camStartX - dx;
+        this.cameras.main.scrollY = this.camStartY - dy;
+      } else {
+        this.updateHover(p);
       }
     });
-    this.input.on('pointerup', () => { this.isDragging = false; });
 
-    // Spawn pre-placed buildings
-    const buildings = state.buildings;
-    for (const b of Object.values(buildings)) {
-      if (b.islandId === state.currentIslandId) {
-        this.spawnBuilding(b);
-      }
-    }
-
-    // Subscribe to store for new buildings (Zustand v5 single-callback form)
-    this.unsubscribe = useGameStore.subscribe((state) => {
-        const islandId = state.currentIslandId;
-        for (const b of Object.values(state.buildings)) {
-          if (b.islandId === islandId && !this.buildingSprites.has(b.instanceId)) {
-            this.spawnBuilding(b);
-          }
-          const sprite = this.buildingSprites.get(b.instanceId);
-          if (sprite) sprite.setUnderConstruction(b.constructionEndMs !== null);
-        }
-      }
-    );
-
-    // EventBus: enter placement mode
-    EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, (data: { defId: string }) => {
-      this.enterPlacementMode(data.defId);
+    this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      this.isDragging = false;
+      if (this.dragMoved) return; // it was a pan, not a tap
+      this.handleTap(p);
     });
 
-    EventBus.on(GameEvents.PANEL_CLOSED, () => {
-      if (this.placementMode) this.exitPlacementMode();
-    });
+    // Subscribe to store: new buildings, construction state, residents.
+    this.unsubscribe = useGameStore.subscribe((s) => this.reconcile(s));
 
-    // Battle event
-    EventBus.on(GameEvents.START_BATTLE, (data: { playerTeam: string[]; enemyTeam: string[] }) => {
-      this.scene.launch('Battle', data);
-      this.scene.pause();
-    });
+    // EventBus wiring.
+    EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
+    EventBus.on(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
+    EventBus.on(GameEvents.START_BATTLE, this.onStartBattle, this);
 
-    // Story mode button in top-right (permanent shortcut)
-    const storyBtn = this.add.text(20, 20, '⚔ Story', {
-      fontSize: '18px',
-      color: '#ffffff',
-      backgroundColor: '#00000099',
-      padding: { x: 8, y: 4 },
-    }).setScrollFactor(0).setInteractive({ useHandCursor: true });
-    storyBtn.on('pointerdown', () => EventBus.emit(GameEvents.OPEN_POKEDEX));
-
-    const pvpBtn = this.add.text(110, 20, '🏆 PvP', {
-      fontSize: '18px',
-      color: '#ffffff',
-      backgroundColor: '#00000099',
-      padding: { x: 8, y: 4 },
-    }).setScrollFactor(0).setInteractive({ useHandCursor: true });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.onShutdown());
   }
 
-  private onTileClick(col: number, row: number) {
+  // ---- Input helpers ----------------------------------------------------
+
+  private updateHover(p: Phaser.Input.Pointer) {
+    const w = this.cameras.main.getWorldPoint(p.x, p.y);
+    const { col, row } = worldToGrid(w.x, w.y);
+    if (col === this.hoverCol && row === this.hoverRow) return;
+    // Clear previous.
+    if (this.inBounds(this.hoverCol, this.hoverRow)) {
+      this.tiles[this.hoverRow][this.hoverCol].resetColor();
+    }
+    this.hoverCol = col;
+    this.hoverRow = row;
+    if (this.inBounds(col, row) && !this.placementMode) {
+      this.tiles[row][col].highlight();
+    }
+  }
+
+  private handleTap(p: Phaser.Input.Pointer) {
+    const w = this.cameras.main.getWorldPoint(p.x, p.y);
+
     if (this.placementMode) {
+      const { col, row } = worldToGrid(w.x, w.y);
       this.tryPlaceBuilding(col, row);
       return;
     }
-    // Check if a building occupies this tile
-    const buildings = useGameStore.getState().buildings;
-    for (const b of Object.values(buildings)) {
-      if (b.islandId !== useGameStore.getState().currentIslandId) continue;
-      const def = BUILDING_DEFS[b.defId];
-      if (!def) continue;
-      if (
-        col >= b.tileX && col < b.tileX + def.tilesW &&
-        row >= b.tileY && row < b.tileY + def.tilesH
-      ) {
-        this.onBuildingClick(b);
+
+    // Buildings first (front-to-back), using their world silhouettes.
+    const sorted = [...this.buildingSprites.values()].sort((a, b) => b.depth - a.depth);
+    for (const sprite of sorted) {
+      if (pointInPolygon(w.x, w.y, sprite.silhouette)) {
+        const b = useGameStore.getState().buildings[sprite.instanceId];
+        if (b) this.onBuildingClick(b);
         return;
       }
     }
-    // Open build menu
-    EventBus.emit(GameEvents.OPEN_BUILD_MENU, { tileX: col, tileY: row });
+
+    // Otherwise an empty land tile → build menu.
+    const { col, row } = worldToGrid(w.x, w.y);
+    if (this.inBounds(col, row) && this.tiles[row][col].isLand) {
+      EventBus.emit(GameEvents.OPEN_BUILD_MENU, { tileX: col, tileY: row });
+    }
   }
+
+  private inBounds(col: number, row: number): boolean {
+    return col >= 0 && col < GRID_COLS && row >= 0 && row < GRID_ROWS;
+  }
+
+  // ---- Buildings & residents -------------------------------------------
 
   private onBuildingClick(building: BuildingInstance) {
     const def = BUILDING_DEFS[building.defId];
@@ -168,31 +163,90 @@ export class Island extends Phaser.Scene {
       case 'Farm':
         EventBus.emit(GameEvents.OPEN_FARM_PANEL, { instanceId: building.instanceId });
         break;
+      case 'Temple':
+        EventBus.emit(GameEvents.OPEN_HABITAT_PANEL, { instanceId: building.instanceId });
+        break;
     }
   }
 
   private spawnBuilding(b: BuildingInstance) {
-    const sprite = new BuildingSprite(this, b, TILE_SIZE);
-    sprite.on('pointerdown', () => this.onBuildingClick(b));
+    const def = BUILDING_DEFS[b.defId];
+    if (!def) return;
+    const sprite = new BuildingSprite(this, b, TILE_W);
+    sprite.setDepth(100 + b.tileX + b.tileY + def.tilesW + def.tilesH);
     this.buildingSprites.set(b.instanceId, sprite);
+    this.refreshResidents(b);
   }
 
-  private enterPlacementMode(defId: string) {
-    this.placementMode = true;
-    this.placementDefId = defId;
-    // Add ESC listener
-    this.input.keyboard?.once('keydown-ESC', () => this.exitPlacementMode());
+  // Show resident monsters as little characters standing on a habitat.
+  private refreshResidents(b: BuildingInstance) {
+    const def = BUILDING_DEFS[b.defId];
+    if (!def || def.category !== 'Habitat') return;
+
+    const sig = b.monsterIds.join(',');
+    if (this.residentSignature.get(b.instanceId) === sig) return;
+    this.residentSignature.set(b.instanceId, sig);
+
+    // Clear old.
+    for (const m of this.residentSprites.get(b.instanceId) ?? []) m.destroy();
+    this.residentSprites.set(b.instanceId, []);
+
+    const monsters = useGameStore.getState().monsters;
+    const ids = b.monsterIds.filter(id => monsters[id]).slice(0, 4);
+    const center = project(b.tileX + def.tilesW / 2, b.tileY + def.tilesH / 2);
+    const BH = 26 + Math.min(def.tilesW, def.tilesH) * 7;
+    const baseDepth = 100 + b.tileX + b.tileY + def.tilesW + def.tilesH;
+
+    const sprites: MonsterSprite[] = [];
+    ids.forEach((id, i) => {
+      const inst = monsters[id];
+      const n = ids.length;
+      const ox = (i - (n - 1) / 2) * 22;
+      const oy = -BH + 6 + (i % 2) * 8;
+      const ms = new MonsterSprite(this, inst.defId, center.x + ox, center.y + oy, 34, false);
+      ms.setDepth(baseDepth + 0.5 + i * 0.01);
+      sprites.push(ms);
+    });
+    this.residentSprites.set(b.instanceId, sprites);
   }
+
+  // Reconcile Phaser visuals with store changes (new buildings, construction, residents).
+  private reconcile(s: ReturnType<typeof useGameStore.getState>) {
+    const islandId = s.currentIslandId;
+    for (const b of Object.values(s.buildings)) {
+      if (b.islandId !== islandId) continue;
+      if (!this.buildingSprites.has(b.instanceId)) {
+        this.spawnBuilding(b);
+      } else {
+        const sprite = this.buildingSprites.get(b.instanceId)!;
+        sprite.setUnderConstruction(b.constructionEndMs !== null);
+        this.refreshResidents(b);
+      }
+    }
+  }
+
+  // ---- Placement mode ---------------------------------------------------
+
+  private onEnterPlacement = (data: { defId: string }) => {
+    this.placementMode = true;
+    this.placementDefId = data.defId;
+    this.input.keyboard?.once('keydown-ESC', () => this.exitPlacementMode());
+  };
+
+  private onPanelClosed = () => {
+    if (this.placementMode) this.exitPlacementMode();
+  };
+
+  private onStartBattle = (data: { playerTeam: string[]; enemyTeam: string[] }) => {
+    this.scene.launch('Battle', data);
+    this.scene.pause();
+  };
 
   private exitPlacementMode() {
     this.placementMode = false;
     this.placementDefId = '';
-    this.clearHighlights();
-  }
-
-  private clearHighlights() {
-    for (const h of this.placementHighlights) h.destroy();
-    this.placementHighlights = [];
+    this.placementHighlight?.destroy();
+    this.placementHighlight = undefined;
   }
 
   private tryPlaceBuilding(col: number, row: number) {
@@ -201,51 +255,59 @@ export class Island extends Phaser.Scene {
     const islandId = useGameStore.getState().currentIslandId;
     const islandDef = ISLAND_DEFS[islandId];
 
-    // Check all tiles are land and unoccupied
-    for (let r = row; r < row + def.tilesH; r++) {
-      for (let c = col; c < col + def.tilesW; c++) {
-        if (r >= 15 || c >= 20) { this.showPlacementError(col, row, def); return; }
-        if (!islandDef.tileMask[r][c]) { this.showPlacementError(col, row, def); return; }
-      }
-    }
+    const valid = this.canPlace(col, row, def.tilesW, def.tilesH, islandDef, islandId);
+    if (!valid) { this.flashPlacement(col, row, def.tilesW, def.tilesH, 0xff3333); return; }
 
-    // Check overlap with existing buildings
-    const buildings = Object.values(useGameStore.getState().buildings);
-    for (const b of buildings) {
-      if (b.islandId !== islandId) continue;
-      const bd = BUILDING_DEFS[b.defId];
-      if (!bd) continue;
-      if (
-        col < b.tileX + bd.tilesW && col + def.tilesW > b.tileX &&
-        row < b.tileY + bd.tilesH && row + def.tilesH > b.tileY
-      ) {
-        this.showPlacementError(col, row, def);
-        return;
-      }
-    }
-
-    // Place it
     useGameStore.getState().placeBuilding(this.placementDefId, islandId, col, row);
     this.exitPlacementMode();
     EventBus.emit(GameEvents.PANEL_CLOSED, {});
   }
 
-  private showPlacementError(col: number, row: number, def: { tilesW: number; tilesH: number }) {
-    this.clearHighlights();
-    const h = this.add.rectangle(
-      col * TILE_SIZE + (def.tilesW * TILE_SIZE) / 2,
-      row * TILE_SIZE + (def.tilesH * TILE_SIZE) / 2,
-      def.tilesW * TILE_SIZE - 4,
-      def.tilesH * TILE_SIZE - 4,
-      0xff0000, 0.4
-    );
-    this.placementHighlights.push(h);
-    this.time.delayedCall(600, () => this.clearHighlights());
+  private canPlace(
+    col: number, row: number, w: number, h: number,
+    islandDef: { tileMask: boolean[][] }, islandId: string,
+  ): boolean {
+    for (let r = row; r < row + h; r++) {
+      for (let c = col; c < col + w; c++) {
+        if (!this.inBounds(c, r)) return false;
+        if (!islandDef.tileMask[r][c]) return false;
+      }
+    }
+    for (const b of Object.values(useGameStore.getState().buildings)) {
+      if (b.islandId !== islandId) continue;
+      const bd = BUILDING_DEFS[b.defId];
+      if (!bd) continue;
+      if (col < b.tileX + bd.tilesW && col + w > b.tileX &&
+          row < b.tileY + bd.tilesH && row + h > b.tileY) {
+        return false;
+      }
+    }
+    return true;
   }
 
-  shutdown() {
+  private flashPlacement(col: number, row: number, w: number, h: number, color: number) {
+    this.placementHighlight?.destroy();
+    const c = footprintCorners(col, row, w, h);
+    const g = this.add.graphics();
+    g.fillStyle(color, 0.4);
+    g.fillPoints([c.back, c.right, c.front, c.left], true);
+    g.setDepth(300);
+    this.placementHighlight = g;
+    this.time.delayedCall(500, () => {
+      g.destroy();
+      if (this.placementHighlight === g) this.placementHighlight = undefined;
+    });
+  }
+
+  // ---- Lifecycle --------------------------------------------------------
+
+  private onShutdown() {
     this.unsubscribe?.();
-    EventBus.removeAllListeners(GameEvents.ENTER_PLACEMENT_MODE);
-    EventBus.removeAllListeners(GameEvents.START_BATTLE);
+    EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
+    EventBus.off(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
+    EventBus.off(GameEvents.START_BATTLE, this.onStartBattle, this);
+    this.buildingSprites.clear();
+    this.residentSprites.clear();
+    this.residentSignature.clear();
   }
 }

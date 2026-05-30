@@ -1,74 +1,113 @@
 import Phaser from 'phaser';
 import { BUILDING_DEFS } from '@data/buildings';
+import { project, footprintCorners, TILE_W } from '@game/iso';
 import type { BuildingInstance } from '@gtypes/game';
 
-const CATEGORY_COLORS: Record<string, number> = {
-  Habitat:         0x44aa44,
-  Temple:          0xaa8800,
-  Farm:            0x88aa00,
-  BreedingStation: 0xaa4488,
-  Hatchery:        0x4488aa,
-};
-
-const CATEGORY_LETTERS: Record<string, string> = {
-  Habitat:         'H',
-  Temple:          'T',
-  Farm:            'F',
-  BreedingStation: 'B',
-  Hatchery:        'E',
+// Cartoon building styling per category: { roof, leftWall, rightWall, icon }
+const CATEGORY_STYLE: Record<string, { roof: number; left: number; right: number; icon: string }> = {
+  Habitat:         { roof: 0x5fc96e, left: 0x3f9e54, right: 0x2f7d40, icon: '🏠' },
+  Temple:          { roof: 0xf2c14e, left: 0xd9a23a, right: 0xb5852b, icon: '⛩️' },
+  Farm:            { roof: 0xcbe85f, left: 0xa6c23f, right: 0x86a230, icon: '🌾' },
+  BreedingStation: { roof: 0xee85b5, left: 0xc85f94, right: 0xa84a7a, icon: '💞' },
+  Hatchery:        { roof: 0x63b8ec, left: 0x3f95c8, right: 0x2f78a8, icon: '🥚' },
 };
 
 export class BuildingSprite extends Phaser.GameObjects.Container {
   instanceId: string;
-  private bg: Phaser.GameObjects.Rectangle;
-  private label: Phaser.GameObjects.Text;
-  private nameText: Phaser.GameObjects.Text;
-  private constructionOverlay: Phaser.GameObjects.Rectangle;
+  // World-space silhouette polygon for hit-testing (set by Island).
+  silhouette: { x: number; y: number }[] = [];
+  private boxGfx: Phaser.GameObjects.Graphics;
+  private constructionOverlay: Phaser.GameObjects.Graphics;
+  private clockText: Phaser.GameObjects.Text;
 
-  constructor(
-    scene: Phaser.Scene,
-    building: BuildingInstance,
-    tileSize: number
-  ) {
+  constructor(scene: Phaser.Scene, building: BuildingInstance, _tileSize: number) {
     const def = BUILDING_DEFS[building.defId];
-    const pixelX = building.tileX * tileSize;
-    const pixelY = building.tileY * tileSize;
-    const w = def.tilesW * tileSize;
-    const h = def.tilesH * tileSize;
+    const W = def.tilesW, H = def.tilesH;
 
-    super(scene, pixelX, pixelY);
+    // Anchor the container at the footprint center in world space.
+    const center = project(building.tileX + W / 2, building.tileY + H / 2);
+    super(scene, center.x, center.y);
     this.instanceId = building.instanceId;
 
-    const color = CATEGORY_COLORS[def.category] ?? 0x888888;
+    const style = CATEGORY_STYLE[def.category] ?? CATEGORY_STYLE.Habitat;
+    const BH = 26 + Math.min(W, H) * 7; // building height
 
-    this.bg = scene.add.rectangle(w / 2, h / 2, w - 4, h - 4, color, 0.85);
-    this.bg.setStrokeStyle(2, 0xffffff, 0.7);
+    // Corners relative to the container center.
+    const corners = footprintCorners(building.tileX, building.tileY, W, H);
+    const rel = (p: { x: number; y: number }) => ({ x: p.x - center.x, y: p.y - center.y });
+    const back = rel(corners.back);
+    const right = rel(corners.right);
+    const front = rel(corners.front);
+    const left = rel(corners.left);
+    const up = (p: { x: number; y: number }) => ({ x: p.x, y: p.y - BH });
 
-    const letter = CATEGORY_LETTERS[def.category] ?? '?';
-    this.label = scene.add.text(w / 2, h / 2 - 8, letter, {
-      fontSize: `${Math.floor(tileSize * 0.5)}px`,
+    // Soft drop shadow on the ground.
+    const shadow = scene.add.graphics();
+    shadow.fillStyle(0x000000, 0.18);
+    shadow.fillPoints([
+      { x: back.x, y: back.y + 4 }, { x: right.x, y: right.y + 4 },
+      { x: front.x, y: front.y + 4 }, { x: left.x, y: left.y + 4 },
+    ], true);
+
+    this.boxGfx = scene.add.graphics();
+    const g = this.boxGfx;
+
+    // Left wall (front-left face).
+    g.fillStyle(style.left, 1);
+    g.fillPoints([left, front, up(front), up(left)], true);
+    g.lineStyle(2, 0x000000, 0.25);
+    g.strokePoints([left, front, up(front), up(left)], true, true);
+
+    // Right wall (front-right face).
+    g.fillStyle(style.right, 1);
+    g.fillPoints([front, right, up(right), up(front)], true);
+    g.strokePoints([front, right, up(right), up(front)], true, true);
+
+    // Roof (top diamond) — brightest, with a cartoon outline.
+    const roofPts = [up(back), up(right), up(front), up(left)];
+    g.fillStyle(style.roof, 1);
+    g.fillPoints(roofPts, true);
+    g.lineStyle(2.5, 0x000000, 0.3);
+    g.strokePoints(roofPts, true, true);
+
+    // Icon on the roof.
+    const icon = scene.add.text(0, -BH - 2, style.icon, {
+      fontSize: `${Math.floor(18 + Math.min(W, H) * 4)}px`,
+    }).setOrigin(0.5);
+
+    // Name label below the building.
+    const nameText = scene.add.text(0, front.y + 8, def.name, {
+      fontSize: '11px',
       color: '#ffffff',
       fontStyle: 'bold',
-    }).setOrigin(0.5);
+      stroke: '#000000',
+      strokeThickness: 3,
+      align: 'center',
+      wordWrap: { width: W * TILE_W },
+    }).setOrigin(0.5, 0);
 
-    this.nameText = scene.add.text(w / 2, h / 2 + 10, def.name, {
-      fontSize: '9px',
-      color: '#ffffff',
-      wordWrap: { width: w - 8 },
-    }).setOrigin(0.5);
+    // Construction overlay (darkened roof + clock).
+    this.constructionOverlay = scene.add.graphics();
+    this.constructionOverlay.fillStyle(0x000022, 0.55);
+    this.constructionOverlay.fillPoints(roofPts, true);
+    this.clockText = scene.add.text(0, -BH - 2, '⏳', { fontSize: '22px' }).setOrigin(0.5);
+    const underConstruction = building.constructionEndMs !== null;
+    this.constructionOverlay.setVisible(underConstruction);
+    this.clockText.setVisible(underConstruction);
 
-    this.constructionOverlay = scene.add.rectangle(w / 2, h / 2, w - 4, h - 4, 0x000000, 0.5);
-    this.constructionOverlay.setVisible(building.constructionEndMs !== null);
-
-    this.add([this.bg, this.label, this.nameText, this.constructionOverlay]);
-
-    this.setSize(w, h);
-    this.setInteractive();
-
+    this.add([shadow, this.boxGfx, icon, nameText, this.constructionOverlay, this.clockText]);
     scene.add.existing(this);
+
+    // World-space silhouette (roof + two front walls) for click hit-testing.
+    const upW = (p: { x: number; y: number }) => ({ x: p.x, y: p.y - BH });
+    this.silhouette = [
+      upW(corners.back), upW(corners.right), corners.right,
+      corners.front, corners.left, upW(corners.left),
+    ];
   }
 
   setUnderConstruction(isUnder: boolean) {
     this.constructionOverlay.setVisible(isUnder);
+    this.clockText.setVisible(isUnder);
   }
 }
