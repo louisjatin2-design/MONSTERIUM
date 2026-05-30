@@ -23,7 +23,7 @@ export class Preload extends Phaser.Scene {
         step++;
         bar.width = Math.floor(296 * step / STEPS);
         if (step >= STEPS) {
-          this.time.delayedCall(200, () => this.scene.start('MainMenu'));
+          this.time.delayedCall(200, () => this.scene.start('Island'));
         }
       },
     });

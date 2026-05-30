@@ -18,7 +18,7 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
   const accumulated = Math.floor(building.goldAccumulated);
 
   return (
-    <div className="panel" style={{ right: 20, top: 70, width: 300, padding: 16 }}>
+    <div className="panel" style={{ right: 20, top: 68, width: 300, padding: 16 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🌾 {def.name}</div>
       <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>

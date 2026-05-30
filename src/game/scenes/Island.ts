@@ -39,7 +39,7 @@ export class Island extends Phaser.Scene {
     const islandDef = ISLAND_DEFS[state.currentIslandId];
     if (!islandDef) return;
 
-    this.cameras.main.setBackgroundColor(0x5fc4e8); // bright sky/sea
+    this.cameras.main.setBackgroundColor(0x4a9e30); // lush green meadow
 
     // Draw isometric tile grid.
     for (let row = 0; row < GRID_ROWS; row++) {

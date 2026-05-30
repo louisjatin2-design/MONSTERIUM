@@ -1,75 +1,104 @@
+/* Monster Legends warm UI palette */
+
+/* Panels */
 .panel {
   position: absolute;
-  background: rgba(10, 10, 30, 0.95);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
+  background: linear-gradient(160deg, #1e0a3c 0%, #120521 100%);
+  border: 2px solid #7744cc;
+  border-radius: 18px;
   color: #ffffff;
-  font-family: 'Segoe UI', sans-serif;
+  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
   pointer-events: auto;
   overflow: auto;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 
 .panel-title {
   font-size: 20px;
-  font-weight: bold;
+  font-weight: 900;
   color: #ffd700;
   margin-bottom: 12px;
-  border-bottom: 1px solid rgba(255,215,0,0.3);
+  border-bottom: 2px solid rgba(255,215,0,0.25);
   padding-bottom: 8px;
+  text-shadow: 0 1px 6px rgba(255,180,0,0.6);
+  letter-spacing: 0.03em;
 }
 
+/* Buttons */
 .btn {
-  padding: 8px 16px;
+  padding: 9px 18px;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: bold;
-  transition: opacity 0.15s;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  transition: filter 0.12s, transform 0.08s;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
 }
-.btn:hover { opacity: 0.85; }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn:hover  { filter: brightness(1.1); }
+.btn:active { transform: translateY(1px); filter: brightness(0.9); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; filter: none; }
 
-.btn-primary { background: #226622; color: #fff; }
-.btn-danger  { background: #662222; color: #fff; }
-.btn-info    { background: #224488; color: #fff; }
-.btn-gold    { background: #886622; color: #fff; }
+.btn-primary { background: linear-gradient(160deg, #44bb44, #228822); color: #fff; border: 2px solid #66dd44; }
+.btn-danger  { background: linear-gradient(160deg, #dd4444, #881111); color: #fff; border: 2px solid #ff7766; }
+.btn-info    { background: linear-gradient(160deg, #4488ee, #2244aa); color: #fff; border: 2px solid #66aaff; }
+.btn-gold    { background: linear-gradient(160deg, #ffd700, #cc8800); color: #3a1a00; border: 2px solid #ffee44; }
+.btn-purple  { background: linear-gradient(160deg, #9944ee, #5522aa); color: #fff; border: 2px solid #cc77ff; }
 
+/* Close button */
 .close-btn {
   position: absolute;
   top: 10px;
   right: 14px;
-  background: none;
-  border: none;
-  color: #aaa;
-  font-size: 22px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
 }
-.close-btn:hover { color: #fff; }
+.close-btn:hover { background: rgba(255,100,100,0.4); border-color: #ff7766; }
 
+/* Rarity badge */
 .rarity-badge {
   display: inline-block;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: bold;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 900;
   margin-left: 4px;
+  letter-spacing: 0.04em;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
 
+/* Monster cards */
 .monster-card {
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 8px;
+  background: rgba(119, 68, 204, 0.15);
+  border: 1px solid rgba(119, 68, 204, 0.4);
+  border-radius: 12px;
   padding: 10px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 .monster-card:hover {
-  background: rgba(255,255,255,0.14);
+  background: rgba(119, 68, 204, 0.3);
+  border-color: rgba(187, 136, 255, 0.7);
 }
 
-.gold-text    { color: #ffd700; }
-.diamond-text { color: #44ddff; }
-.food-text    { color: #88ff44; }
+/* Utility text */
+.gold-text    { color: #ffd700; font-weight: bold; }
+.diamond-text { color: #44ddff; font-weight: bold; }
+.food-text    { color: #ff9966; font-weight: bold; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(119,68,204,0.6); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(187,136,255,0.8); }

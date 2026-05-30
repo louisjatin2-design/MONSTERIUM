@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PhaserGame } from '@ui/PhaserGame';
 import { HUD } from '@ui/components/HUD';
+import { BottomBar } from '@ui/components/BottomBar';
 import { BuildMenu } from '@ui/components/BuildMenu';
 import { HabitatPanel } from '@ui/components/HabitatPanel';
 import { BreedingPanel } from '@ui/components/BreedingPanel';
@@ -31,13 +32,11 @@ export default function App() {
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const tickTimers = useGameStore((s) => s.tickTimers);
 
-  // Timer tick every second
   useEffect(() => {
     const id = setInterval(() => tickTimers(), 1000);
     return () => clearInterval(id);
   }, [tickTimers]);
 
-  // Subscribe to EventBus events from Phaser scenes
   useEffect(() => {
     const onOpenHabitat  = (d: { instanceId: string }) => setActivePanel({ type: 'habitat', instanceId: d.instanceId });
     const onOpenFarm     = (d: { instanceId: string }) => setActivePanel({ type: 'farm', instanceId: d.instanceId });
@@ -78,19 +77,19 @@ export default function App() {
   };
 
   const isBattleActive = activePanel?.type === 'battle';
-  const hasPanelOpen = activePanel !== null && !isBattleActive;
+  const hasPanelOpen   = activePanel !== null && !isBattleActive;
 
   return (
     <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' }}>
       <PhaserGame ref={phaserRef} />
 
-      {/* Backdrop: blocks Phaser input when a panel is open */}
+      {/* Backdrop: dims Phaser when a panel is open */}
       {hasPanelOpen && (
         <div
           style={{
             position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
-            zIndex: 99,
-            background: 'rgba(0,0,0,0.45)',
+            zIndex: 150,
+            background: 'rgba(0,0,0,0.55)',
             pointerEvents: 'auto',
           }}
           onClick={closePanel}
@@ -98,16 +97,25 @@ export default function App() {
         />
       )}
 
-      {/* HUD — lives OUTSIDE the pointer-events:none overlay so iOS properly
-          routes touch events to it without leaking through to the canvas */}
-      <HUD
+      {/* Top HUD — always visible, above backdrop */}
+      <HUD />
+
+      {/* Bottom action bar — always visible, above backdrop */}
+      <BottomBar
+        onAttack={() => setActivePanel({ type: 'story' })}
         onPokedex={() => setActivePanel({ type: 'pokedex' })}
         onStory={() => setActivePanel({ type: 'story' })}
         onShop={() => setActivePanel({ type: 'shop' })}
+        onBreed={() => setActivePanel({ type: 'breeding' })}
+        onHatch={() => setActivePanel({ type: 'hatchery' })}
       />
 
-      {/* Panel overlay — pointer-events: none so empty areas pass through to Phaser */}
-      <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, pointerEvents: 'none', zIndex: 100 }}>
+      {/* Panel overlay — pointer-events:none so empty areas pass through to Phaser */}
+      <div style={{
+        position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
+        pointerEvents: 'none',
+        zIndex: 300,
+      }}>
         {activePanel?.type === 'build' && (
           <BuildMenu
             tileX={activePanel.tileX}

@@ -37,7 +37,7 @@ export function BuildMenu({ tileX, tileY, onClose }: BuildMenuProps) {
 
   return (
     <div className="panel" style={{
-      right: 20, top: 70, width: 360, maxHeight: 'calc(100vh - 100px)',
+      right: 20, top: 68, width: 360, maxHeight: 'calc(100vh - 162px)',
       padding: 16,
     }}>
       <button className="close-btn" onClick={onClose}>✕</button>
