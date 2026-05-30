@@ -169,5 +169,10 @@ export class MonsterSprite extends Phaser.GameObjects.Container {
     this.once(Phaser.GameObjects.Events.DESTROY, () => bob.stop());
 
     scene.add.existing(this);
+
+    // Real rarity aura via post-FX glow (WebGL only; silently skipped on Canvas).
+    if (scene.sys.game.renderer.type === Phaser.WEBGL) {
+      this.postFX.addGlow(ringColor, 4, 0, false, 0.08, 12);
+    }
   }
 }

@@ -40,6 +40,7 @@ export class Island extends Phaser.Scene {
     if (!islandDef) return;
 
     this.cameras.main.setBackgroundColor(0x4a9e30); // lush green meadow
+    this.addSkyBackdrop();
 
     // Draw isometric tile grid.
     for (let row = 0; row < GRID_ROWS; row++) {
@@ -53,6 +54,7 @@ export class Island extends Phaser.Scene {
     // Camera bounds + center on the island.
     this.cameras.main.setBounds(0, 0, CONTENT_W, CONTENT_H);
     this.cameras.main.centerOn(ISLAND_CENTER.x, ISLAND_CENTER.y);
+    this.applyCameraFX();
 
     // Spawn pre-placed buildings + their residents.
     for (const b of Object.values(state.buildings)) {
@@ -96,6 +98,69 @@ export class Island extends Phaser.Scene {
     EventBus.on(GameEvents.START_BATTLE, this.onStartBattle, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.onShutdown());
+  }
+
+  // ---- Visuals / atmosphere --------------------------------------------
+
+  private isWebGL(): boolean {
+    return this.sys.game.renderer.type === Phaser.WEBGL;
+  }
+
+  // A soft sky→horizon→meadow gradient pinned behind the world, plus a
+  // glowing sun that bloom turns into real atmospheric light.
+  private addSkyBackdrop() {
+    const W = this.scale.width, H = this.scale.height;
+
+    const skyKey = 'fx-sky';
+    if (!this.textures.exists(skyKey)) {
+      const tex = this.textures.createCanvas(skyKey, 8, H);
+      const ctx = tex?.getContext();
+      if (ctx) {
+        const grd = ctx.createLinearGradient(0, 0, 0, H);
+        grd.addColorStop(0.0, '#9fd8ff');
+        grd.addColorStop(0.45, '#cdeede');
+        grd.addColorStop(0.7, '#7ecb52');
+        grd.addColorStop(1.0, '#3f8f2c');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, 8, H);
+        tex?.refresh();
+      }
+    }
+    const sky = this.add.image(0, 0, skyKey).setOrigin(0, 0).setScrollFactor(0).setDepth(-1000);
+    sky.setDisplaySize(W, H);
+
+    const sunKey = 'fx-sun';
+    if (!this.textures.exists(sunKey)) {
+      const s = 256;
+      const tex = this.textures.createCanvas(sunKey, s, s);
+      const ctx = tex?.getContext();
+      if (ctx) {
+        const grd = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+        grd.addColorStop(0.0, 'rgba(255,248,214,0.95)');
+        grd.addColorStop(0.35, 'rgba(255,238,170,0.55)');
+        grd.addColorStop(1.0, 'rgba(255,238,170,0)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, s, s);
+        tex?.refresh();
+      }
+    }
+    this.add.image(W * 0.82, H * 0.16, sunKey)
+      .setScrollFactor(0.08).setDepth(-990).setScale(2.2).setAlpha(0.9);
+  }
+
+  // Cinematic post-processing on the main camera (WebGL only — no-op on Canvas).
+  private applyCameraFX() {
+    if (!this.isWebGL()) return;
+    const cam = this.cameras.main;
+    // Warm, slightly punchier color grade.
+    const cm = cam.postFX.addColorMatrix();
+    cm.brightness(1.04);
+    cm.saturate(0.18);
+    cm.contrast(1.06);
+    // Soft bloom for highlights and glows.
+    cam.postFX.addBloom(0xfff4d6, 1, 1, 1.05, 0.9, 6);
+    // Gentle vignette for depth.
+    cam.postFX.addVignette(0.5, 0.5, 0.78, 0.36);
   }
 
   // ---- Input helpers ----------------------------------------------------
