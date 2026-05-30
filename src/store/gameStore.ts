@@ -2,13 +2,14 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type {
-  MonsterInstance, BuildingInstance, Egg, EvolutionStage,
+  MonsterInstance, BuildingInstance, Egg, EvolutionStage, ActiveBreeding,
 } from '@gtypes/game';
 import { MONSTER_DEFS } from '@data/monsters';
 import { BUILDING_DEFS } from '@data/buildings';
-import { RARITY_HATCH_TIME_SEC } from '@data/rarities';
-import { calculateXpToLevel, calculateFeedCost } from '@systems/EconomySystem';
+import { RARITY_HATCH_TIME_SEC, RARITY_BREED_TIME_SEC, RARITY_RANK } from '@data/rarities';
+import { calculateXpToLevel, calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
 import { getUnlockedMoves } from '@systems/ProgressionSystem';
+import { calculateBreedOutcomes, rollBreedOutcome } from '@systems/BreedingSystem';
 
 // Simple uid generator (no external dependency)
 function uid(): string {
@@ -25,6 +26,7 @@ interface GameStoreState {
   monsters: Record<string, MonsterInstance>;
   buildings: Record<string, BuildingInstance>;
   eggs: Egg[];
+  activeBreeding: ActiveBreeding | null;
   unlockedIslands: string[];
   islandFragments: Record<string, number>;
   storyProgress: number;
@@ -49,6 +51,7 @@ interface GameStoreActions {
   // Monsters
   addMonster: (defId: string, isUnique?: boolean, parentIds?: [string, string]) => MonsterInstance;
   feedMonster: (instanceId: string, foodAmount: number) => void;
+  sellMonster: (instanceId: string) => number;
   assignToHabitat: (monsterId: string, habitatId: string) => void;
   removeFromHabitat: (monsterId: string) => void;
   addXpToMonster: (instanceId: string, amount: number) => void;
@@ -60,6 +63,10 @@ interface GameStoreActions {
   addEgg: (monsterDefId: string, hatchTimeOverrideSec?: number, isUnique?: boolean, parentIds?: [string, string]) => void;
   hatchEgg: (eggId: string) => MonsterInstance | null;
   speedUpEgg: (eggId: string) => void;
+  startBreeding: (parent1Id: string, parent2Id: string) => boolean;
+  collectBreedingEgg: () => void;
+  speedUpBreeding: () => void;
+  cancelBreeding: () => void;
 
   // Progression
   addPlayerXp: (amount: number) => void;
@@ -147,6 +154,7 @@ const INITIAL_STATE: GameStoreState = {
     },
   },
   eggs: [],
+  activeBreeding: null,
   unlockedIslands: ['emerald_isle'],
   islandFragments: {},
   storyProgress: 0,
@@ -289,6 +297,26 @@ export const useGameStore = create<GameStore>()(
         });
       },
 
+      sellMonster: (instanceId) => {
+        const monster = get().monsters[instanceId];
+        if (!monster) return 0;
+        const def = MONSTER_DEFS[monster.defId];
+        if (!def) return 0;
+        const value = calculateSellValue(RARITY_RANK[def.rarity], monster.level);
+        set((s) => {
+          const m = s.monsters[instanceId];
+          if (!m) return;
+          // Detach from any habitat first.
+          if (m.habitatId && s.buildings[m.habitatId]) {
+            const hab = s.buildings[m.habitatId];
+            hab.monsterIds = hab.monsterIds.filter(id => id !== instanceId);
+          }
+          delete s.monsters[instanceId];
+          s.gold += value;
+        });
+        return value;
+      },
+
       assignToHabitat: (monsterId, habitatId) => {
         set((s) => {
           const m = s.monsters[monsterId];
@@ -407,6 +435,59 @@ export const useGameStore = create<GameStore>()(
           const e = s.eggs.find(x => x.id === eggId);
           if (e) e.hatchEndMs = Date.now();
         });
+      },
+
+      startBreeding: (parent1Id, parent2Id) => {
+        if (get().activeBreeding) return false;
+        const m1 = get().monsters[parent1Id];
+        const m2 = get().monsters[parent2Id];
+        if (!m1 || !m2 || parent1Id === parent2Id) return false;
+
+        const rel = m1.relationshipScores[parent2Id] ?? 0;
+        const outcomes = calculateBreedOutcomes(m1, m2, rel);
+        if (outcomes.length === 0) return false;
+
+        const resultDefId = rollBreedOutcome(outcomes);
+        const resultIsUnique = outcomes.find(o => o.monsterDefId === resultDefId)?.isHybrid ?? false;
+        const def = MONSTER_DEFS[resultDefId];
+        const breedSec = RARITY_BREED_TIME_SEC[def?.rarity ?? 'Common'] ?? 30;
+        const now = Date.now();
+
+        set((s) => {
+          s.activeBreeding = {
+            parent1Id, parent2Id,
+            startMs: now,
+            endMs: now + breedSec * 1000,
+            outcomes,
+            resultDefId,
+            resultIsUnique,
+          };
+        });
+        // Breeding together deepens the bond between the two parents.
+        get().updateRelationship(parent1Id, parent2Id, 50);
+        return true;
+      },
+
+      collectBreedingEgg: () => {
+        const ab = get().activeBreeding;
+        if (!ab) return;
+        if (Date.now() < ab.endMs) return;
+        if (get().eggs.length >= 5) return;
+        get().addEgg(ab.resultDefId, undefined, ab.resultIsUnique, [ab.parent1Id, ab.parent2Id]);
+        set((s) => { s.activeBreeding = null; });
+      },
+
+      speedUpBreeding: () => {
+        const ab = get().activeBreeding;
+        if (!ab) return;
+        const secondsLeft = Math.max(0, (ab.endMs - Date.now()) / 1000);
+        const diamondCost = Math.ceil(secondsLeft / 60);
+        if (diamondCost > 0 && !get().spendDiamonds(diamondCost)) return;
+        set((s) => { if (s.activeBreeding) s.activeBreeding.endMs = Date.now(); });
+      },
+
+      cancelBreeding: () => {
+        set((s) => { s.activeBreeding = null; });
       },
 
       addPlayerXp: (amount) => {

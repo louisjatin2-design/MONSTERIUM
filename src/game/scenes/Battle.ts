@@ -36,7 +36,10 @@ export class Battle extends Phaser.Scene {
   // UI elements
   private hpBars: Map<string, { bar: Phaser.GameObjects.Rectangle; bg: Phaser.GameObjects.Rectangle }> = new Map();
   private nameLabels: Map<string, Phaser.GameObjects.Text> = new Map();
+  private hpLabels: Map<string, Phaser.GameObjects.Text> = new Map();
+  private cardCenters: Map<string, { x: number; y: number }> = new Map();
   private attackButtons: Phaser.GameObjects.Container[] = [];
+  private detailOverlay: Phaser.GameObjects.Container | null = null;
   private statusText!: Phaser.GameObjects.Text;
   private logText!: Phaser.GameObjects.Text;
 
@@ -97,21 +100,29 @@ export class Battle extends Phaser.Scene {
 
   private drawMonsterCards() {
     const { width, height } = this.scale;
-    const cardW = 120, cardH = 80;
-    const padding = 20;
+    const cardW = 156, cardH = 72;
+    const margin = 16;
+    const leftX = margin + cardW / 2;
+    const rightX = width - margin - cardW / 2;
+    const startY = 90;
+    const gapY = cardH + 22;
 
-    // Enemy row (top)
-    this.enemyCombatants.forEach((c, i) => {
-      const x = padding + cardW / 2 + i * (cardW + padding);
-      const y = 70 + cardH / 2;
-      this.drawCard(c, x, y, cardW, cardH, false);
+    // Column headers
+    this.add.text(leftX, startY - 26, '◀ DEINE MONSTER', {
+      fontSize: '13px', color: '#66ff88', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.add.text(rightX, startY - 26, 'GEGNER ▶', {
+      fontSize: '13px', color: '#ff7777', fontStyle: 'bold',
+    }).setOrigin(0.5);
+
+    // Player column (left)
+    this.playerCombatants.forEach((c, i) => {
+      this.drawCard(c, leftX, startY + i * gapY, cardW, cardH, true);
     });
 
-    // Player row (bottom)
-    this.playerCombatants.forEach((c, i) => {
-      const x = padding + cardW / 2 + i * (cardW + padding);
-      const y = height - 200 - cardH / 2;
-      this.drawCard(c, x, y, cardW, cardH, true);
+    // Enemy column (right)
+    this.enemyCombatants.forEach((c, i) => {
+      this.drawCard(c, rightX, startY + i * gapY, cardW, cardH, false);
     });
   }
 
@@ -119,33 +130,121 @@ export class Battle extends Phaser.Scene {
     const def = MONSTER_DEFS[c.defId];
     if (!def) return;
 
-    const bg = this.add.rectangle(x, y, w, h, isPlayer ? 0x224422 : 0x442222)
-      .setStrokeStyle(2, isPlayer ? 0x44ff44 : 0xff4444);
+    this.cardCenters.set(c.instanceId, { x, y });
 
-    // Name
-    const nameLabel = this.add.text(x, y - h / 2 + 8, c.name, {
-      fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
-    }).setOrigin(0.5, 0);
+    const bg = this.add.rectangle(x, y, w, h, isPlayer ? 0x224422 : 0x442222)
+      .setStrokeStyle(2, isPlayer ? 0x44ff44 : 0xff4444)
+      .setInteractive({ useHandCursor: true });
+    // Tapping a card opens its detail view (level, stats, attacks).
+    bg.on('pointerdown', () => this.showCombatantDetail(c));
+    bg.on('pointerover', () => bg.setStrokeStyle(3, 0xffffff));
+    bg.on('pointerout', () => bg.setStrokeStyle(2, isPlayer ? 0x44ff44 : 0xff4444));
+
+    // Name + level
+    const nameLabel = this.add.text(x - w / 2 + 6, y - h / 2 + 6, c.name, {
+      fontSize: '12px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0, 0);
     this.nameLabels.set(c.instanceId, nameLabel);
 
+    this.add.text(x + w / 2 - 6, y - h / 2 + 6, `Lv ${c.level}`, {
+      fontSize: '11px', color: '#ffd700', fontStyle: 'bold',
+    }).setOrigin(1, 0);
+
+    // Element + tap hint
+    this.add.text(x - w / 2 + 6, y - 2, def.elements.join('/'), {
+      fontSize: '10px', color: '#ffffff',
+      backgroundColor: '#00000066', padding: { x: 3, y: 1 },
+    }).setOrigin(0, 0.5);
+    this.add.text(x + w / 2 - 6, y - 2, 'ℹ️', { fontSize: '11px' }).setOrigin(1, 0.5);
+
     // HP bar background
-    const hpBarBg = this.add.rectangle(x, y + h / 2 - 12, w - 8, 10, 0x330000).setOrigin(0.5);
+    const hpBarBg = this.add.rectangle(x, y + h / 2 - 13, w - 10, 12, 0x330000).setOrigin(0.5);
     // HP bar
-    const hpBar = this.add.rectangle(x - (w - 8) / 2, y + h / 2 - 12, w - 8, 10, 0x44ff44).setOrigin(0, 0.5);
+    const hpBar = this.add.rectangle(x - (w - 10) / 2, y + h / 2 - 13, w - 10, 12, 0x44ff44).setOrigin(0, 0.5);
     this.hpBars.set(c.instanceId, { bar: hpBar, bg: hpBarBg });
 
     // HP text
-    this.add.text(x, y + h / 2 - 12, `${c.currentHp}/${c.maxHp}`, {
-      fontSize: '9px', color: '#ffffff',
+    const hpLabel = this.add.text(x, y + h / 2 - 13, `${c.currentHp}/${c.maxHp}`, {
+      fontSize: '10px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
+    this.hpLabels.set(c.instanceId, hpLabel);
+  }
 
-    // Element indicator
-    this.add.text(x, y, def.elements[0], {
-      fontSize: '10px',
-      color: '#ffffff',
-      backgroundColor: '#00000066',
-      padding: { x: 2, y: 1 },
-    }).setOrigin(0.5);
+  private showCombatantDetail(c: BattleCombatant) {
+    // Close any open detail first.
+    this.detailOverlay?.destroy();
+    this.detailOverlay = null;
+
+    const { width, height } = this.scale;
+    const def = MONSTER_DEFS[c.defId];
+    if (!def) return;
+
+    const panelW = 320, panelH = 360;
+    const cx = width / 2, cy = height / 2;
+
+    // Backdrop (tap to close)
+    const backdrop = this.add.rectangle(cx, cy, width, height, 0x000000, 0.6)
+      .setInteractive();
+    backdrop.on('pointerdown', () => { this.detailOverlay?.destroy(); this.detailOverlay = null; });
+
+    const panel = this.add.rectangle(cx, cy, panelW, panelH, 0x1e0a3c)
+      .setStrokeStyle(2, 0x7744cc);
+
+    const items: Phaser.GameObjects.GameObject[] = [backdrop, panel];
+    let yy = cy - panelH / 2 + 16;
+
+    items.push(this.add.text(cx, yy, `${c.name}`, {
+      fontSize: '20px', color: '#ffd700', fontStyle: 'bold',
+    }).setOrigin(0.5, 0));
+    yy += 28;
+    items.push(this.add.text(cx, yy, `Level ${c.level}  ·  ${def.elements.join(' / ')}  ·  ${def.rarity}`, {
+      fontSize: '12px', color: '#bbbbbb',
+    }).setOrigin(0.5, 0));
+    yy += 26;
+
+    // Stats at this level
+    const statLines: Array<[string, number]> = [
+      ['HP', c.maxHp], ['ATK', c.attackStat],
+      ['DEF', c.defenseStat], ['SPD', c.speedStat],
+    ];
+    items.push(this.add.text(cx - panelW / 2 + 18, yy, 'Werte (auf diesem Level):', {
+      fontSize: '12px', color: '#ffd700', fontStyle: 'bold',
+    }).setOrigin(0, 0));
+    yy += 20;
+    for (const [label, val] of statLines) {
+      items.push(this.add.text(cx - panelW / 2 + 24, yy, `${label}`, {
+        fontSize: '12px', color: '#aaaaaa',
+      }).setOrigin(0, 0));
+      items.push(this.add.text(cx + panelW / 2 - 24, yy, `${val}`, {
+        fontSize: '12px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(1, 0));
+      yy += 18;
+    }
+    yy += 8;
+
+    // Attacks
+    items.push(this.add.text(cx - panelW / 2 + 18, yy, 'Attacken:', {
+      fontSize: '12px', color: '#ffd700', fontStyle: 'bold',
+    }).setOrigin(0, 0));
+    yy += 20;
+    for (const moveId of c.equippedMoveIds) {
+      const move = ATTACKS[moveId];
+      if (!move) continue;
+      items.push(this.add.text(cx - panelW / 2 + 24, yy, move.name, {
+        fontSize: '12px', color: '#ffffff',
+      }).setOrigin(0, 0));
+      items.push(this.add.text(cx + panelW / 2 - 24, yy, `${move.element} · ${move.power}x`, {
+        fontSize: '11px', color: '#aaccff',
+      }).setOrigin(1, 0));
+      yy += 18;
+    }
+
+    yy += 6;
+    items.push(this.add.text(cx, cy + panelH / 2 - 18, 'Tippe irgendwo zum Schließen', {
+      fontSize: '11px', color: '#888888',
+    }).setOrigin(0.5));
+
+    this.detailOverlay = this.add.container(0, 0, items).setDepth(1000);
   }
 
   private updateHpBar(c: BattleCombatant) {
@@ -156,6 +255,8 @@ export class Battle extends Phaser.Scene {
     bars.bar.width = (barBg.width) * ratio;
     const color = ratio > 0.5 ? 0x44ff44 : ratio > 0.25 ? 0xffaa00 : 0xff2200;
     bars.bar.setFillStyle(color);
+    const hpLabel = this.hpLabels.get(c.instanceId);
+    if (hpLabel) hpLabel.setText(`${Math.max(0, c.currentHp)}/${c.maxHp}`);
   }
 
   private startRound() {
@@ -392,22 +493,32 @@ export class Battle extends Phaser.Scene {
   }
 
   private showDamageText(instanceId: string, dmg: number, color: number) {
-    const bars = this.hpBars.get(instanceId);
-    if (!bars) return;
-    const x = bars.bar.x + bars.bar.width;
-    const y = bars.bar.y - 20;
+    const center = this.cardCenters.get(instanceId);
+    if (!center) return;
+    const x = center.x;
+    const y = center.y - 8;
     const txt = this.add.text(x, y, `-${dmg}`, {
-      fontSize: '20px',
+      fontSize: '32px',
       color: '#' + color.toString(16).padStart(6, '0'),
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 3,
-    }).setOrigin(0.5);
+      strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(900);
+    // Pop-and-rise so the damage number is impossible to miss.
+    txt.setScale(0.4);
     this.tweens.add({
       targets: txt,
-      y: y - 40,
+      scale: 1.2,
+      duration: 160,
+      yoyo: true,
+      ease: 'Quad.out',
+    });
+    this.tweens.add({
+      targets: txt,
+      y: y - 55,
       alpha: 0,
-      duration: 800,
+      duration: 1000,
+      ease: 'Quad.in',
       onComplete: () => txt.destroy(),
     });
   }
@@ -421,6 +532,8 @@ export class Battle extends Phaser.Scene {
 
   private endBattle(victory: boolean) {
     this.clearAttackButtons();
+    this.detailOverlay?.destroy();
+    this.detailOverlay = null;
     EventBus.off(GameEvents.MINIGAME_COMPLETE, this.onMinigameResult, this);
 
     const { width, height } = this.scale;

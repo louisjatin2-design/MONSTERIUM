@@ -140,6 +140,7 @@ export interface Egg {
 export interface BattleCombatant {
   instanceId: string;
   defId: string;
+  level: number;
   currentHp: number;
   maxHp: number;
   attackStat: number;
@@ -156,6 +157,18 @@ export interface BreedOutcome {
   monsterDefId: string;
   probability: number;
   isHybrid: boolean;
+}
+
+export interface ActiveBreeding {
+  parent1Id: string;
+  parent2Id: string;
+  startMs: number;
+  endMs: number;
+  // Frozen probability table — shown to the player exactly once per breeding.
+  outcomes: BreedOutcome[];
+  // The actual rolled result, hidden until the egg is collected.
+  resultDefId: string;
+  resultIsUnique: boolean;
 }
 
 export interface StoryBattle {

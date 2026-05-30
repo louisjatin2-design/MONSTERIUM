@@ -25,7 +25,8 @@ function makeFarmLevels(baseGold: number, baseFoodPerHour: number) {
     level: i + 1,
     upgradeCost: Math.floor(baseGold * Math.pow(2, i)),
     upgradeTimeSec: (i + 1) * 120,
-    foodPerHour: Math.floor(baseFoodPerHour * Math.pow(2, i)),
+    // Boosted production so feeding (now far cheaper) stays sustainable.
+    foodPerHour: Math.floor(baseFoodPerHour * Math.pow(2.2, i)),
   }));
 }
 
@@ -135,14 +136,14 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     id: 'farm_basic', name: 'Basic Farm', category: 'Farm',
     tilesW: 2, tilesH: 2,
     goldCost: 300, buildTimeSec: 5,
-    levels: makeFarmLevels(300, 50),
+    levels: makeFarmLevels(300, 120),
     description: 'Produces food slowly. Converts gold to food over time.',
   },
   farm_advanced: {
     id: 'farm_advanced', name: 'Advanced Farm', category: 'Farm',
     tilesW: 2, tilesH: 2,
     goldCost: 1500, buildTimeSec: 60,
-    levels: makeFarmLevels(1500, 200),
+    levels: makeFarmLevels(1500, 400),
     description: 'Produces food quickly. Requires more gold investment.',
   },
   farm_mythic: {

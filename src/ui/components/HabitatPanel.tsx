@@ -4,7 +4,8 @@ import { BUILDING_DEFS } from '@data/buildings';
 import { MONSTER_DEFS } from '@data/monsters';
 import { RARITY_COLORS } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
-import { calculateFeedCost } from '@systems/EconomySystem';
+import { RARITY_RANK } from '@data/rarities';
+import { calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
 import '../styles/global.css';
 
 interface HabitatPanelProps {
@@ -18,6 +19,7 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   const food            = useGameStore(s => s.food);
   const collectGold     = useGameStore(s => s.collectGold);
   const feedMonster     = useGameStore(s => s.feedMonster);
+  const sellMonster     = useGameStore(s => s.sellMonster);
   const assignToHabitat = useGameStore(s => s.assignToHabitat);
   const removeFromHabitat = useGameStore(s => s.removeFromHabitat);
   const monsters = building?.monsterIds.map(id => allMonsters[id]).filter(Boolean) ?? [];
@@ -65,6 +67,7 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
           if (!mDef) return null;
           const feedCost = calculateFeedCost(m.level);
           const canFeed = food >= feedCost;
+          const sellValue = calculateSellValue(RARITY_RANK[mDef.rarity], m.level);
           return (
             <div key={m.instanceId} className="monster-card" style={{ marginBottom: 6 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -74,10 +77,21 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
                     {mDef.rarity}
                   </span>
                 </span>
-                <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: 11 }}
-                  onClick={() => removeFromHabitat(m.instanceId)}>
-                  Remove
-                </button>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="btn btn-gold" style={{ padding: '2px 8px', fontSize: 11 }}
+                    title={`Verkaufen für ${sellValue} Gold`}
+                    onClick={() => {
+                      if (confirm(`${m.name} (Lv ${m.level}) für 🪙 ${sellValue} Gold verkaufen?`)) {
+                        sellMonster(m.instanceId);
+                      }
+                    }}>
+                    Verkaufen 🪙{sellValue}
+                  </button>
+                  <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: 11 }}
+                    onClick={() => removeFromHabitat(m.instanceId)}>
+                    Entfernen
+                  </button>
+                </div>
               </div>
               <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
                 Lv {m.level} · {m.stage} · {mDef.elements.join('/')}
