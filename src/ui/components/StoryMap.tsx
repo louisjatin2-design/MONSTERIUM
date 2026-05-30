@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGameStore } from '@store/gameStore';
-import { STORY_BATTLES } from '@data/storyBattles';
+import { STORY_BATTLES, STORY_INTRO } from '@data/storyBattles';
 import { MONSTER_DEFS, ALL_MONSTER_IDS } from '@data/monsters';
 import { RARITY_RANK } from '@data/rarities';
 import { EventBus, GameEvents } from '@game/EventBus';
@@ -43,7 +43,16 @@ export function StoryMap({ onClose }: StoryMapProps) {
       width: 560, maxHeight: '85vh', padding: 20,
     }}>
       <button className="close-btn" onClick={onClose}>✕</button>
-      <div className="panel-title">⚔️ Story Mode ({storyProgress}/{STORY_BATTLES.length} cleared)</div>
+      <div className="panel-title">⚔️ Story — Der Riss ({storyProgress}/{STORY_BATTLES.length})</div>
+
+      <div style={{
+        fontSize: 12, color: '#bba6e0', fontStyle: 'italic', lineHeight: 1.5,
+        marginBottom: 12, padding: '8px 10px',
+        background: 'rgba(119,68,204,0.12)', borderRadius: 8,
+        border: '1px solid rgba(119,68,204,0.3)',
+      }}>
+        {STORY_INTRO}
+      </div>
 
       <div style={{ overflowY: 'auto', maxHeight: 'calc(85vh - 100px)' }}>
         {STORY_BATTLES.map((battle, i) => {

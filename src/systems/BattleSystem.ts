@@ -110,6 +110,7 @@ export function buildCombatant(
   return {
     instanceId,
     defId,
+    level,
     currentHp: Math.floor(def.baseStats.hp * scalingFactor),
     maxHp: Math.floor(def.baseStats.hp * scalingFactor),
     attackStat: Math.floor(def.baseStats.attack * scalingFactor),

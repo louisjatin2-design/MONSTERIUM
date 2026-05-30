@@ -33,6 +33,20 @@ export const RARITY_HATCH_TIME_SEC: Record<RarityType, number> = {
   Transcendent: 259200,
 };
 
+// How long a pair takes to produce an egg in the Breeding Station (before the
+// egg even moves to the Hatchery). Roughly half the hatch time — rarer combos
+// take longer, just like Monster Legends.
+export const RARITY_BREED_TIME_SEC: Record<RarityType, number> = {
+  Common:       15,
+  Rare:         60,
+  SuperRare:    300,
+  Epic:         900,
+  Legendary:    3600,
+  Elite:        10800,
+  Mythic:       43200,
+  Transcendent: 129600,
+};
+
 export const RARITY_FEED_MULTIPLIER: Record<RarityType, number> = {
   Common:       1.0,
   Rare:         1.5,
