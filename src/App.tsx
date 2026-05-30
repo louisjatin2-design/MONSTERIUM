@@ -73,10 +73,25 @@ export default function App() {
   };
 
   const isBattleActive = activePanel?.type === 'battle';
+  const hasPanelOpen = activePanel !== null && !isBattleActive;
 
   return (
     <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' }}>
       <PhaserGame ref={phaserRef} />
+
+      {/* Backdrop: blocks Phaser input and tab-focus when a panel is open */}
+      {hasPanelOpen && (
+        <div
+          style={{
+            position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
+            zIndex: 99,
+            background: 'rgba(0,0,0,0.45)',
+            pointerEvents: 'auto',
+          }}
+          onClick={closePanel}
+          onKeyDown={e => e.stopPropagation()}
+        />
+      )}
 
       {/* React overlay — pointer-events: none except on active children */}
       <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, pointerEvents: 'none', zIndex: 100 }}>

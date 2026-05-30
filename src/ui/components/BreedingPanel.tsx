@@ -8,7 +8,8 @@ import '../styles/global.css';
 interface BreedingPanelProps { onClose: () => void; }
 
 export function BreedingPanel({ onClose }: BreedingPanelProps) {
-  const monsters = useGameStore(s => Object.values(s.monsters));
+  const monstersRecord = useGameStore(s => s.monsters);
+  const monsters = Object.values(monstersRecord);
   const addEgg = useGameStore(s => s.addEgg);
   const eggs = useGameStore(s => s.eggs);
 
