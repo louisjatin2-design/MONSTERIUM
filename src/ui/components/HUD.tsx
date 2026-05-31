@@ -18,8 +18,19 @@ export function HUD(_props: HUDProps) {
   const playerLevel = useGameStore(s => s.playerLevel);
   const playerXp    = useGameStore(s => s.playerXp);
 
+  const redeemCheatCode = useGameStore(s => s.redeemCheatCode);
+
   const xpToNext  = Math.floor(100 * Math.pow(playerLevel, 1.5));
   const xpPercent = Math.min(100, (playerXp / xpToNext) * 100);
+
+  const openCheatPrompt = () => {
+    const code = window.prompt('Cheat-Code eingeben:');
+    if (code == null) return;
+    const ok = redeemCheatCode(code);
+    window.alert(ok
+      ? '✨ Cheat aktiviert! Unendlich Gold, Diamanten & Futter + alles freigeschaltet!'
+      : '❌ Ungültiger Code.');
+  };
 
   return (
     <div style={{
@@ -59,7 +70,7 @@ export function HUD(_props: HUDProps) {
       </div>
 
       {/* XP bar */}
-      <div style={{ width: 48, flexShrink: 0 }}>
+      <div className="hud-xp" style={{ width: 48, flexShrink: 0 }}>
         <div style={{
           width: '100%', height: 5,
           background: 'rgba(255,255,255,0.15)',
@@ -82,7 +93,7 @@ export function HUD(_props: HUDProps) {
       <ResourcePill icon="💎" value={diamonds} color="#44ddff" />
 
       {/* Trophy */}
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3 }}>
+      <div className="hud-trophy" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3 }}>
         <span style={{ fontSize: 16 }}>🏆</span>
         <span style={{ color: '#ffd700', fontWeight: 900, fontSize: 13 }}>{trophies}</span>
       </div>
@@ -100,15 +111,18 @@ export function HUD(_props: HUDProps) {
           flexShrink: 0,
         }}>🏝️</button>
 
-      {/* Settings */}
-      <button style={{
-        background: 'rgba(255,255,255,0.1)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: 8, color: '#fff', width: 34, height: 34,
-        cursor: 'pointer', fontSize: 18, display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
-      }}>⚙️</button>
+      {/* Settings / cheat code */}
+      <button
+        onClick={openCheatPrompt}
+        title="Einstellungen / Cheat-Code"
+        style={{
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          borderRadius: 8, color: '#fff', width: 34, height: 34,
+          cursor: 'pointer', fontSize: 18, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>⚙️</button>
     </div>
   );
 }
@@ -128,11 +142,12 @@ function ResourcePill({ icon, value, color }: { icon: string; value: number; col
       borderRadius: 12,
       padding: '2px 7px 2px 4px',
       height: 26,
-      flexShrink: 0,
+      flexShrink: 1,
+      minWidth: 52,
     }}>
       <span style={{ fontSize: 14, lineHeight: 1 }}>{icon}</span>
       <span style={{ color, fontWeight: 900, fontSize: 12 }}>{display}</span>
-      <span style={{
+      <span className="hud-resource-btn" style={{
         background: 'rgba(255,255,255,0.2)',
         borderRadius: '50%',
         width: 14, height: 14,

@@ -13,6 +13,57 @@ export function resolveTurnOrder(combatants: BattleCombatant[]): BattleCombatant
     });
 }
 
+/**
+ * Builds a complete turn queue for one meta-round using a speed-budget system.
+ *
+ * Each monster starts with a budget equal to its effective speed. The smallest
+ * budget among all living monsters is the step size. Every iteration, all
+ * monsters whose budget ≥ step act (sorted fastest-first), then have the step
+ * subtracted from their budget. This continues until no monster has budget ≥
+ * step, at which point the meta-round ends.
+ *
+ * Example – speeds [120, 80, 60], step = 60:
+ *   iter 1 → all three act (120, 80, 60), budgets become [60, 20, 0]
+ *   iter 2 → only 120 acts, budget becomes [0, 20, 0]
+ *   → queue: A B C A  (A acts twice, B once, C once)
+ *
+ * Example – speeds [300, 100], step = 100:
+ *   iter 1 → both act [300→200, 100→0]
+ *   iter 2 → only 300 [200→100]
+ *   iter 3 → only 300 [100→0]
+ *   → queue: A B A A  (A acts 3×, B acts 1×)
+ */
+export function buildTurnQueue(combatants: BattleCombatant[]): BattleCombatant[] {
+  const alive = combatants.filter(c => c.currentHp > 0);
+  if (alive.length === 0) return [];
+
+  const speedOf = new Map<string, number>();
+  for (const c of alive) speedOf.set(c.instanceId, getEffectiveSpeed(c));
+
+  const minSpeed = Math.min(...speedOf.values());
+  if (minSpeed <= 0) return [...alive]; // safety fallback
+
+  const budget = new Map<string, number>([...speedOf]);
+  const queue: BattleCombatant[] = [];
+  const MAX_TURNS = alive.length * 8; // hard cap to prevent infinite loops
+
+  while (queue.length < MAX_TURNS) {
+    // Collect monsters that can still act this meta-round
+    const acting = alive
+      .filter(c => (budget.get(c.instanceId) ?? 0) >= minSpeed)
+      .sort((a, b) => (budget.get(b.instanceId) ?? 0) - (budget.get(a.instanceId) ?? 0));
+
+    if (acting.length === 0) break;
+
+    for (const c of acting) {
+      queue.push(c);
+      budget.set(c.instanceId, (budget.get(c.instanceId) ?? 0) - minSpeed);
+    }
+  }
+
+  return queue;
+}
+
 function getEffectiveSpeed(c: BattleCombatant): number {
   let spd = c.speedStat;
   if (c.trait === 'Swift') spd = Math.floor(spd * 1.2);
@@ -89,6 +140,10 @@ export function processStatusTick(combatant: BattleCombatant): number {
   return dotDamage;
 }
 
+export function gainUltCharge(c: BattleCombatant, damageDealt: number): void {
+  c.ultCharge = Math.min(100, c.ultCharge + Math.floor(damageDealt * 0.22));
+}
+
 export function generateAiAttack(
   equippedMoves: string[]
 ): { moveId: string; accuracy: number } {
@@ -121,5 +176,6 @@ export function buildCombatant(
     isPlayer,
     equippedMoveIds,
     name,
+    ultCharge: 0,
   };
 }

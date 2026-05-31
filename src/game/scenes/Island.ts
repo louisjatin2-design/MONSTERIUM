@@ -9,7 +9,7 @@ import { MonsterSprite } from '@game/objects/MonsterSprite';
 import { EggSprite } from '@game/objects/EggSprite';
 import {
   project, worldToGrid, pointInPolygon, footprintCorners,
-  GRID_COLS, GRID_ROWS, CONTENT_W, CONTENT_H, ISLAND_CENTER, TILE_W, TILE_H,
+  GRID_COLS, GRID_ROWS, CONTENT_W, CONTENT_H, ISLAND_CENTER, TILE_W, TILE_H, LAND_THICK,
 } from '@game/iso';
 import type { BuildingInstance } from '@gtypes/game';
 
@@ -49,8 +49,11 @@ export class Island extends Phaser.Scene {
     const islandDef = ISLAND_DEFS[state.currentIslandId];
     if (!islandDef) return;
 
-    this.cameras.main.setBackgroundColor(0x4a9e30); // lush green meadow
+    this.cameras.main.setBackgroundColor(0x5ab4e0); // aerial sky
     this.addSkyBackdrop();
+
+    // Unified organic landmass (rock cliff) drawn under all the grass tops.
+    this.drawLandmass(islandDef.tileMask);
 
     // Draw isometric tile grid.
     for (let row = 0; row < GRID_ROWS; row++) {
@@ -135,29 +138,145 @@ export class Island extends Phaser.Scene {
     return this.sys.game.renderer.type === Phaser.WEBGL;
   }
 
-  // A soft sky→horizon→meadow gradient pinned behind the world, plus a
-  // glowing sun that bloom turns into real atmospheric light.
+  // Draws the whole island underside as ONE continuous rocky cliff, so the
+  // perimeter reads as an organic floating rock instead of stacked diamonds.
+  // The bottom edge is irregular and a few hanging boulders break the line.
+  private drawLandmass(mask: boolean[][]) {
+    const g = this.add.graphics();
+    g.setDepth(-100); // above the sky, below every grass top (depth >= 0)
+
+    const isLand = (c: number, r: number) =>
+      r >= 0 && r < GRID_ROWS && c >= 0 && c < GRID_COLS && !!mask[r]?.[c];
+
+    // Deterministic pseudo-random so the cliff is stable between frames.
+    const rnd = (a: number, b: number) => {
+      const x = Math.sin(a * 91.7 + b * 47.3) * 43758.5453;
+      return x - Math.floor(x);
+    };
+
+    // 8 vertical rock bands: earthy dirt at the top → dark stone at the base.
+    const BANDS = [0xb88848, 0xa67838, 0x8f632e, 0x785024, 0x60401c, 0x4a3014, 0x36220e, 0x241608];
+    const N = BANDS.length;
+
+    type Cell = { col: number; row: number; cx: number; cy: number; thick: number; front: boolean };
+    const cells: Cell[] = [];
+
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLS; col++) {
+        if (!isLand(col, row)) continue;
+        // A tile shows cliff only if the tile diagonally in front (col+1,row+1)
+        // is open air. Those front-edge tiles get extra, irregular depth.
+        const frontOpen = !isLand(col + 1, row + 1);
+        const sideOpen  = !isLand(col + 1, row) || !isLand(col, row + 1);
+        const front = frontOpen || sideOpen;
+        const extra = front ? 18 + rnd(col, row) * 34 : 4;
+        const c = project(col + 0.5, row + 0.5);
+        cells.push({ col, row, cx: c.x, cy: c.y, thick: LAND_THICK + extra, front });
+      }
+    }
+
+    // Render back-to-front so nearer cliffs overlap farther ones cleanly.
+    cells.sort((a, b) => (a.col + a.row) - (b.col + b.row));
+
+    for (const cell of cells) {
+      const left  = { x: cell.cx - TILE_W / 2, y: cell.cy };
+      const front = { x: cell.cx,              y: cell.cy + TILE_H / 2 };
+      const right = { x: cell.cx + TILE_W / 2, y: cell.cy };
+
+      for (let k = 0; k < N; k++) {
+        const y0 = (k       / N) * cell.thick;
+        const y1 = ((k + 1) / N) * cell.thick;
+        g.fillStyle(BANDS[k], 1);
+        g.fillPoints([
+          { x: left.x,  y: left.y  + y0 },
+          { x: front.x, y: front.y + y0 },
+          { x: right.x, y: right.y + y0 },
+          { x: right.x, y: right.y + y1 },
+          { x: front.x, y: front.y + y1 },
+          { x: left.x,  y: left.y  + y1 },
+        ], true);
+      }
+
+      // Front-edge detailing: cracks, shadow streaks and a hanging boulder.
+      if (cell.front) {
+        // Vertical crack
+        if (rnd(cell.row, cell.col) > 0.5) {
+          g.lineStyle(1.5, 0x140c06, 0.4);
+          const fx = front.x + (rnd(cell.col, cell.row) - 0.5) * TILE_W * 0.4;
+          g.beginPath();
+          g.moveTo(fx, front.y + cell.thick * 0.15);
+          g.lineTo(fx + (rnd(cell.col, 7) - 0.5) * 8, front.y + cell.thick * 0.8);
+          g.strokePath();
+        }
+        // A chunky hanging boulder below the front point, breaking the base line.
+        if (rnd(cell.col * 2, cell.row) > 0.55) {
+          const bx = front.x + (rnd(cell.row, cell.col * 3) - 0.5) * TILE_W * 0.35;
+          const by = front.y + cell.thick;
+          const bw = 10 + rnd(cell.col, cell.row * 2) * 14;
+          const bh = 14 + rnd(cell.row * 3, cell.col) * 26;
+          g.fillStyle(0x241608, 1);
+          g.fillPoints([
+            { x: bx - bw / 2, y: by - 4 },
+            { x: bx + bw / 2, y: by - 4 },
+            { x: bx + bw * 0.28, y: by + bh * 0.6 },
+            { x: bx, y: by + bh },
+            { x: bx - bw * 0.3, y: by + bh * 0.55 },
+          ], true);
+          g.fillStyle(0x36220e, 0.7);
+          g.fillEllipse(bx - bw * 0.12, by + bh * 0.18, bw * 0.5, bh * 0.4);
+        }
+      }
+    }
+
+    // Soft drop-shadow puff far below the island, grounding it in the sky.
+    const shKey = 'fx-island-shadow';
+    if (!this.textures.exists(shKey)) {
+      const w = 360, h = 120;
+      const tex = this.textures.createCanvas(shKey, w, h);
+      const ctx = tex?.getContext();
+      if (ctx) {
+        const grd = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+        grd.addColorStop(0.0, 'rgba(20,40,70,0.30)');
+        grd.addColorStop(1.0, 'rgba(20,40,70,0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        tex?.refresh();
+      }
+    }
+    const sc = project(GRID_COLS / 2, GRID_ROWS / 2 + 4);
+    this.add.image(sc.x, sc.y + LAND_THICK + 80, shKey)
+      .setDepth(-200).setScale(2.4, 1.6).setAlpha(0.8);
+  }
+
+  // Floating-island sky: deep blue overhead, lighter at the horizon, clouds
+  // drifting both above and below the island mass.
   private addSkyBackdrop() {
     const W = this.scale.width, H = this.scale.height;
 
-    const skyKey = 'fx-sky';
+    // Full aerial-sky gradient — no meadow, no ground, only sky.
+    const skyKey = 'fx-sky-float';
     if (!this.textures.exists(skyKey)) {
       const tex = this.textures.createCanvas(skyKey, 8, H);
       const ctx = tex?.getContext();
       if (ctx) {
         const grd = ctx.createLinearGradient(0, 0, 0, H);
-        grd.addColorStop(0.0, '#9fd8ff');
-        grd.addColorStop(0.45, '#cdeede');
-        grd.addColorStop(0.7, '#7ecb52');
-        grd.addColorStop(1.0, '#3f8f2c');
+        grd.addColorStop(0.00, '#0d2a5e');
+        grd.addColorStop(0.22, '#1e5aa0');
+        grd.addColorStop(0.50, '#4a9fd8');
+        grd.addColorStop(0.80, '#90cce8');
+        grd.addColorStop(1.00, '#c8e8f8');
         ctx.fillStyle = grd;
         ctx.fillRect(0, 0, 8, H);
         tex?.refresh();
       }
     }
-    const sky = this.add.image(0, 0, skyKey).setOrigin(0, 0).setScrollFactor(0).setDepth(-1000);
-    sky.setDisplaySize(W, H);
+    this.add.image(0, 0, skyKey)
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(-1000)
+      .setDisplaySize(W, H);
 
+    // Glowing sun near top-right.
     const sunKey = 'fx-sun';
     if (!this.textures.exists(sunKey)) {
       const s = 256;
@@ -165,32 +284,190 @@ export class Island extends Phaser.Scene {
       const ctx = tex?.getContext();
       if (ctx) {
         const grd = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-        grd.addColorStop(0.0, 'rgba(255,248,214,0.95)');
-        grd.addColorStop(0.35, 'rgba(255,238,170,0.55)');
-        grd.addColorStop(1.0, 'rgba(255,238,170,0)');
+        grd.addColorStop(0.00, 'rgba(255,248,214,0.95)');
+        grd.addColorStop(0.35, 'rgba(255,235,160,0.55)');
+        grd.addColorStop(1.00, 'rgba(255,235,160,0)');
         ctx.fillStyle = grd;
         ctx.fillRect(0, 0, s, s);
         tex?.refresh();
       }
     }
-    this.add.image(W * 0.82, H * 0.16, sunKey)
-      .setScrollFactor(0.08).setDepth(-990).setScale(2.2).setAlpha(0.9);
+    this.add.image(W * 0.82, H * 0.12, sunKey)
+      .setScrollFactor(0).setDepth(-990).setScale(2.6).setAlpha(0.88);
+
+    // Drifting clouds above and below the island.
+    this.addClouds(W, H);
+
+    // Soft misty haze at the very bottom — horizon atmosphere.
+    const hazeKey = 'fx-haze-float';
+    if (!this.textures.exists(hazeKey)) {
+      const tex = this.textures.createCanvas(hazeKey, 8, 140);
+      const ctx = tex?.getContext();
+      if (ctx) {
+        const grd = ctx.createLinearGradient(0, 0, 0, 140);
+        grd.addColorStop(0.0, 'rgba(180,220,248,0)');
+        grd.addColorStop(1.0, 'rgba(200,232,252,0.45)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, 8, 140);
+        tex?.refresh();
+      }
+    }
+    this.add.image(0, H * 0.62, hazeKey)
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(-960)
+      .setDisplaySize(W, H * 0.38);
+
+    // Subtle overall darkness overlay (no shaders needed).
+    this.add.rectangle(0, 0, W, H, 0x0a0a18, 0.22)
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(9000);
   }
 
-  // Cinematic post-processing on the main camera (WebGL only — no-op on Canvas).
+  // Realistic canvas-texture clouds using layered radial gradients.
+  // Three shape variants are baked once and reused at different scales.
+  private addClouds(W: number, H: number) {
+    // Bake cloud textures once (guarded by exists check).
+    this.bakeCloudTexture('cld-a', 360, 180, 0); // classic puffy cumulus
+    this.bakeCloudTexture('cld-b', 280, 140, 1); // wide flat cloud bank
+    this.bakeCloudTexture('cld-c', 220, 120, 2); // tall billowing tower
+
+    // Thin high-altitude cirrus streaks (separate horizontal stripes).
+    this.bakeCirrusTexture('cld-ci', 420, 60);
+
+    const groups: { sx: number; sy: number; key: string; sc: number; al: number; depth: number; dur: number }[] = [
+      // High cumulus — above the island
+      { sx: W * 0.04, sy: H * 0.09, key: 'cld-a', sc: 1.05, al: 0.88, depth: -870, dur: 84000 },
+      { sx: W * 0.40, sy: H * 0.06, key: 'cld-c', sc: 0.80, al: 0.75, depth: -876, dur: 61000 },
+      { sx: W * 0.76, sy: H * 0.17, key: 'cld-b', sc: 0.90, al: 0.80, depth: -882, dur: 73000 },
+      // Cirrus high up — very light streaks
+      { sx: W * 0.20, sy: H * 0.04, key: 'cld-ci', sc: 1.30, al: 0.45, depth: -895, dur: 110000 },
+      { sx: W * 0.65, sy: H * 0.02, key: 'cld-ci', sc: 0.90, al: 0.38, depth: -898, dur: 130000 },
+      // Low cumulus — below the island (sells the floating feel)
+      { sx: W * 0.10, sy: H * 0.71, key: 'cld-a', sc: 1.50, al: 0.70, depth: -848, dur: 96000 },
+      { sx: W * 0.50, sy: H * 0.79, key: 'cld-b', sc: 1.20, al: 0.65, depth: -853, dur: 70000 },
+      { sx: W * 0.80, sy: H * 0.67, key: 'cld-c', sc: 0.95, al: 0.72, depth: -857, dur: 80000 },
+    ];
+
+    for (const d of groups) {
+      const img = this.add.image(d.sx, d.sy, d.key);
+      img.setScrollFactor(0).setDepth(d.depth).setScale(d.sc).setAlpha(d.al);
+
+      const drift = () => {
+        this.tweens.add({
+          targets: img,
+          x: img.x + W + 500,
+          duration: d.dur * (0.88 + Math.random() * 0.24),
+          ease: 'Linear',
+          onComplete: () => {
+            img.x = -img.displayWidth - 30;
+            drift();
+          },
+        });
+      };
+      drift();
+    }
+  }
+
+  // Bakes a cumulus cloud as a canvas texture using layered radial gradients.
+  // Each variant has a different puff layout; all share the same rendering logic.
+  private bakeCloudTexture(key: string, w: number, h: number, variant: number) {
+    if (this.textures.exists(key)) return;
+    const tex = this.textures.createCanvas(key, w, h);
+    const ctx = tex?.getContext();
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Puff definitions: [cx%, cy%, radius%] — all relative to texture size.
+    const puffSets = [
+      // variant 0 — classic puffy cumulus
+      [
+        [0.50, 0.44, 0.30], [0.30, 0.54, 0.24], [0.70, 0.51, 0.23],
+        [0.16, 0.64, 0.18], [0.84, 0.62, 0.17], [0.42, 0.31, 0.21],
+        [0.60, 0.34, 0.19], [0.06, 0.73, 0.13], [0.94, 0.71, 0.11],
+        [0.50, 0.20, 0.15],
+      ],
+      // variant 1 — wide flat cloud bank
+      [
+        [0.50, 0.55, 0.27], [0.24, 0.58, 0.23], [0.76, 0.55, 0.25],
+        [0.08, 0.65, 0.18], [0.92, 0.63, 0.17], [0.38, 0.44, 0.19],
+        [0.62, 0.46, 0.18], [0.50, 0.36, 0.14],
+      ],
+      // variant 2 — tall billowing tower
+      [
+        [0.50, 0.32, 0.33], [0.34, 0.50, 0.26], [0.66, 0.48, 0.24],
+        [0.20, 0.63, 0.20], [0.80, 0.61, 0.18], [0.50, 0.18, 0.22],
+        [0.38, 0.26, 0.17], [0.62, 0.28, 0.16], [0.50, 0.08, 0.14],
+      ],
+    ];
+
+    const puffs = puffSets[Math.min(variant, puffSets.length - 1)];
+    const dim = Math.min(w, h);
+
+    for (const [fpx, fpy, fpr] of puffs) {
+      const px = fpx * w, py = fpy * h, pr = fpr * dim;
+      // Brighter towards the top (sunlit), slightly blue-white.
+      const topness  = 1 - fpy;           // 1 at top, 0 at bottom
+      const bright   = Math.round(215 + topness * 40);   // 215–255
+      const blueShift = Math.round(topness * 12);
+
+      const grad = ctx.createRadialGradient(px, py - pr * 0.15, 0, px, py, pr);
+      grad.addColorStop(0.00, `rgba(${bright},${bright},${Math.min(255, bright + blueShift)}, 0.92)`);
+      grad.addColorStop(0.45, `rgba(${bright - 18},${bright - 18},${Math.min(255, bright - 6)}, 0.62)`);
+      grad.addColorStop(0.80, `rgba(200,215,235, 0.22)`);
+      grad.addColorStop(1.00, `rgba(190,210,230, 0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(px, py, pr, pr * 0.88, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Blue-grey shadow cast on the flat underside.
+    const shadowGrad = ctx.createLinearGradient(0, h * 0.48, 0, h * 0.92);
+    shadowGrad.addColorStop(0.0, 'rgba(110,145,185, 0)');
+    shadowGrad.addColorStop(1.0, 'rgba( 90,125,170, 0.32)');
+    ctx.fillStyle = shadowGrad;
+    ctx.fillRect(0, h * 0.48, w, h * 0.52);
+
+    // Thin bright highlight along the very top.
+    const hiliteGrad = ctx.createLinearGradient(0, 0, 0, h * 0.22);
+    hiliteGrad.addColorStop(0.0, 'rgba(255,255,255, 0.28)');
+    hiliteGrad.addColorStop(1.0, 'rgba(255,255,255, 0)');
+    ctx.fillStyle = hiliteGrad;
+    ctx.fillRect(0, 0, w, h * 0.22);
+
+    tex?.refresh();
+  }
+
+  // Thin wispy cirrus streaks — horizontal gradient bands, very transparent.
+  private bakeCirrusTexture(key: string, w: number, h: number) {
+    if (this.textures.exists(key)) return;
+    const tex = this.textures.createCanvas(key, w, h);
+    const ctx = tex?.getContext();
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Two offset horizontal streaks.
+    const streaks = [
+      { y: 0.30, thickness: 0.28 },
+      { y: 0.68, thickness: 0.18 },
+    ];
+    for (const s of streaks) {
+      const cy = s.y * h, halfH = (s.thickness / 2) * h;
+      const grad = ctx.createRadialGradient(w * 0.5, cy, 0, w * 0.5, cy, w * 0.52);
+      grad.addColorStop(0.0,  'rgba(240,248,255, 0.55)');
+      grad.addColorStop(0.55, 'rgba(230,242,255, 0.25)');
+      grad.addColorStop(1.0,  'rgba(220,238,255, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, cy - halfH, w, halfH * 2);
+    }
+
+    tex?.refresh();
+  }
+
+  // World post-processing removed — it washed out shapes. We rely on
+  // high-contrast colours and strong outlines in the sprites instead.
   private applyCameraFX() {
-    if (!this.isWebGL()) return;
-    const cam = this.cameras.main;
-    // Punchy, high-contrast color grade so shapes read clearly.
-    const cm = cam.postFX.addColorMatrix();
-    cm.brightness(1.06);
-    cm.saturate(0.28);
-    cm.contrast(1.22);
-    // Restrained bloom: only the brightest highlights/glows, so it doesn't
-    // wash out building edges.
-    cam.postFX.addBloom(0xffffff, 1, 1, 0.55, 1.4, 4);
-    // Very light vignette so the corners/edges stay readable.
-    cam.postFX.addVignette(0.5, 0.5, 0.92, 0.18);
+    /* intentionally empty: no camera-wide shaders */
   }
 
   // Render every OTHER island as a dimmed neighbour to the right of the active

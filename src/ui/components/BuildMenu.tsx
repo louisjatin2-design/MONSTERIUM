@@ -39,10 +39,7 @@ export function BuildMenu({ tileX, tileY, onClose, onStartPlacement }: BuildMenu
   };
 
   return (
-    <div className="panel" style={{
-      right: 20, top: 68, width: 360, maxHeight: 'calc(100vh - 162px)',
-      padding: 16,
-    }}>
+    <div className="panel panel-side panel-side-narrow" style={{ padding: 16 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🏗️ Build Menu</div>
       <div style={{ fontSize: 12, color: '#aaa', marginBottom: 12 }}>

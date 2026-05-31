@@ -26,10 +26,7 @@ export function Pokedex({ onClose }: PokedexProps) {
   }
 
   return (
-    <div className="panel" style={{
-      left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-      width: 600, maxHeight: '85vh', padding: 20,
-    }}>
+    <div className="panel panel-modal panel-w-xl" style={{ padding: 20 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">📖 Pokédex ({pokedexSeen.length}/{ALL_MONSTER_IDS.length} discovered)</div>
 
@@ -44,8 +41,8 @@ export function Pokedex({ onClose }: PokedexProps) {
       />
 
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 8, overflowY: 'auto', maxHeight: 'calc(85vh - 160px)',
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))',
+        gap: 8, overflowY: 'auto', maxHeight: 'calc(min(88vh, 100vh - 150px) - 160px)',
       }}>
         {filtered.map(id => {
           const def = MONSTER_DEFS[id];

@@ -1,18 +1,18 @@
 import Phaser from 'phaser';
-import { project, tileDepth, TILE_W, TILE_H, LAND_THICK, WATER_THICK } from '@game/iso';
+import { project, tileDepth, TILE_W, TILE_H } from '@game/iso';
 
-// Cartoon palette — bright, saturated, with a thick darker outline.
-const LAND_TOP        = 0x7ec850;
-const LAND_TOP_ALT    = 0x86d05a; // checkerboard variation
-const LAND_HOVER      = 0xa6e878;
-const LAND_SIDE_LEFT  = 0xb07a48;
-const LAND_SIDE_RIGHT = 0x8a5c33;
-const LAND_OUTLINE    = 0x4f8a32;
+// Organic grass palette — several close greens picked pseudo-randomly per
+// tile so the surface reads as natural turf rather than a checkerboard.
+const GRASS = [0x76c24a, 0x7ec850, 0x84d058, 0x70bc44, 0x88d460];
+const GRASS_DARK  = 0x5ea63a; // shaded dips
+const GRASS_LIGHT = 0x9ade6e; // sunlit patches
+const LAND_HOVER  = 0xb4f088;
 
-const WATER_TOP       = 0x4aa6e8;
-const WATER_TOP_ALT   = 0x54b0f0;
-const WATER_SIDE      = 0x2f7cc0;
-const WATER_OUTLINE   = 0x2d7fc0;
+// Deterministic pseudo-random in [0,1) from two ints.
+function hash2(a: number, b: number): number {
+  const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
 
 export class GridTile {
   isLand: boolean;
@@ -22,6 +22,7 @@ export class GridTile {
   private cx: number;
   private cy: number;
   private hovering = false;
+  private baseColor: number;
 
   constructor(scene: Phaser.Scene, tileX: number, tileY: number, isLand: boolean) {
     this.tileX = tileX;
@@ -32,64 +33,49 @@ export class GridTile {
     this.cx = c.x;
     this.cy = c.y;
 
+    // Pick an organic grass shade for this tile.
+    const r = hash2(tileX, tileY);
+    if (r < 0.12) this.baseColor = GRASS_DARK;
+    else if (r > 0.88) this.baseColor = GRASS_LIGHT;
+    else this.baseColor = GRASS[Math.floor(hash2(tileY, tileX) * GRASS.length) % GRASS.length];
+
     this.gfx = scene.add.graphics();
+    // Grass tops sit above the unified landmass cliff (drawn by the scene).
     this.gfx.setDepth(tileDepth(tileX, tileY));
-    this.draw();
+
+    // Water tiles are invisible — open sky shows through around the island.
+    if (isLand) this.draw();
   }
 
   private topPoints() {
     const { cx, cy } = this;
     return [
-      { x: cx,             y: cy - TILE_H / 2 },
-      { x: cx + TILE_W / 2, y: cy },
-      { x: cx,             y: cy + TILE_H / 2 },
-      { x: cx - TILE_W / 2, y: cy },
+      { x: cx,              y: cy - TILE_H / 2 }, // back
+      { x: cx + TILE_W / 2, y: cy },              // right
+      { x: cx,              y: cy + TILE_H / 2 }, // front
+      { x: cx - TILE_W / 2, y: cy },              // left
     ];
   }
 
   private draw() {
     const g = this.gfx;
     g.clear();
-
-    const thick = this.isLand ? LAND_THICK : WATER_THICK;
-    const checker = (this.tileX + this.tileY) % 2 === 0;
+    if (!this.isLand) return;
 
     const top = this.topPoints();
-    const bottom = top[2];   // front corner
-    const left = top[3];
-    const right = top[1];
-
-    // Side faces (give the tile a 3D "block" thickness).
-    const leftSidePts = [
-      left,
-      bottom,
-      { x: bottom.x, y: bottom.y + thick },
-      { x: left.x,   y: left.y + thick },
-    ];
-    const rightSidePts = [
-      right,
-      bottom,
-      { x: bottom.x, y: bottom.y + thick },
-      { x: right.x,  y: right.y + thick },
-    ];
-
-    g.fillStyle(this.isLand ? LAND_SIDE_LEFT : WATER_SIDE, 1);
-    g.fillPoints(leftSidePts, true);
-    g.fillStyle(this.isLand ? LAND_SIDE_RIGHT : WATER_SIDE, 1);
-    g.fillPoints(rightSidePts, true);
-
-    // Top face.
-    let topColor: number;
-    if (this.hovering && this.isLand) topColor = LAND_HOVER;
-    else if (this.isLand) topColor = checker ? LAND_TOP : LAND_TOP_ALT;
-    else topColor = checker ? WATER_TOP : WATER_TOP_ALT;
-
-    g.fillStyle(topColor, 1);
+    g.fillStyle(this.hovering ? LAND_HOVER : this.baseColor, 1);
     g.fillPoints(top, true);
 
-    // Cartoon outline on the top diamond.
-    g.lineStyle(1.5, this.isLand ? LAND_OUTLINE : WATER_OUTLINE, 0.85);
-    g.strokePoints(top, true, true);
+    // Faint same-hue speckles for texture (no hard grid lines).
+    if (!this.hovering) {
+      const r = hash2(this.tileX * 3.3, this.tileY * 1.7);
+      if (r > 0.55) {
+        g.fillStyle(r > 0.8 ? GRASS_LIGHT : GRASS_DARK, 0.35);
+        const sx = this.cx + (hash2(this.tileX, this.tileY * 2) - 0.5) * TILE_W * 0.4;
+        const sy = this.cy + (hash2(this.tileX * 2, this.tileY) - 0.5) * TILE_H * 0.4;
+        g.fillEllipse(sx, sy, 12, 6);
+      }
+    }
   }
 
   highlight() {

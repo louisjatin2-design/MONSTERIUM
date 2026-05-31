@@ -30,17 +30,14 @@ export function IslandsPanel({ onClose }: IslandsPanelProps) {
   };
 
   return (
-    <div className="panel" style={{
-      left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-      width: 460, maxHeight: '85vh', padding: 20,
-    }}>
+    <div className="panel panel-modal panel-w-md" style={{ padding: 20 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🏝️ Inseln</div>
       <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
         Gold: <span className="gold-text">🪙 {gold}</span>
       </div>
 
-      <div style={{ overflowY: 'auto', maxHeight: 'calc(85vh - 120px)' }}>
+      <div style={{ overflowY: 'auto', maxHeight: 'calc(min(88vh, 100vh - 150px) - 120px)' }}>
         {islands.map(island => {
           const isUnlocked = unlocked.includes(island.id);
           const isCurrent = island.id === currentId;

@@ -75,8 +75,8 @@ function BarButton({
       onPointerUp={() => { setPressed(false); onClick(); }}
       onPointerLeave={() => setPressed(false)}
       style={{
-        width: 66,
-        height: 68,
+        width: 'clamp(46px, calc((100vw - 16px) / 6), 66px)',
+        height: 'clamp(48px, calc((100vw - 16px) / 6 + 2px), 68px)',
         border: `2px solid ${border}`,
         borderRadius: 14,
         background: pressed
@@ -96,11 +96,12 @@ function BarButton({
         padding: 0,
         userSelect: 'none',
         touchAction: 'manipulation',
+        flexShrink: 0,
       }}
     >
-      <span style={{ fontSize: 24, lineHeight: 1 }}>{icon}</span>
+      <span style={{ fontSize: 'clamp(16px, calc((100vw - 16px) / 6 * 0.38), 24px)', lineHeight: 1 }}>{icon}</span>
       <span style={{
-        fontSize: 9,
+        fontSize: 'clamp(7px, 1.8vw, 9px)',
         fontWeight: 900,
         color: '#fff',
         letterSpacing: '0.04em',
