@@ -203,7 +203,7 @@ export default function App() {
           <StoryMap onClose={closePanel} />
         )}
         {activePanel?.type === 'shop' && (
-          <ShopPanel onClose={closePanel} />
+          <ShopPanel onClose={closePanel} onStartPlacement={() => setActivePanel(null)} />
         )}
         {activePanel?.type === 'islands' && (
           <IslandsPanel onClose={closePanel} />

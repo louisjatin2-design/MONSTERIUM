@@ -42,6 +42,12 @@ export class Island extends Phaser.Scene {
   private hoverCol = -1;
   private hoverRow = -1;
 
+  // 2D top-down build overlay (shown only while placing a building).
+  private buildOverlay?: Phaser.GameObjects.Container;
+  private buildOverlayCells: Phaser.GameObjects.Rectangle[][] = [];
+  private readonly BUILD_CELL = 30; // px per grid cell in the flat 2D view
+  private suppressTapUntil = 0;     // ignore iso taps briefly after a 2D placement
+
   constructor() { super('Island'); }
 
   create() {
@@ -103,6 +109,10 @@ export class Island extends Phaser.Scene {
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
       this.isDragging = false;
       if (this.dragMoved) return; // it was a pan, not a tap
+      // While the 2D build overlay is up (or just handled a placement), the
+      // overlay's own rectangles own all clicks — ignore the iso-layer tap so
+      // we don't double-place or select a building underneath.
+      if (this.placementMode || Date.now() < this.suppressTapUntil) return;
       this.handleTap(p);
     });
 
@@ -788,6 +798,8 @@ export class Island extends Phaser.Scene {
     this.placementMode = true;
     this.placementDefId = data.defId;
     this.input.keyboard?.once('keydown-ESC', () => this.exitPlacementMode());
+    // Switch to a flat 2D grid view for clear, precise placement.
+    this.showBuildOverlay();
   };
 
   private onPanelClosed = () => {
@@ -809,6 +821,125 @@ export class Island extends Phaser.Scene {
     this.placementDefId = '';
     this.placementHighlight?.destroy();
     this.placementHighlight = undefined;
+    this.hideBuildOverlay();
+  }
+
+  // ---- 2D top-down build overlay ----------------------------------------
+  // Rendered as a screen-fixed container so it sits flat over the iso world,
+  // giving a clean grid for precise placement during build mode.
+  private showBuildOverlay() {
+    this.hideBuildOverlay();
+    const islandDef = ISLAND_DEFS[useGameStore.getState().currentIslandId];
+    if (!islandDef) return;
+
+    const cell = this.BUILD_CELL;
+    const gridW = GRID_COLS * cell;
+    const gridH = GRID_ROWS * cell;
+    const { width, height } = this.scale;
+    const offX = (width - gridW) / 2;
+    const offY = (height - gridH) / 2 + 10;
+
+    const container = this.add.container(0, 0).setDepth(5000).setScrollFactor(0);
+
+    // Dim backdrop.
+    const backdrop = this.add.rectangle(width / 2, height / 2, width, height, 0x05060f, 0.82)
+      .setScrollFactor(0);
+    container.add(backdrop);
+
+    // Title.
+    const def = BUILDING_DEFS[this.placementDefId];
+    const title = this.add.text(width / 2, offY - 28,
+      `🏗️ 2D-Baumodus — ${def?.name ?? ''}  (${def?.tilesW ?? 1}×${def?.tilesH ?? 1})`,
+      { fontSize: '16px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 })
+      .setOrigin(0.5).setScrollFactor(0);
+    container.add(title);
+    const hint = this.add.text(width / 2, offY + gridH + 18,
+      'Grünes Feld = baubar · ESC zum Abbrechen',
+      { fontSize: '12px', color: '#aabbcc' }).setOrigin(0.5).setScrollFactor(0);
+    container.add(hint);
+
+    // Build the flat grid of cells.
+    this.buildOverlayCells = [];
+    for (let row = 0; row < GRID_ROWS; row++) {
+      this.buildOverlayCells[row] = [];
+      for (let col = 0; col < GRID_COLS; col++) {
+        const isLand = islandDef.tileMask[row]?.[col];
+        const cx = offX + col * cell + cell / 2;
+        const cy = offY + row * cell + cell / 2;
+        const rect = this.add.rectangle(cx, cy, cell - 2, cell - 2,
+          isLand ? 0x2e7d32 : 0x16273a, isLand ? 0.9 : 0.5)
+          .setStrokeStyle(1, 0x0c1622).setScrollFactor(0);
+        if (isLand) rect.setInteractive({ useHandCursor: true });
+        rect.on('pointerover', () => this.previewBuildAt(col, row));
+        rect.on('pointerdown', () => {
+          // Guard the trailing iso-layer pointerup from this same click.
+          this.suppressTapUntil = Date.now() + 350;
+          this.tryPlaceBuilding(col, row);
+        });
+        container.add(rect);
+        this.buildOverlayCells[row][col] = rect;
+      }
+    }
+
+    // Mark already-occupied footprints.
+    const state = useGameStore.getState();
+    for (const b of Object.values(state.buildings)) {
+      if (b.islandId !== state.currentIslandId) continue;
+      const bd = BUILDING_DEFS[b.defId];
+      if (!bd) continue;
+      for (let r = b.tileY; r < b.tileY + bd.tilesH; r++) {
+        for (let c = b.tileX; c < b.tileX + bd.tilesW; c++) {
+          const rect = this.buildOverlayCells[r]?.[c];
+          if (rect) { rect.setFillStyle(0x553333, 0.9); rect.disableInteractive(); }
+        }
+      }
+    }
+
+    this.buildOverlay = container;
+  }
+
+  // Tint the hovered footprint green (valid) or red (blocked).
+  private previewBuildAt(col: number, row: number) {
+    if (!this.buildOverlay) return;
+    const def = BUILDING_DEFS[this.placementDefId];
+    if (!def) return;
+    const islandId = useGameStore.getState().currentIslandId;
+    const islandDef = ISLAND_DEFS[islandId];
+    const valid = this.canPlace(col, row, def.tilesW, def.tilesH, islandDef, islandId);
+
+    // Repaint base colours first.
+    const state = useGameStore.getState();
+    const occupied = new Set<string>();
+    for (const b of Object.values(state.buildings)) {
+      if (b.islandId !== islandId) continue;
+      const bd = BUILDING_DEFS[b.defId];
+      if (!bd) continue;
+      for (let r = b.tileY; r < b.tileY + bd.tilesH; r++)
+        for (let c = b.tileX; c < b.tileX + bd.tilesW; c++) occupied.add(`${c},${r}`);
+    }
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const rect = this.buildOverlayCells[r]?.[c];
+        if (!rect) continue;
+        const isLand = islandDef.tileMask[r]?.[c];
+        if (occupied.has(`${c},${r}`)) rect.setFillStyle(0x553333, 0.9);
+        else rect.setFillStyle(isLand ? 0x2e7d32 : 0x16273a, isLand ? 0.9 : 0.5);
+      }
+    }
+    // Tint the footprint under the cursor.
+    const color = valid ? 0x66ff66 : 0xff4444;
+    for (let r = row; r < row + def.tilesH; r++) {
+      for (let c = col; c < col + def.tilesW; c++) {
+        const rect = this.buildOverlayCells[r]?.[c];
+        if (rect) rect.setFillStyle(color, 0.85);
+      }
+    }
+  }
+
+  private hideBuildOverlay() {
+    this.buildOverlay?.destroy(true);
+    this.buildOverlay = undefined;
+    this.buildOverlayCells = [];
   }
 
   private tryPlaceBuilding(col: number, row: number) {
