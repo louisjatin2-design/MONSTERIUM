@@ -1,9 +1,17 @@
 import Phaser from 'phaser';
 import { BUILDING_DEFS } from '@data/buildings';
+import { ELEMENT_COLORS } from '@data/elements';
 import { project, footprintCorners, TILE_W } from '@game/iso';
 import type { BuildingInstance } from '@gtypes/game';
 
 type Pt = { x: number; y: number };
+
+function darken(color: number, f: number): number {
+  const r = Math.max(0, Math.min(255, ((color >> 16) & 0xff) * f));
+  const g = Math.max(0, Math.min(255, ((color >> 8) & 0xff) * f));
+  const b = Math.max(0, Math.min(255, (color & 0xff) * f));
+  return (r << 16) | (g << 8) | b;
+}
 
 // Element-specific habitat ground: [soil, soilAccent, prop accent].
 const HABITAT_GROUND: Record<string, { soil: number; soil2: number; accent: number }> = {
@@ -95,7 +103,9 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     } else if (def.category === 'Habitat') {
       this.buildHabitat(g, def.linkedElement, ground, back, right, front, left, lerp);
     } else if (def.category === 'Temple') {
-      this.buildTemple(g, ground, right.x, front.y, isoBox, pyramidRoof);
+      this.buildTemple(g, scene, def.linkedElement, building.level, ground, right.x, front.y, isoBox, extras);
+    } else if (def.category === 'Hatchery') {
+      this.buildHatchery(g, scene, ground, right.x, front.y, isoBox, extras);
     } else {
       this.buildGeneric(g, def.category, right.x, front.y, Math.min(W, H), isoBox, pyramidRoof, front.y, extras, scene);
     }
@@ -248,29 +258,160 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     edge(left, front, true);    // front-left edge with a gate gap
   }
 
-  // ---- Temple: stone base + columns + golden roof -----------------------
+  // ---- Temple: 3-tier Japanese pagoda, element-tinted -------------------
   private buildTemple(
-    g: Phaser.GameObjects.Graphics, ground: Pt[], halfW: number, halfH: number,
+    g: Phaser.GameObjects.Graphics, scene: Phaser.Scene, element: string | undefined,
+    buildingLevel: number, ground: Pt[], halfW: number, halfH: number,
     isoBox: (gx: number, gy: number, dw: number, dh: number, h: number, top: number, lft: number, rgt: number) => { ub: Pt; ur: Pt; uf: Pt; ul: Pt },
-    pyramidRoof: (t: { ub: Pt; ur: Pt; uf: Pt; ul: Pt }, rh: number, a: number, b: number) => Pt,
+    extras: Phaser.GameObjects.GameObject[],
   ) {
-    // Ground platform tint.
-    g.fillStyle(0x9a9488, 1); g.fillPoints(ground, true);
+    const elColor = (element && (ELEMENT_COLORS as Record<string, number>)[element]) || 0xf2c14e;
+    const roofTop = elColor;
+    const roofMid = darken(elColor, 0.78);
+    const roofDark = darken(elColor, 0.6);
+    const wall = 0xe9ddc4, wallL = 0xd2c4a4, wallR = 0xb6a684;
+    const woodDark = 0x7a4a2a;
+
+    // Stone ground platform.
+    g.fillStyle(0xb8ad97, 1); g.fillPoints(ground, true);
     g.lineStyle(2, 0x000000, 0.2); g.strokePoints(ground, true, true);
-    // Stepped stone base.
-    const base = isoBox(0, halfH * 0.82, halfW * 0.82, halfH * 0.82, 10, 0xcfc7b4, 0xb3aa96, 0x968d79);
-    // Columns at the four base-top corners.
-    const colH = 26;
-    const colAt = (p: Pt) => isoBox(p.x, p.y + colH, 3.5, 2, colH, 0xe6ddc8, 0xc9bfa6, 0xada389);
-    const tops = [
-      colAt({ x: base.ub.x, y: base.ub.y }), colAt({ x: base.ur.x, y: base.ur.y }),
-      colAt({ x: base.uf.x, y: base.uf.y }), colAt({ x: base.ul.x, y: base.ul.y }),
-    ];
-    // Golden roof spanning the column tops.
-    const roofCorners = {
-      ub: tops[0].ub, ur: tops[1].ub, uf: tops[2].ub, ul: tops[3].ub,
+
+    // A flared pagoda roof: wide isometric "diamond" eaves + short ridge.
+    const flaredRoof = (cx: number, cy: number, dw: number, dh: number, lift: number) => {
+      const b = { x: cx, y: cy - dh - lift }, r = { x: cx + dw, y: cy - lift };
+      const f = { x: cx, y: cy + dh - lift }, l = { x: cx - dw, y: cy - lift };
+      // underside shadow (eaves)
+      g.fillStyle(woodDark, 1);
+      g.fillPoints([{ x: l.x, y: l.y + 4 }, { x: f.x, y: f.y + 4 }, { x: r.x, y: r.y + 4 }, f, l], true);
+      // top surface, split front/back for shading
+      g.fillStyle(roofMid, 1); g.fillPoints([b, r, f, l], true);
+      g.fillStyle(roofTop, 1); g.fillPoints([b, r, { x: cx, y: cy - lift }, l], true);
+      g.lineStyle(2, darken(elColor, 0.45), 0.9); g.strokePoints([b, r, f, l], true, true);
+      // ridge cap
+      g.fillStyle(roofDark, 1); g.fillRect(cx - dw * 0.16, cy - dh * 0.5 - lift, dw * 0.32, 4);
+      return { topY: cy - lift };
     };
-    pyramidRoof(roofCorners, 18, 0xf2c14e, 0xcf9a28);
+
+    // Three diminishing tiers (wall box + flared roof each).
+    const tiers = [
+      { dw: halfW * 0.74, dh: halfH * 0.74, wh: 16, rdw: halfW * 0.98, rdh: halfH * 0.98 },
+      { dw: halfW * 0.54, dh: halfH * 0.54, wh: 14, rdw: halfW * 0.72, rdh: halfH * 0.72 },
+      { dw: halfW * 0.34, dh: halfH * 0.34, wh: 12, rdw: halfW * 0.48, rdh: halfH * 0.48 },
+    ];
+
+    let baseY = halfH * 0.82;
+    let lastRoofTopY = 0;
+    tiers.forEach((t, i) => {
+      // wall box for this tier
+      const boxTop = isoBox(0, baseY, t.dw, t.dh, t.wh, wall, wallL, wallR);
+      // a thin door/lattice on the front-right wall of the ground tier
+      if (i === 0) {
+        const mx = (boxTop.uf.x + boxTop.ur.x) / 2;
+        const my = (boxTop.uf.y + boxTop.ur.y) / 2 + 5;
+        g.fillStyle(woodDark, 1); g.fillRect(mx - 5, my, 10, t.wh - 2);
+        g.lineStyle(1, 0x000000, 0.3); g.strokeRect(mx - 5, my, 10, t.wh - 2);
+      }
+      // flared roof sits on top of the wall box
+      const roofCy = boxTop.ub.y + t.dh;
+      const rr = flaredRoof(0, roofCy, t.rdw, t.rdh, 0);
+      lastRoofTopY = rr.topY;
+      // next tier starts above this roof
+      baseY = roofCy - t.dh - t.wh - 2;
+    });
+
+    // Golden finial (sōrin) on the very top.
+    g.fillStyle(0xffe27a, 1); g.fillCircle(0, lastRoofTopY - 6, 3.5);
+    g.fillStyle(darken(elColor, 0.7), 1); g.fillRect(-1.2, lastRoofTopY - 14, 2.4, 10);
+
+    // Element-themed effect: drifting particles tinted to the element,
+    // emitted from the top of the pagoda (WebGL bloom makes them glow).
+    const emberKey = 'fx-ember';
+    if (!scene.textures.exists(emberKey)) {
+      const tex = scene.textures.createCanvas(emberKey, 16, 16);
+      const ctx = tex?.getContext();
+      if (ctx) {
+        const grd = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+        grd.addColorStop(0, 'rgba(255,255,255,1)');
+        grd.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grd; ctx.fillRect(0, 0, 16, 16);
+        tex?.refresh();
+      }
+    }
+    const tint = elColor;
+    const emitter = scene.add.particles(0, lastRoofTopY - 6, emberKey, {
+      lifespan: 1600,
+      speedY: { min: -18, max: -34 },
+      speedX: { min: -8, max: 8 },
+      scale: { start: 0.5 + buildingLevel * 0.04, end: 0 },
+      alpha: { start: 0.85, end: 0 },
+      frequency: 220,
+      quantity: 1,
+      tint,
+      blendMode: scene.sys.game.renderer.type === Phaser.WEBGL ? 'ADD' : 'NORMAL',
+    });
+    extras.push(emitter);
+    this.once(Phaser.GameObjects.Events.DESTROY, () => emitter.destroy());
+  }
+
+  // ---- Hatchery: rotunda with a glass dome ------------------------------
+  private buildHatchery(
+    g: Phaser.GameObjects.Graphics, scene: Phaser.Scene, ground: Pt[], halfW: number, halfH: number,
+    isoBox: (gx: number, gy: number, dw: number, dh: number, h: number, top: number, lft: number, rgt: number) => { ub: Pt; ur: Pt; uf: Pt; ul: Pt },
+    extras: Phaser.GameObjects.GameObject[],
+  ) {
+    // Tiled courtyard floor.
+    g.fillStyle(0xcdd6dd, 1); g.fillPoints(ground, true);
+    g.lineStyle(2, 0x000000, 0.18); g.strokePoints(ground, true, true);
+
+    // Cylindrical rotunda body (approximated as a tall iso box with a rounded look).
+    const bodyTop = isoBox(0, halfH * 0.6, halfW * 0.52, halfH * 0.52, 24, 0xe4ebf0, 0xc3d0d8, 0xa6b6c0);
+    const cx = 0;
+    const ringY = bodyTop.ub.y + halfH * 0.52; // top-center of the body
+    // Decorative band around the top of the body.
+    g.fillStyle(0x6fa8cc, 1);
+    g.fillEllipse(cx, ringY, halfW * 1.0, halfH * 1.0);
+    g.fillStyle(0x9fd0ec, 1);
+    g.fillEllipse(cx, ringY - 1, halfW * 0.92, halfH * 0.92);
+
+    // Glass dome on top — translucent blue with highlight and meridian lines.
+    const domeR = halfW * 0.5;
+    const domeCy = ringY - 2;
+    // dome base shadow
+    g.fillStyle(0x2d6fa2, 0.5); g.fillEllipse(cx, domeCy, domeR * 2, domeR * 0.7);
+    // glass body
+    g.fillStyle(0x8fd0f5, 0.55);
+    g.beginPath();
+    g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false);
+    g.closePath(); g.fillPath();
+    g.fillStyle(0xbfe8ff, 0.5);
+    g.beginPath();
+    g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(200), Phaser.Math.DegToRad(300), false);
+    g.closePath(); g.fillPath();
+    // glass rim
+    g.lineStyle(2, 0xe8f6ff, 0.9);
+    g.beginPath();
+    g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false);
+    g.strokePath();
+    // meridian lines
+    g.lineStyle(1, 0xffffff, 0.4);
+    for (const a of [225, 270, 315]) {
+      const ax = cx + Math.cos(Phaser.Math.DegToRad(a)) * domeR;
+      const ay = domeCy + Math.sin(Phaser.Math.DegToRad(a)) * domeR;
+      g.beginPath(); g.moveTo(cx, domeCy); g.lineTo(ax, ay); g.strokePath();
+    }
+    // highlight glint
+    g.fillStyle(0xffffff, 0.55);
+    g.fillEllipse(cx - domeR * 0.35, domeCy - domeR * 0.45, domeR * 0.32, domeR * 0.2);
+    // golden finial atop the dome
+    g.fillStyle(0xffe27a, 1); g.fillCircle(cx, domeCy - domeR - 3, 3);
+
+    // Soft glow pulsing inside the dome (hints the eggs incubating).
+    if (scene.sys.game.renderer.type === Phaser.WEBGL) {
+      const glow = scene.add.ellipse(cx, domeCy - domeR * 0.4, domeR * 1.1, domeR * 0.7, 0x9fe8ff, 0.35);
+      extras.push(glow);
+      const tw = scene.tweens.add({ targets: glow, alpha: 0.12, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      this.once(Phaser.GameObjects.Events.DESTROY, () => tw.stop());
+    }
   }
 
   // ---- Generic boxed building (breeding station / hatchery) -------------

@@ -11,6 +11,7 @@ import { StoryMap } from '@ui/components/StoryMap';
 import { ShopPanel } from '@ui/components/ShopPanel';
 import { BattleHUD } from '@ui/components/BattleHUD';
 import { FarmPanel } from '@ui/components/FarmPanel';
+import { HatchConfirmPanel } from '@ui/components/HatchConfirmPanel';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
 import type Phaser from 'phaser';
@@ -22,6 +23,7 @@ export type ActivePanel =
   | { type: 'build'; tileX: number; tileY: number }
   | { type: 'breeding' }
   | { type: 'hatchery' }
+  | { type: 'hatchConfirm'; eggId: string }
   | { type: 'pokedex' }
   | { type: 'story' }
   | { type: 'shop' }
@@ -43,6 +45,7 @@ export default function App() {
     const onOpenBuild    = (d: { tileX: number; tileY: number }) => setActivePanel({ type: 'build', tileX: d.tileX, tileY: d.tileY });
     const onOpenBreeding = () => setActivePanel({ type: 'breeding' });
     const onOpenHatchery = () => setActivePanel({ type: 'hatchery' });
+    const onHatchConfirm = (d: { eggId: string }) => setActivePanel({ type: 'hatchConfirm', eggId: d.eggId });
     const onOpenPokedex  = () => setActivePanel({ type: 'pokedex' });
     const onOpenShop     = () => setActivePanel({ type: 'shop' });
     const onBattleStart  = () => setActivePanel({ type: 'battle' });
@@ -53,6 +56,7 @@ export default function App() {
     EventBus.on(GameEvents.OPEN_BUILD_MENU, onOpenBuild);
     EventBus.on(GameEvents.OPEN_BREEDING_PANEL, onOpenBreeding);
     EventBus.on(GameEvents.OPEN_HATCHERY_PANEL, onOpenHatchery);
+    EventBus.on(GameEvents.OPEN_HATCH_CONFIRM, onHatchConfirm);
     EventBus.on(GameEvents.OPEN_POKEDEX, onOpenPokedex);
     EventBus.on(GameEvents.OPEN_SHOP, onOpenShop);
     EventBus.on(GameEvents.BATTLE_STARTED, onBattleStart);
@@ -64,6 +68,7 @@ export default function App() {
       EventBus.off(GameEvents.OPEN_BUILD_MENU, onOpenBuild);
       EventBus.off(GameEvents.OPEN_BREEDING_PANEL, onOpenBreeding);
       EventBus.off(GameEvents.OPEN_HATCHERY_PANEL, onOpenHatchery);
+      EventBus.off(GameEvents.OPEN_HATCH_CONFIRM, onHatchConfirm);
       EventBus.off(GameEvents.OPEN_POKEDEX, onOpenPokedex);
       EventBus.off(GameEvents.OPEN_SHOP, onOpenShop);
       EventBus.off(GameEvents.BATTLE_STARTED, onBattleStart);
@@ -134,6 +139,9 @@ export default function App() {
         )}
         {activePanel?.type === 'hatchery' && (
           <HatcheryPanel onClose={closePanel} />
+        )}
+        {activePanel?.type === 'hatchConfirm' && (
+          <HatchConfirmPanel eggId={activePanel.eggId} onClose={closePanel} />
         )}
         {activePanel?.type === 'pokedex' && (
           <Pokedex onClose={closePanel} />

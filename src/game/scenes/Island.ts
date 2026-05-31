@@ -6,6 +6,7 @@ import { EventBus, GameEvents } from '@game/EventBus';
 import { GridTile } from '@game/objects/GridTile';
 import { BuildingSprite } from '@game/objects/BuildingSprite';
 import { MonsterSprite } from '@game/objects/MonsterSprite';
+import { EggSprite } from '@game/objects/EggSprite';
 import {
   project, worldToGrid, pointInPolygon, footprintCorners,
   GRID_COLS, GRID_ROWS, CONTENT_W, CONTENT_H, ISLAND_CENTER, TILE_W,
@@ -17,6 +18,8 @@ export class Island extends Phaser.Scene {
   private buildingSprites: Map<string, BuildingSprite> = new Map();
   private residentSprites: Map<string, MonsterSprite[]> = new Map();
   private residentSignature: Map<string, string> = new Map();
+  private eggSprites: Map<string, EggSprite> = new Map();
+  private eggSignature = '';
   private placementHighlight?: Phaser.GameObjects.Graphics;
   private unsubscribe?: () => void;
 
@@ -92,12 +95,26 @@ export class Island extends Phaser.Scene {
     // Subscribe to store: new buildings, construction state, residents.
     this.unsubscribe = useGameStore.subscribe((s) => this.reconcile(s));
 
+    // Spawn eggs on pedestals around the hatchery.
+    this.refreshEggs(state);
+
     // EventBus wiring.
     EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
     EventBus.on(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.on(GameEvents.START_BATTLE, this.onStartBattle, this);
+    EventBus.on(GameEvents.HATCH_EGG_ANIMATE, this.onHatchAnimate, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.onShutdown());
+  }
+
+  update() {
+    if (this.eggSprites.size === 0) return;
+    const now = Date.now();
+    const eggs = useGameStore.getState().eggs;
+    for (const egg of eggs) {
+      const spr = this.eggSprites.get(egg.id);
+      if (spr) spr.updateTimer(egg.hatchEndMs - now);
+    }
   }
 
   // ---- Visuals / atmosphere --------------------------------------------
@@ -189,6 +206,15 @@ export class Island extends Phaser.Scene {
       return;
     }
 
+    // Eggs first — they sit on top of everything near the hatchery.
+    for (const spr of this.eggSprites.values()) {
+      const dx = w.x - spr.x, dy = w.y - spr.y;
+      if (dx * dx + dy * dy <= spr.hitRadius * spr.hitRadius) {
+        EventBus.emit(GameEvents.OPEN_HATCH_CONFIRM, { eggId: spr.eggId });
+        return;
+      }
+    }
+
     // Buildings first (front-to-back), using their world silhouettes.
     const sorted = [...this.buildingSprites.values()].sort((a, b) => b.depth - a.depth);
     for (const sprite of sorted) {
@@ -275,6 +301,40 @@ export class Island extends Phaser.Scene {
     this.residentSprites.set(b.instanceId, sprites);
   }
 
+  // Place eggs on pedestals fanned out in front of the hatchery.
+  private refreshEggs(s: ReturnType<typeof useGameStore.getState>) {
+    const sig = s.eggs.map(e => e.id).join(',');
+    if (sig === this.eggSignature) return;
+    this.eggSignature = sig;
+
+    // Find the hatchery on the current island for an anchor point.
+    const hatchery = Object.values(s.buildings).find(
+      b => b.islandId === s.currentIslandId && BUILDING_DEFS[b.defId]?.category === 'Hatchery',
+    );
+
+    // Remove eggs no longer present.
+    const liveIds = new Set(s.eggs.map(e => e.id));
+    for (const [id, spr] of this.eggSprites) {
+      if (!liveIds.has(id)) { spr.destroy(); this.eggSprites.delete(id); }
+    }
+
+    if (!hatchery) return;
+    const hd = BUILDING_DEFS[hatchery.defId];
+    const anchor = project(hatchery.tileX + hd.tilesW / 2, hatchery.tileY + hd.tilesH + 0.4);
+
+    // Lay eggs in a small arc in front of the hatchery.
+    s.eggs.forEach((egg, i) => {
+      if (this.eggSprites.has(egg.id)) return;
+      const n = s.eggs.length;
+      const ox = (i - (n - 1) / 2) * 40;
+      const oy = (i % 2) * 16;
+      const spr = new EggSprite(this, egg, anchor.x + ox, anchor.y + oy);
+      spr.setDepth(400 + i);
+      spr.updateTimer(egg.hatchEndMs - Date.now());
+      this.eggSprites.set(egg.id, spr);
+    });
+  }
+
   // Reconcile Phaser visuals with store changes (new buildings, construction, residents).
   private reconcile(s: ReturnType<typeof useGameStore.getState>) {
     const islandId = s.currentIslandId;
@@ -288,7 +348,23 @@ export class Island extends Phaser.Scene {
         this.refreshResidents(b);
       }
     }
+    this.refreshEggs(s);
   }
+
+  // React asked us to play the hatch animation for an egg, then commit it.
+  private onHatchAnimate = (data: { eggId: string }) => {
+    const spr = this.eggSprites.get(data.eggId);
+    if (!spr) {
+      // No sprite (e.g. hatched from panel) — commit immediately.
+      useGameStore.getState().hatchEgg(data.eggId);
+      return;
+    }
+    this.eggSprites.delete(data.eggId);
+    this.eggSignature = ''; // force re-sync afterwards
+    spr.playHatchAnimation(() => {
+      useGameStore.getState().hatchEgg(data.eggId);
+    });
+  };
 
   // ---- Placement mode ---------------------------------------------------
 
@@ -371,8 +447,10 @@ export class Island extends Phaser.Scene {
     EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
     EventBus.off(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.off(GameEvents.START_BATTLE, this.onStartBattle, this);
+    EventBus.off(GameEvents.HATCH_EGG_ANIMATE, this.onHatchAnimate, this);
     this.buildingSprites.clear();
     this.residentSprites.clear();
     this.residentSignature.clear();
+    this.eggSprites.clear();
   }
 }
