@@ -165,20 +165,10 @@ export class Island extends Phaser.Scene {
       .setScrollFactor(0.08).setDepth(-990).setScale(2.2).setAlpha(0.9);
   }
 
-  // Cinematic post-processing on the main camera (WebGL only — no-op on Canvas).
+  // World post-processing removed — it washed out shapes. We rely on
+  // high-contrast colours and strong outlines in the sprites instead.
   private applyCameraFX() {
-    if (!this.isWebGL()) return;
-    const cam = this.cameras.main;
-    // Punchy, high-contrast color grade so shapes read clearly.
-    const cm = cam.postFX.addColorMatrix();
-    cm.brightness(1.06);
-    cm.saturate(0.28);
-    cm.contrast(1.22);
-    // Restrained bloom: only the brightest highlights/glows, so it doesn't
-    // wash out building edges.
-    cam.postFX.addBloom(0xffffff, 1, 1, 0.55, 1.4, 4);
-    // Very light vignette so the corners/edges stay readable.
-    cam.postFX.addVignette(0.5, 0.5, 0.92, 0.18);
+    /* intentionally empty: no camera-wide shaders */
   }
 
   // ---- Input helpers ----------------------------------------------------

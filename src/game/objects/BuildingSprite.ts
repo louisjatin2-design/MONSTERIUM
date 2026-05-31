@@ -361,19 +361,24 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     isoBox: (gx: number, gy: number, dw: number, dh: number, h: number, top: number, lft: number, rgt: number) => { ub: Pt; ur: Pt; uf: Pt; ul: Pt },
     extras: Phaser.GameObjects.GameObject[],
   ) {
-    const STONE = 0xe9e3d4, STONE_L = 0xd2cbb8, STONE_R = 0xb7af98;
-    const TRIM = 0xc9bfa0, SHADOW = 0x9a917a;
+    // Distinct colour per part so every element reads on its own.
+    const WALL = 0xe8d6a8, WALL_L = 0xcdb87f, WALL_R = 0xa8915c;   // warm sandstone hall
+    const COL = 0xfdfbf2, COL_LINE = 0x6b5a36;                      // bright ivory columns
+    const PED = 0xd96a4a, PED_LINE = 0x8a3a24;                      // terracotta pediment
+    const TUR = 0xc24a5a, TUR_L = 0x9d3848, TUR_R = 0x7c2937;       // red corner turrets
+    const DRUM = 0x4f7da6, DRUM_L = 0x3d6488, DRUM_R = 0x2c4d6b;    // blue-grey drum
+    const OUTLINE = 0x1a1208;
 
     // Stone plaza floor.
-    g.fillStyle(0xd8d2c2, 1); g.fillPoints(ground, true);
-    g.lineStyle(2, 0x000000, 0.18); g.strokePoints(ground, true, true);
+    g.fillStyle(0xcfc4a4, 1); g.fillPoints(ground, true);
+    g.lineStyle(2, OUTLINE, 0.3); g.strokePoints(ground, true, true);
 
-    // Main rectangular hall (the big stone block).
-    const hallTop = isoBox(0, halfH * 0.72, halfW * 0.82, halfH * 0.82, 26, STONE, STONE_L, STONE_R);
+    // Main rectangular hall (the big sandstone block).
+    const hallTop = isoBox(0, halfH * 0.72, halfW * 0.82, halfH * 0.82, 26, WALL, WALL_L, WALL_R);
     const cx = 0;
 
-    // Cornice band running along the two visible top edges.
-    g.lineStyle(3, TRIM, 1);
+    // Dark cornice band running along the two visible top edges.
+    g.lineStyle(3.5, 0x5a4a2a, 1);
     g.beginPath(); g.moveTo(hallTop.ul.x, hallTop.ul.y); g.lineTo(hallTop.uf.x, hallTop.uf.y);
     g.lineTo(hallTop.ur.x, hallTop.ur.y); g.strokePath();
 
@@ -386,8 +391,8 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
       const tx = colTop.x + (colTopR.x - colTop.x) * t;
       const tyTop = colTop.y + (colTopR.y - colTop.y) * t;
       const byBot = colBot.y + (colBotR.y - colBot.y) * t;
-      g.fillStyle(STONE, 1); g.fillRect(tx - 1.6, tyTop, 3.2, byBot - tyTop);
-      g.lineStyle(1, SHADOW, 0.7); g.strokeRect(tx - 1.6, tyTop, 3.2, byBot - tyTop);
+      g.fillStyle(COL, 1); g.fillRect(tx - 2.2, tyTop, 4.4, byBot - tyTop);
+      g.lineStyle(1.5, COL_LINE, 0.9); g.strokeRect(tx - 2.2, tyTop, 4.4, byBot - tyTop);
     }
     // Same on the front-left wall.
     const lTop = hallTop.ul, lBot = { x: hallTop.ul.x, y: hallTop.ul.y + 26 };
@@ -396,43 +401,44 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
       const tx = lTop.x + (colTop.x - lTop.x) * t;
       const tyTop = lTop.y + (colTop.y - lTop.y) * t;
       const byBot = lBot.y + (colBot.y - lBot.y) * t;
-      g.fillStyle(STONE_L, 1); g.fillRect(tx - 1.6, tyTop, 3.2, byBot - tyTop);
-      g.lineStyle(1, SHADOW, 0.6); g.strokeRect(tx - 1.6, tyTop, 3.2, byBot - tyTop);
+      g.fillStyle(0xe9e2cf, 1); g.fillRect(tx - 2.2, tyTop, 4.4, byBot - tyTop);
+      g.lineStyle(1.5, COL_LINE, 0.8); g.strokeRect(tx - 2.2, tyTop, 4.4, byBot - tyTop);
     }
 
-    // Front pediment (triangular gable) above the entrance.
-    const pedApex = { x: (colTop.x + colTopR.x) / 2, y: (colTop.y + colTopR.y) / 2 - 14 };
-    g.fillStyle(STONE, 1);
+    // Front pediment (triangular gable) above the entrance — terracotta.
+    const pedApex = { x: (colTop.x + colTopR.x) / 2, y: (colTop.y + colTopR.y) / 2 - 16 };
+    g.fillStyle(PED, 1);
     g.fillTriangle(colTop.x, colTop.y, colTopR.x, colTopR.y, pedApex.x, pedApex.y);
-    g.lineStyle(2, SHADOW, 0.8);
+    g.lineStyle(2.5, PED_LINE, 1);
     g.strokeTriangle(colTop.x, colTop.y, colTopR.x, colTopR.y, pedApex.x, pedApex.y);
 
-    // Four corner pavilion turrets (Reichstag's corner towers).
+    // Four corner pavilion turrets (Reichstag's corner towers) — red.
     const corner = (p: Pt) => {
-      isoBox(p.x, p.y, halfW * 0.16, halfH * 0.16, 34, STONE, STONE_L, STONE_R);
+      isoBox(p.x, p.y, halfW * 0.17, halfH * 0.17, 36, TUR, TUR_L, TUR_R);
     };
     corner({ x: hallTop.ub.x, y: hallTop.ub.y + halfH * 0.66 });
     corner({ x: hallTop.ur.x, y: hallTop.ur.y + halfH * 0.66 });
     corner({ x: hallTop.ul.x, y: hallTop.ul.y + halfH * 0.66 });
 
-    // Central drum + the famous glass cupola.
+    // Central drum + the famous glass cupola — blue-grey drum.
     const drumCy = hallTop.ub.y + halfH * 0.82;
-    isoBox(cx, drumCy, halfW * 0.34, halfH * 0.34, 12, STONE, STONE_L, STONE_R);
-    const ringY = drumCy - 12;
-    g.fillStyle(0x9fb6c4, 1); g.fillEllipse(cx, ringY, halfW * 0.66, halfH * 0.66);
+    isoBox(cx, drumCy, halfW * 0.34, halfH * 0.34, 14, DRUM, DRUM_L, DRUM_R);
+    const ringY = drumCy - 14;
+    g.fillStyle(0x6f93b6, 1); g.fillEllipse(cx, ringY, halfW * 0.66, halfH * 0.66);
+    g.lineStyle(2, OUTLINE, 0.5); g.strokeEllipse(cx, ringY, halfW * 0.66, halfH * 0.66);
 
-    // Glass dome.
+    // Glass dome — saturated blue so it clearly differs from the drum.
     const domeR = halfW * 0.36;
     const domeCy = ringY - 1;
-    g.fillStyle(0x2d6fa2, 0.5); g.fillEllipse(cx, domeCy, domeR * 2, domeR * 0.6);
-    g.fillStyle(0xbfe0f2, 0.55);
+    g.fillStyle(0x1f5a90, 0.7); g.fillEllipse(cx, domeCy, domeR * 2, domeR * 0.6);
+    g.fillStyle(0x4aa6e0, 0.85);
     g.beginPath(); g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false);
     g.closePath(); g.fillPath();
-    g.fillStyle(0xe2f3ff, 0.5);
+    g.fillStyle(0x8fd0f5, 0.8);
     g.beginPath(); g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(205), Phaser.Math.DegToRad(295), false);
     g.closePath(); g.fillPath();
-    // glazing bars: vertical meridians + 2 horizontal rings
-    g.lineStyle(1, 0xffffff, 0.45);
+    // glazing bars: vertical meridians + 2 horizontal rings (dark, clearly visible)
+    g.lineStyle(1.2, 0x1f4a70, 0.8);
     for (let a = 185; a < 360; a += 22) {
       const ax = cx + Math.cos(Phaser.Math.DegToRad(a)) * domeR;
       const ay = domeCy + Math.sin(Phaser.Math.DegToRad(a)) * domeR;
@@ -441,11 +447,12 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     for (const rr of [0.66, 0.34]) {
       g.beginPath(); g.arc(cx, domeCy, domeR * rr, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false); g.strokePath();
     }
-    g.lineStyle(2, 0xeaf6ff, 0.9);
+    g.lineStyle(2.5, 0x16395a, 1);
     g.beginPath(); g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false); g.strokePath();
     // glint + finial
-    g.fillStyle(0xffffff, 0.5); g.fillEllipse(cx - domeR * 0.35, domeCy - domeR * 0.45, domeR * 0.3, domeR * 0.18);
-    g.fillStyle(0xffe27a, 1); g.fillCircle(cx, domeCy - domeR - 3, 2.6);
+    g.fillStyle(0xffffff, 0.7); g.fillEllipse(cx - domeR * 0.35, domeCy - domeR * 0.45, domeR * 0.3, domeR * 0.18);
+    g.fillStyle(0xffe27a, 1); g.fillCircle(cx, domeCy - domeR - 3, 3);
+    g.lineStyle(1.5, 0x9a7a20, 1); g.strokeCircle(cx, domeCy - domeR - 3, 3);
 
     // Soft glow pulsing inside the dome.
     if (scene.sys.game.renderer.type === Phaser.WEBGL) {
