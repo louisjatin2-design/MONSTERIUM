@@ -22,12 +22,11 @@ export function StoryMap({ onClose }: StoryMapProps) {
   const handleStartBattle = (battle: typeof STORY_BATTLES[0], index: number) => {
     if (index > storyProgress) return;
     if (playerMonsters.length === 0) {
-      alert('You need at least one monster to battle! Get one from the Shop or breed one.');
+      alert('Du brauchst mindestens ein Monster! Kaufe eines im Shop oder züchte es.');
       return;
     }
-    const playerTeam = playerMonsters.slice(0, 3).map(m => m.instanceId);
-    EventBus.emit(GameEvents.START_BATTLE, {
-      playerTeam,
+    // Open team-selection first — player picks which monsters to bring.
+    EventBus.emit(GameEvents.OPEN_TEAM_SELECT, {
       enemyTeam: battle.enemyMonsterDefs,
       enemyLevels: battle.enemyLevels,
       rewardGold: battle.rewards.gold,
@@ -108,10 +107,9 @@ export function StoryMap({ onClose }: StoryMapProps) {
         </div>
         <button className="btn btn-info" style={{ width: '100%' }}
           onClick={() => {
-            if (playerMonsters.length === 0) { alert('Need monsters!'); return; }
+            if (playerMonsters.length === 0) { alert('Du brauchst Monster!'); return; }
             const enemyTeam = getAiTeam(trophies);
-            EventBus.emit(GameEvents.START_BATTLE, {
-              playerTeam: playerMonsters.slice(0, 3).map(m => m.instanceId),
+            EventBus.emit(GameEvents.OPEN_TEAM_SELECT, {
               enemyTeam,
               enemyLevels: [getAiLevel(trophies), getAiLevel(trophies), getAiLevel(trophies)],
               rewardGold: 100 + trophies,

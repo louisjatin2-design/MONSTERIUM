@@ -13,6 +13,7 @@ import { BattleHUD } from '@ui/components/BattleHUD';
 import { FarmPanel } from '@ui/components/FarmPanel';
 import { IslandsPanel } from '@ui/components/IslandsPanel';
 import { HatchConfirmPanel } from '@ui/components/HatchConfirmPanel';
+import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
 import type Phaser from 'phaser';
@@ -29,6 +30,7 @@ export type ActivePanel =
   | { type: 'story' }
   | { type: 'shop' }
   | { type: 'islands' }
+  | { type: 'teamSelect'; battlePayload: BattlePayload }
   | { type: 'battle' };
 
 export default function App() {
@@ -50,8 +52,9 @@ export default function App() {
     const onHatchConfirm = (d: { eggId: string }) => setActivePanel({ type: 'hatchConfirm', eggId: d.eggId });
     const onOpenPokedex  = () => setActivePanel({ type: 'pokedex' });
     const onOpenShop     = () => setActivePanel({ type: 'shop' });
-    const onOpenIslands  = () => setActivePanel({ type: 'islands' });
-    const onBattleStart  = () => setActivePanel({ type: 'battle' });
+    const onOpenIslands    = () => setActivePanel({ type: 'islands' });
+    const onOpenTeamSelect = (d: BattlePayload) => setActivePanel({ type: 'teamSelect', battlePayload: d });
+    const onBattleStart    = () => setActivePanel({ type: 'battle' });
     const onBattleEnd    = () => setActivePanel(null);
 
     EventBus.on(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
@@ -63,8 +66,9 @@ export default function App() {
     EventBus.on(GameEvents.OPEN_POKEDEX, onOpenPokedex);
     EventBus.on(GameEvents.OPEN_SHOP, onOpenShop);
     EventBus.on(GameEvents.OPEN_ISLANDS_PANEL, onOpenIslands);
-    EventBus.on(GameEvents.BATTLE_STARTED, onBattleStart);
-    EventBus.on(GameEvents.BATTLE_ENDED, onBattleEnd);
+    EventBus.on(GameEvents.OPEN_TEAM_SELECT,   onOpenTeamSelect);
+    EventBus.on(GameEvents.BATTLE_STARTED,     onBattleStart);
+    EventBus.on(GameEvents.BATTLE_ENDED,       onBattleEnd);
 
     return () => {
       EventBus.off(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
@@ -76,8 +80,9 @@ export default function App() {
       EventBus.off(GameEvents.OPEN_POKEDEX, onOpenPokedex);
       EventBus.off(GameEvents.OPEN_SHOP, onOpenShop);
       EventBus.off(GameEvents.OPEN_ISLANDS_PANEL, onOpenIslands);
-      EventBus.off(GameEvents.BATTLE_STARTED, onBattleStart);
-      EventBus.off(GameEvents.BATTLE_ENDED, onBattleEnd);
+      EventBus.off(GameEvents.OPEN_TEAM_SELECT,   onOpenTeamSelect);
+      EventBus.off(GameEvents.BATTLE_STARTED,     onBattleStart);
+      EventBus.off(GameEvents.BATTLE_ENDED,       onBattleEnd);
     };
   }, []);
 
@@ -160,6 +165,9 @@ export default function App() {
         )}
         {activePanel?.type === 'islands' && (
           <IslandsPanel onClose={closePanel} />
+        )}
+        {activePanel?.type === 'teamSelect' && (
+          <TeamSelectPanel battlePayload={activePanel.battlePayload} onClose={closePanel} />
         )}
         {isBattleActive && <BattleHUD />}
       </div>
