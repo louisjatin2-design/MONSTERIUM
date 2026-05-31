@@ -1,7 +1,8 @@
 import React from 'react';
 import { MONSTER_DEFS } from '@data/monsters';
+import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { ATTACKS } from '@data/attacks';
-import { RARITY_COLORS } from '@data/rarities';
+import { RARITY_COLORS, RARITY_STARS, rarityGlow } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { TRAITS } from '@data/traits';
 import '../styles/global.css';
@@ -24,11 +25,13 @@ export function MonsterDetail({ defId, isUnlocked, onClose }: MonsterDetailProps
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <div style={{
           width: 64, height: 64, borderRadius: '50%',
-          background: ELEMENT_CSS_COLORS[def.elements[0]],
+          background: isUnlocked
+            ? `radial-gradient(circle at 38% 32%, #ffffff55, ${ELEMENT_CSS_COLORS[def.elements[0]]})`
+            : '#222',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 28, boxShadow: `0 0 16px ${ELEMENT_CSS_COLORS[def.elements[0]]}88`,
+          fontSize: 32, boxShadow: isUnlocked ? rarityGlow(def.rarity) : 'none',
         }}>
-          {isUnlocked ? '👾' : '❓'}
+          {isUnlocked ? (MONSTER_EMOJI[defId] ?? '👾') : '❓'}
         </div>
         <div>
           <div style={{ fontSize: 22, fontWeight: 'bold' }}>
@@ -36,6 +39,9 @@ export function MonsterDetail({ defId, isUnlocked, onClose }: MonsterDetailProps
             <span className="rarity-badge" style={{ background: RARITY_COLORS[def.rarity], color: '#000', marginLeft: 8 }}>
               {def.rarity}
             </span>
+          </div>
+          <div style={{ fontSize: 13, color: RARITY_COLORS[def.rarity], letterSpacing: '-1px', marginTop: 2 }}>
+            {'★'.repeat(RARITY_STARS[def.rarity])}
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
             {def.elements.map(el => (

@@ -29,6 +29,8 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   const gold            = useGameStore(s => s.gold);
   const diamonds        = useGameStore(s => s.diamonds);
   const collectGold     = useGameStore(s => s.collectGold);
+  const collectAll      = useGameStore(s => s.collectAll);
+  const buildings       = useGameStore(s => s.buildings);
   const feedMonster     = useGameStore(s => s.feedMonster);
   const sellMonster     = useGameStore(s => s.sellMonster);
   const assignToHabitat = useGameStore(s => s.assignToHabitat);
@@ -65,11 +67,27 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
       </div>
 
       {building.goldAccumulated > 0 && (
-        <button className="btn btn-gold" style={{ width: '100%', marginBottom: 10 }}
+        <button className="btn btn-gold" style={{ width: '100%', marginBottom: 6 }}
           onClick={() => collectGold(instanceId)}>
           Sammeln 🪙 {Math.floor(building.goldAccumulated)}
         </button>
       )}
+
+      {/* Collect-all across every habitat */}
+      {(() => {
+        const totalHabitatGold = Math.floor(
+          Object.values(buildings)
+            .filter(b => BUILDING_DEFS[b.defId]?.category === 'Habitat')
+            .reduce((sum, b) => sum + b.goldAccumulated, 0),
+        );
+        if (totalHabitatGold <= 0) return null;
+        return (
+          <button className="btn btn-info" style={{ width: '100%', marginBottom: 10, fontSize: 12 }}
+            onClick={() => collectAll('Habitat')}>
+            🪙 Alle Habitate einsammeln (+{totalHabitatGold})
+          </button>
+        );
+      })()}
 
       {!building.constructionEndMs && (
         <div style={{ marginBottom: 10 }}>

@@ -12,8 +12,10 @@ const CONVERT_OPTIONS = [50, 250, 1000];
 
 export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
   const building    = useGameStore(s => s.buildings[instanceId]);
+  const buildings   = useGameStore(s => s.buildings);
   const gold        = useGameStore(s => s.gold);
   const collectGold = useGameStore(s => s.collectGold);
+  const collectAll  = useGameStore(s => s.collectAll);
   const upgradeBuilding   = useGameStore(s => s.upgradeBuilding);
   const convertGoldToFood = useGameStore(s => s.convertGoldToFood);
 
@@ -22,6 +24,13 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
   const levelData = def.levels[building.level - 1];
   const nextLevel = def.levels[building.level];
   const accumulated = Math.floor(building.goldAccumulated);
+
+  // Total food waiting across every farm (for the collect-all button).
+  const totalFarmFood = Math.floor(
+    Object.values(buildings)
+      .filter(b => BUILDING_DEFS[b.defId]?.category === 'Farm')
+      .reduce((sum, b) => sum + b.goldAccumulated, 0),
+  );
 
   return (
     <div className="panel panel-side panel-side-xs" style={{ padding: 16 }}>
@@ -43,6 +52,14 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
         <div style={{ color: '#666', fontSize: 13, textAlign: 'center', padding: 8, marginBottom: 10 }}>
           Produziert Futter… schau später vorbei!
         </div>
+      )}
+
+      {/* Collect-all across every farm */}
+      {totalFarmFood > 0 && (
+        <button className="btn btn-info" style={{ width: '100%', marginBottom: 10, fontSize: 12 }}
+          onClick={() => collectAll('Farm')}>
+          🌾 Alle Farmen einsammeln (+{totalFarmFood})
+        </button>
       )}
 
       {/* Upgrade */}

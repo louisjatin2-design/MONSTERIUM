@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type {
-  MonsterInstance, BuildingInstance, Egg, EvolutionStage, ActiveBreeding,
+  MonsterInstance, BuildingInstance, Egg, EvolutionStage, ActiveBreeding, BuildingCategory,
 } from '@gtypes/game';
 import { MONSTER_DEFS } from '@data/monsters';
 import { BUILDING_DEFS } from '@data/buildings';
@@ -55,6 +55,9 @@ interface GameStoreActions {
   placeBuilding: (defId: string, islandId: string, tileX: number, tileY: number) => string | null;
   upgradeBuilding: (instanceId: string) => void;
   collectGold: (instanceId: string) => void;
+  /** Collect accumulated output from every building (optionally limited to a
+   *  category, e.g. 'Habitat' for gold or 'Farm' for food). Returns totals. */
+  collectAll: (category?: BuildingCategory) => { gold: number; food: number };
 
   // Monsters
   addMonster: (defId: string, isUnique?: boolean, parentIds?: [string, string]) => MonsterInstance;
@@ -290,6 +293,30 @@ export const useGameStore = create<GameStore>()(
           s.buildings[instanceId].goldAccumulated = 0;
           s.buildings[instanceId].lastCollectedMs = Date.now();
         });
+      },
+
+      collectAll: (category) => {
+        let goldGained = 0;
+        let foodGained = 0;
+        set((s) => {
+          for (const b of Object.values(s.buildings)) {
+            const def = BUILDING_DEFS[b.defId];
+            if (!def) continue;
+            if (category && def.category !== category) continue;
+            const amount = Math.floor(b.goldAccumulated);
+            if (amount <= 0) continue;
+            if (def.category === 'Farm') {
+              s.food += amount;
+              foodGained += amount;
+            } else {
+              s.gold += amount;
+              goldGained += amount;
+            }
+            b.goldAccumulated = 0;
+            b.lastCollectedMs = Date.now();
+          }
+        });
+        return { gold: goldGained, food: foodGained };
       },
 
       addMonster: (defId, isUnique = false, parentIds) => {
