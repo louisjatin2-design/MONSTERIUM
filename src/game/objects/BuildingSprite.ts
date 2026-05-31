@@ -106,6 +106,8 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
       this.buildTemple(g, scene, def.linkedElement, building.level, ground, right.x, front.y, isoBox, extras);
     } else if (def.category === 'Hatchery') {
       this.buildHatchery(g, scene, ground, right.x, front.y, isoBox, extras);
+    } else if (def.category === 'BreedingStation') {
+      this.buildBreeding(g, scene, ground, right.x, front.y, extras);
     } else {
       this.buildGeneric(g, def.category, right.x, front.y, Math.min(W, H), isoBox, pyramidRoof, front.y, extras, scene);
     }
@@ -353,64 +355,194 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     this.once(Phaser.GameObjects.Events.DESTROY, () => emitter.destroy());
   }
 
-  // ---- Hatchery: rotunda with a glass dome ------------------------------
+  // ---- Hatchery: Reichstag-style neoclassical hall + glass dome ---------
   private buildHatchery(
     g: Phaser.GameObjects.Graphics, scene: Phaser.Scene, ground: Pt[], halfW: number, halfH: number,
     isoBox: (gx: number, gy: number, dw: number, dh: number, h: number, top: number, lft: number, rgt: number) => { ub: Pt; ur: Pt; uf: Pt; ul: Pt },
     extras: Phaser.GameObjects.GameObject[],
   ) {
-    // Tiled courtyard floor.
-    g.fillStyle(0xcdd6dd, 1); g.fillPoints(ground, true);
+    const STONE = 0xe9e3d4, STONE_L = 0xd2cbb8, STONE_R = 0xb7af98;
+    const TRIM = 0xc9bfa0, SHADOW = 0x9a917a;
+
+    // Stone plaza floor.
+    g.fillStyle(0xd8d2c2, 1); g.fillPoints(ground, true);
     g.lineStyle(2, 0x000000, 0.18); g.strokePoints(ground, true, true);
 
-    // Cylindrical rotunda body (approximated as a tall iso box with a rounded look).
-    const bodyTop = isoBox(0, halfH * 0.6, halfW * 0.52, halfH * 0.52, 24, 0xe4ebf0, 0xc3d0d8, 0xa6b6c0);
+    // Main rectangular hall (the big stone block).
+    const hallTop = isoBox(0, halfH * 0.72, halfW * 0.82, halfH * 0.82, 26, STONE, STONE_L, STONE_R);
     const cx = 0;
-    const ringY = bodyTop.ub.y + halfH * 0.52; // top-center of the body
-    // Decorative band around the top of the body.
-    g.fillStyle(0x6fa8cc, 1);
-    g.fillEllipse(cx, ringY, halfW * 1.0, halfH * 1.0);
-    g.fillStyle(0x9fd0ec, 1);
-    g.fillEllipse(cx, ringY - 1, halfW * 0.92, halfH * 0.92);
 
-    // Glass dome on top — translucent blue with highlight and meridian lines.
-    const domeR = halfW * 0.5;
-    const domeCy = ringY - 2;
-    // dome base shadow
-    g.fillStyle(0x2d6fa2, 0.5); g.fillEllipse(cx, domeCy, domeR * 2, domeR * 0.7);
-    // glass body
-    g.fillStyle(0x8fd0f5, 0.55);
-    g.beginPath();
-    g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false);
+    // Cornice band running along the two visible top edges.
+    g.lineStyle(3, TRIM, 1);
+    g.beginPath(); g.moveTo(hallTop.ul.x, hallTop.ul.y); g.lineTo(hallTop.uf.x, hallTop.uf.y);
+    g.lineTo(hallTop.ur.x, hallTop.ur.y); g.strokePath();
+
+    // Portico columns along the front-right wall (the colonnade look).
+    const colTop = hallTop.uf, colBot = { x: hallTop.uf.x, y: hallTop.uf.y + 26 };
+    const colTopR = hallTop.ur, colBotR = { x: hallTop.ur.x, y: hallTop.ur.y + 26 };
+    const nCols = 5;
+    for (let i = 1; i < nCols; i++) {
+      const t = i / nCols;
+      const tx = colTop.x + (colTopR.x - colTop.x) * t;
+      const tyTop = colTop.y + (colTopR.y - colTop.y) * t;
+      const byBot = colBot.y + (colBotR.y - colBot.y) * t;
+      g.fillStyle(STONE, 1); g.fillRect(tx - 1.6, tyTop, 3.2, byBot - tyTop);
+      g.lineStyle(1, SHADOW, 0.7); g.strokeRect(tx - 1.6, tyTop, 3.2, byBot - tyTop);
+    }
+    // Same on the front-left wall.
+    const lTop = hallTop.ul, lBot = { x: hallTop.ul.x, y: hallTop.ul.y + 26 };
+    for (let i = 1; i < nCols; i++) {
+      const t = i / nCols;
+      const tx = lTop.x + (colTop.x - lTop.x) * t;
+      const tyTop = lTop.y + (colTop.y - lTop.y) * t;
+      const byBot = lBot.y + (colBot.y - lBot.y) * t;
+      g.fillStyle(STONE_L, 1); g.fillRect(tx - 1.6, tyTop, 3.2, byBot - tyTop);
+      g.lineStyle(1, SHADOW, 0.6); g.strokeRect(tx - 1.6, tyTop, 3.2, byBot - tyTop);
+    }
+
+    // Front pediment (triangular gable) above the entrance.
+    const pedApex = { x: (colTop.x + colTopR.x) / 2, y: (colTop.y + colTopR.y) / 2 - 14 };
+    g.fillStyle(STONE, 1);
+    g.fillTriangle(colTop.x, colTop.y, colTopR.x, colTopR.y, pedApex.x, pedApex.y);
+    g.lineStyle(2, SHADOW, 0.8);
+    g.strokeTriangle(colTop.x, colTop.y, colTopR.x, colTopR.y, pedApex.x, pedApex.y);
+
+    // Four corner pavilion turrets (Reichstag's corner towers).
+    const corner = (p: Pt) => {
+      isoBox(p.x, p.y, halfW * 0.16, halfH * 0.16, 34, STONE, STONE_L, STONE_R);
+    };
+    corner({ x: hallTop.ub.x, y: hallTop.ub.y + halfH * 0.66 });
+    corner({ x: hallTop.ur.x, y: hallTop.ur.y + halfH * 0.66 });
+    corner({ x: hallTop.ul.x, y: hallTop.ul.y + halfH * 0.66 });
+
+    // Central drum + the famous glass cupola.
+    const drumCy = hallTop.ub.y + halfH * 0.82;
+    isoBox(cx, drumCy, halfW * 0.34, halfH * 0.34, 12, STONE, STONE_L, STONE_R);
+    const ringY = drumCy - 12;
+    g.fillStyle(0x9fb6c4, 1); g.fillEllipse(cx, ringY, halfW * 0.66, halfH * 0.66);
+
+    // Glass dome.
+    const domeR = halfW * 0.36;
+    const domeCy = ringY - 1;
+    g.fillStyle(0x2d6fa2, 0.5); g.fillEllipse(cx, domeCy, domeR * 2, domeR * 0.6);
+    g.fillStyle(0xbfe0f2, 0.55);
+    g.beginPath(); g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false);
     g.closePath(); g.fillPath();
-    g.fillStyle(0xbfe8ff, 0.5);
-    g.beginPath();
-    g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(200), Phaser.Math.DegToRad(300), false);
+    g.fillStyle(0xe2f3ff, 0.5);
+    g.beginPath(); g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(205), Phaser.Math.DegToRad(295), false);
     g.closePath(); g.fillPath();
-    // glass rim
-    g.lineStyle(2, 0xe8f6ff, 0.9);
-    g.beginPath();
-    g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false);
-    g.strokePath();
-    // meridian lines
-    g.lineStyle(1, 0xffffff, 0.4);
-    for (const a of [225, 270, 315]) {
+    // glazing bars: vertical meridians + 2 horizontal rings
+    g.lineStyle(1, 0xffffff, 0.45);
+    for (let a = 185; a < 360; a += 22) {
       const ax = cx + Math.cos(Phaser.Math.DegToRad(a)) * domeR;
       const ay = domeCy + Math.sin(Phaser.Math.DegToRad(a)) * domeR;
       g.beginPath(); g.moveTo(cx, domeCy); g.lineTo(ax, ay); g.strokePath();
     }
-    // highlight glint
-    g.fillStyle(0xffffff, 0.55);
-    g.fillEllipse(cx - domeR * 0.35, domeCy - domeR * 0.45, domeR * 0.32, domeR * 0.2);
-    // golden finial atop the dome
-    g.fillStyle(0xffe27a, 1); g.fillCircle(cx, domeCy - domeR - 3, 3);
+    for (const rr of [0.66, 0.34]) {
+      g.beginPath(); g.arc(cx, domeCy, domeR * rr, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false); g.strokePath();
+    }
+    g.lineStyle(2, 0xeaf6ff, 0.9);
+    g.beginPath(); g.arc(cx, domeCy, domeR, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false); g.strokePath();
+    // glint + finial
+    g.fillStyle(0xffffff, 0.5); g.fillEllipse(cx - domeR * 0.35, domeCy - domeR * 0.45, domeR * 0.3, domeR * 0.18);
+    g.fillStyle(0xffe27a, 1); g.fillCircle(cx, domeCy - domeR - 3, 2.6);
 
-    // Soft glow pulsing inside the dome (hints the eggs incubating).
+    // Soft glow pulsing inside the dome.
     if (scene.sys.game.renderer.type === Phaser.WEBGL) {
-      const glow = scene.add.ellipse(cx, domeCy - domeR * 0.4, domeR * 1.1, domeR * 0.7, 0x9fe8ff, 0.35);
+      const glow = scene.add.ellipse(cx, domeCy - domeR * 0.4, domeR * 1.1, domeR * 0.7, 0x9fe8ff, 0.32);
       extras.push(glow);
-      const tw = scene.tweens.add({ targets: glow, alpha: 0.12, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      const tw = scene.tweens.add({ targets: glow, alpha: 0.1, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       this.once(Phaser.GameObjects.Events.DESTROY, () => tw.stop());
+    }
+  }
+
+  // ---- Breeding Station: Monster Legends "breeding mountain" ------------
+  private buildBreeding(
+    g: Phaser.GameObjects.Graphics, scene: Phaser.Scene, ground: Pt[], halfW: number, halfH: number,
+    extras: Phaser.GameObjects.GameObject[],
+  ) {
+    const cx = 0;
+    // Grassy mound base.
+    g.fillStyle(0x4f9e3a, 1); g.fillPoints(ground, true);
+    g.fillStyle(0x3f7d2e, 0.6);
+    g.fillEllipse(cx, halfH * 0.5, halfW * 1.4, halfH * 1.2);
+    g.lineStyle(2, 0x000000, 0.18); g.strokePoints(ground, true, true);
+
+    // Two craggy rock spires forming an archway (the breeding cave).
+    const ROCK = 0x8a6f86, ROCK_L = 0x735a70, ROCK_R = 0x5d475a, ROCK_TOP = 0x9c83a0;
+    const spire = (baseX: number, lean: number, h: number, w: number) => {
+      const bx = baseX, by = halfH * 0.55;
+      const tx = baseX + lean, ty = by - h;
+      // left face
+      g.fillStyle(ROCK_L, 1);
+      g.fillPoints([{ x: bx - w, y: by }, { x: bx, y: by + 4 }, { x: tx, y: ty }, { x: tx - w * 0.5, y: ty + 6 }], true);
+      // right face
+      g.fillStyle(ROCK_R, 1);
+      g.fillPoints([{ x: bx, y: by + 4 }, { x: bx + w, y: by }, { x: tx + w * 0.5, y: ty + 6 }, { x: tx, y: ty }], true);
+      // front highlight
+      g.fillStyle(ROCK, 1);
+      g.fillPoints([{ x: bx - w, y: by }, { x: tx - w * 0.5, y: ty + 6 }, { x: tx, y: ty }, { x: tx + w * 0.5, y: ty + 6 }, { x: bx + w, y: by }], true);
+      g.lineStyle(2, 0x000000, 0.22);
+      g.strokePoints([{ x: bx - w, y: by }, { x: tx, y: ty }, { x: bx + w, y: by }], false, false);
+      // snow/cap
+      g.fillStyle(ROCK_TOP, 0.9); g.fillEllipse(tx, ty + 2, w * 0.7, 5);
+      return { tx, ty };
+    };
+    const leftSpire = spire(-halfW * 0.5, halfW * 0.18, 46, halfW * 0.28);
+    const rightSpire = spire(halfW * 0.5, -halfW * 0.18, 52, halfW * 0.3);
+
+    // Stone arch connecting the two spires.
+    g.lineStyle(6, ROCK, 1);
+    g.beginPath();
+    g.moveTo(leftSpire.tx, leftSpire.ty + 6);
+    g.lineTo((leftSpire.tx + rightSpire.tx) / 2, Math.min(leftSpire.ty, rightSpire.ty) - 8);
+    g.lineTo(rightSpire.tx, rightSpire.ty + 6);
+    g.strokePath();
+
+    // Glowing heart-shaped portal between the spires.
+    const portalY = halfH * 0.18;
+    const heart = scene.add.graphics();
+    const drawHeart = (gg: Phaser.GameObjects.Graphics, s: number, color: number, alpha: number) => {
+      gg.fillStyle(color, alpha);
+      gg.fillCircle(-s * 0.5, -s * 0.25, s * 0.55);
+      gg.fillCircle(s * 0.5, -s * 0.25, s * 0.55);
+      gg.fillTriangle(-s * 1.02, -s * 0.02, s * 1.02, -s * 0.02, 0, s * 1.05);
+    };
+    // dark portal recess
+    g.fillStyle(0x2a1226, 1); g.fillEllipse(cx, portalY, halfW * 0.7, halfH * 0.95);
+
+    // Pulsing aura sits BEHIND the hearts (added first so it renders below).
+    const isGL = scene.sys.game.renderer.type === Phaser.WEBGL;
+    let aura: Phaser.GameObjects.Ellipse | undefined;
+    if (isGL) {
+      aura = scene.add.ellipse(cx, portalY, halfW * 1.1, halfH * 1.3, 0xff77b8, 0.4);
+      extras.push(aura);
+    }
+
+    // glowing heart
+    drawHeart(heart, halfW * 0.34, 0xff5fa5, 0.95);
+    heart.setPosition(cx, portalY);
+    extras.push(heart);
+    // inner bright heart
+    const heartCore = scene.add.graphics();
+    drawHeart(heartCore, halfW * 0.2, 0xffd0e8, 0.95);
+    heartCore.setPosition(cx, portalY - 1);
+    extras.push(heartCore);
+
+    // Pulsing glow animation (real bloom on WebGL).
+    if (isGL && aura) {
+      const tw = scene.tweens.add({ targets: [aura, heart], alpha: { from: 1, to: 0.55 }, scale: { from: 1, to: 1.08 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      this.once(Phaser.GameObjects.Events.DESTROY, () => tw.stop());
+    }
+    if (scene.textures.exists('fx-ember')) {
+      const p = scene.add.particles(cx, portalY, 'fx-ember', {
+        lifespan: 1500, speedY: { min: -14, max: -30 }, speedX: { min: -10, max: 10 },
+        scale: { start: 0.4, end: 0 }, alpha: { start: 0.8, end: 0 },
+        frequency: 280, quantity: 1, tint: 0xff9ed0,
+        blendMode: isGL ? 'ADD' : 'NORMAL',
+      });
+      extras.push(p);
+      this.once(Phaser.GameObjects.Events.DESTROY, () => p.destroy());
     }
   }
 
