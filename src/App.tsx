@@ -128,18 +128,21 @@ export default function App() {
         />
       )}
 
-      {/* Top HUD — always visible, above backdrop */}
-      <HUD />
-
-      {/* Bottom action bar — always visible, above backdrop */}
-      <BottomBar
-        onAttack={() => setActivePanel({ type: 'story' })}
-        onPokedex={() => setActivePanel({ type: 'pokedex' })}
-        onStory={() => setActivePanel({ type: 'story' })}
-        onShop={() => setActivePanel({ type: 'shop' })}
-        onBreed={() => setActivePanel({ type: 'breeding' })}
-        onHatch={() => setActivePanel({ type: 'hatchery' })}
-      />
+      {/* Top HUD + bottom action bar — hidden during battle so only the
+          fight screen shows (no shop/resource access mid-fight). */}
+      {!isBattleActive && (
+        <>
+          <HUD />
+          <BottomBar
+            onAttack={() => setActivePanel({ type: 'story' })}
+            onPokedex={() => setActivePanel({ type: 'pokedex' })}
+            onStory={() => setActivePanel({ type: 'story' })}
+            onShop={() => setActivePanel({ type: 'shop' })}
+            onBreed={() => setActivePanel({ type: 'breeding' })}
+            onHatch={() => setActivePanel({ type: 'hatchery' })}
+          />
+        </>
+      )}
 
       {/* Panel overlay — pointer-events:none so empty areas pass through to Phaser */}
       <div style={{

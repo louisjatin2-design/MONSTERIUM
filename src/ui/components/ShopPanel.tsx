@@ -40,7 +40,25 @@ export function ShopPanel({ onClose }: ShopPanelProps) {
       diamondCost: 40,
       action: (s) => { if (s.spendDiamonds(40)) s.addFood(5000); },
     },
-    ...(['flameling', 'aquapup', 'voltkit', 'shadowfox', 'luminos'] as const).map(id => {
+    // Common eggs — buyable with GOLD. Priced by unlock order: the later a
+    // common appears in the roster, the more expensive its egg.
+    ...ALL_MONSTER_IDS
+      .filter(id => MONSTER_DEFS[id]?.rarity === 'Common')
+      .map((id, i) => {
+        const def = MONSTER_DEFS[id]!;
+        const cost = 500 + i * 350; // earlier commons cheap, later ones pricier
+        return {
+          id: 'egg_common_' + id,
+          name: `🥚 ${def.name} Egg`,
+          description: `A Common ${def.elements.join('/')} monster egg.`,
+          goldCost: cost,
+          action: (s: ReturnType<typeof useGameStore.getState>) => {
+            if (s.spendGold(cost)) s.addEgg(id, 30);
+          },
+        } as ShopItem;
+      }),
+    // Premium eggs (Rare and up) — bought with diamonds.
+    ...(['shadowfox', 'luminos', 'venomscale', 'ironhide'] as const).map(id => {
       const def = MONSTER_DEFS[id]!;
       const rarityRank = RARITY_RANK[def.rarity];
       const cost = 20 + rarityRank * 15;

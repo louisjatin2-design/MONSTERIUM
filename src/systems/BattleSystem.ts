@@ -144,6 +144,16 @@ export function gainUltCharge(c: BattleCombatant, damageDealt: number): void {
   c.ultCharge = Math.min(100, c.ultCharge + Math.floor(damageDealt * 0.22));
 }
 
+// How much charge an ult needs before it can be used. Weaker ults (less base
+// power) charge faster by requiring less charge; stronger ults need more.
+// Ult power currently spans ~2.6 (weak) to ~5.5 (strong) → cost 45..100.
+export function ultChargeCostFor(power: number): number {
+  const MIN_POWER = 2.6, MAX_POWER = 5.5;
+  const MIN_COST = 45, MAX_COST = 100;
+  const t = Math.max(0, Math.min(1, (power - MIN_POWER) / (MAX_POWER - MIN_POWER)));
+  return Math.round(MIN_COST + t * (MAX_COST - MIN_COST));
+}
+
 export function generateAiAttack(
   equippedMoves: string[]
 ): { moveId: string; accuracy: number } {
