@@ -172,3 +172,39 @@
   .hud-trophy        { display: none !important; }
   .hud-avatar-xp     { display: none !important; }
 }
+
+/* ═══════════════════════════════════════════════════════
+   PORTRAIT PHONE LAYOUT  (≤ 767 px wide)
+   ═══════════════════════════════════════════════════════ */
+
+@media (orientation: portrait) and (max-width: 767px) {
+
+  /* 1 ── Phaser canvas: override CENTER_BOTH, pin it just below the HUD */
+  #game-container canvas {
+    /* Phaser writes margin-top to vertically center; we move canvas to top */
+    margin-top: 62px !important;
+  }
+
+  /* 2 ── Side panels: open below the canvas, not covering it
+          canvas height ≈ 56.25 vw  (= 100vw × 720/1280)
+          canvas bottom ≈ 62px (HUD) + 56.25vw + 4px gap              */
+  .panel-side,
+  .panel-side-narrow,
+  .panel-side-xs {
+    top: calc(66px + 56.25vw) !important;
+    max-height: calc(var(--vh, 1vh) * 100 - 56.25vw - 158px) !important;
+    /* 158 = 62 HUD + 84 BottomBar + 12 safety                         */
+  }
+
+  /* 3 ── Modal panels: stretch from just below HUD to just above BottomBar
+          instead of centering in a mostly-empty portrait viewport       */
+  .panel.panel-modal {
+    top:       62px  !important;
+    bottom:    84px  !important;
+    /* Keep the left: 50% + translateX(-50%) horizontal centering
+       but remove the vertical translate so top/bottom anchors work     */
+    transform: translateX(-50%) !important;
+    max-height: none !important;
+    overflow-y: auto;
+  }
+}
