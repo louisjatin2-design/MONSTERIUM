@@ -18,8 +18,19 @@ export function HUD(_props: HUDProps) {
   const playerLevel = useGameStore(s => s.playerLevel);
   const playerXp    = useGameStore(s => s.playerXp);
 
+  const redeemCheatCode = useGameStore(s => s.redeemCheatCode);
+
   const xpToNext  = Math.floor(100 * Math.pow(playerLevel, 1.5));
   const xpPercent = Math.min(100, (playerXp / xpToNext) * 100);
+
+  const openCheatPrompt = () => {
+    const code = window.prompt('Cheat-Code eingeben:');
+    if (code == null) return;
+    const ok = redeemCheatCode(code);
+    window.alert(ok
+      ? '✨ Cheat aktiviert! Unendlich Gold, Diamanten & Futter + alles freigeschaltet!'
+      : '❌ Ungültiger Code.');
+  };
 
   return (
     <div style={{
@@ -100,15 +111,18 @@ export function HUD(_props: HUDProps) {
           flexShrink: 0,
         }}>🏝️</button>
 
-      {/* Settings */}
-      <button style={{
-        background: 'rgba(255,255,255,0.1)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: 8, color: '#fff', width: 34, height: 34,
-        cursor: 'pointer', fontSize: 18, display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
-      }}>⚙️</button>
+      {/* Settings / cheat code */}
+      <button
+        onClick={openCheatPrompt}
+        title="Einstellungen / Cheat-Code"
+        style={{
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          borderRadius: 8, color: '#fff', width: 34, height: 34,
+          cursor: 'pointer', fontSize: 18, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>⚙️</button>
     </div>
   );
 }

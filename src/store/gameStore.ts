@@ -83,6 +83,9 @@ interface GameStoreActions {
 
   // Timer tick (called every second from App.tsx)
   tickTimers: () => void;
+
+  // Cheat codes — returns true if the code was valid.
+  redeemCheatCode: (code: string) => boolean;
 }
 
 type GameStore = GameStoreState & GameStoreActions;
@@ -611,6 +614,28 @@ export const useGameStore = create<GameStore>()(
             }
           }
         });
+      },
+
+      // Secret cheat codes. "Iiwnddehb" unlocks effectively infinite
+      // resources and reveals every monster in the Pokedex.
+      redeemCheatCode: (code) => {
+        const normalized = code.trim();
+        if (normalized !== 'Iiwnddehb') return false;
+        const INF = 999_999_999;
+        set((s) => {
+          s.gold = INF;
+          s.diamonds = INF;
+          s.food = INF;
+          // Reveal the whole Pokedex.
+          for (const defId of Object.keys(MONSTER_DEFS)) {
+            if (!s.pokedexSeen.includes(defId)) s.pokedexSeen.push(defId);
+          }
+          // Unlock every island.
+          for (const islandId of Object.keys(ISLAND_DEFS)) {
+            if (!s.unlockedIslands.includes(islandId)) s.unlockedIslands.push(islandId);
+          }
+        });
+        return true;
       },
     })),
     {
