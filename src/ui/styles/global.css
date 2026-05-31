@@ -103,6 +103,12 @@
   50%      { transform: rotate(7deg); }
 }
 
+/* Story-map active node pulse */
+@keyframes storyPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50%      { transform: translate(-50%, -50%) scale(1.12); }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }

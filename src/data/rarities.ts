@@ -80,3 +80,48 @@ export const RARITY_GOLD_RATE: Record<RarityType, number> = {
   Mythic:      2500,
   Transcendent: 5000,
 };
+
+// Distinctive sigil for each rarity — shown on cards, in the Pokédex and
+// anywhere a monster's rarity needs a quick visual read.
+export const RARITY_SYMBOLS: Record<RarityType, string> = {
+  Common:       '●',
+  Rare:         '◆',
+  SuperRare:    '✦',
+  Epic:         '✪',
+  Legendary:    '★',
+  Elite:        '❂',
+  Mythic:       '✸',
+  Transcendent: '✺',
+};
+
+// Short uppercase tier tags (handy for tight UI).
+export const RARITY_SHORT: Record<RarityType, string> = {
+  Common:       'C',
+  Rare:         'R',
+  SuperRare:    'SR',
+  Epic:         'EP',
+  Legendary:    'LG',
+  Elite:        'EL',
+  Mythic:       'MY',
+  Transcendent: 'TR',
+};
+
+// Number of star pips to render for a rarity (Monster-Legends style).
+export const RARITY_STARS: Record<RarityType, number> = {
+  Common:       1,
+  Rare:         2,
+  SuperRare:    3,
+  Epic:         4,
+  Legendary:    5,
+  Elite:        6,
+  Mythic:       7,
+  Transcendent: 8,
+};
+
+// CSS box-shadow glow keyed by rarity — used for portrait auras.
+export function rarityGlow(rarity: RarityType): string {
+  const c = RARITY_COLORS[rarity];
+  const rank = RARITY_RANK[rarity];
+  const spread = 6 + rank * 2;
+  return `0 0 ${spread}px ${c}, 0 0 ${spread * 2}px ${c}88`;
+}
