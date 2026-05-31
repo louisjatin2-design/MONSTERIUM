@@ -553,11 +553,8 @@ export class Island extends Phaser.Scene {
     EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
     EventBus.off(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.off(GameEvents.START_BATTLE, this.onStartBattle, this);
-<<<<<<< HEAD
     EventBus.off(GameEvents.ISLAND_CHANGED, this.onIslandChanged, this);
-=======
     EventBus.off(GameEvents.HATCH_EGG_ANIMATE, this.onHatchAnimate, this);
->>>>>>> origin/claude/monster-breeding-game-53GjL
     this.buildingSprites.clear();
     this.residentSprites.clear();
     this.residentSignature.clear();
