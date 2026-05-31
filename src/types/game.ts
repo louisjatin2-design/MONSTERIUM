@@ -141,6 +141,9 @@ export interface Egg {
   hatcherySlot: number;
   isUnique: boolean;
   parentIds?: [string, string];
+  // When true the egg sits in the Lager (storage) and is NOT incubating; the
+  // player must move it to the hatchery (which starts the timer) or sell it.
+  inStorage: boolean;
 }
 
 export interface BattleCombatant {

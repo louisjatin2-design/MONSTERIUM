@@ -55,7 +55,8 @@ interface GameStoreState {
   trophies: number;
   monsters: Record<string, MonsterInstance>;
   buildings: Record<string, BuildingInstance>;
-  eggs: Egg[];
+  eggs: Egg[];           // incubating in the hatchery (timer running)
+  storedEggs: Egg[];     // in the Lager (storage) — not incubating
   activeBreedings: ActiveBreeding[];
   lastBreedPair: { parent1Id: string; parent2Id: string } | null;
   unlockedIslands: string[];
@@ -118,6 +119,10 @@ interface GameStoreActions {
 
   // Eggs & Breeding
   addEgg: (monsterDefId: string, hatchTimeOverrideSec?: number, isUnique?: boolean, parentIds?: [string, string]) => void;
+  /** Move a stored egg into the hatchery (starts the incubation timer). */
+  moveEggToHatchery: (eggId: string) => boolean;
+  /** Sell a stored egg for gold. Returns the gold gained (0 if not found). */
+  sellEgg: (eggId: string) => number;
   hatchEgg: (eggId: string) => MonsterInstance | null;
   hatchEggToHabitat: (eggId: string, habitatId: string) => MonsterInstance | null;
   eligibleHabitats: (monsterDefId: string) => string[];
@@ -242,6 +247,7 @@ const INITIAL_STATE: GameStoreState = {
     },
   },
   eggs: [],
+  storedEggs: [],
   activeBreedings: [],
   lastBreedPair: null,
   unlockedIslands: ['emerald_isle'],
@@ -615,16 +621,55 @@ export const useGameStore = create<GameStore>()(
         if (!def) return;
         const hatchSec = hatchTimeOverrideSec ?? RARITY_HATCH_TIME_SEC[def.rarity];
         const now = Date.now();
+        // New eggs land in the Lager (storage) first — not incubating. We encode
+        // the intended hatch duration in hatchStartMs/hatchEndMs so the timer can
+        // begin when the player moves the egg into the hatchery.
         const egg: Egg = {
           id: 'egg_' + uid(),
           monsterDefId,
           hatchStartMs: now,
           hatchEndMs: now + hatchSec * 1000,
-          hatcherySlot: get().eggs.length,
+          hatcherySlot: 0,
           isUnique,
           parentIds,
+          inStorage: true,
         };
-        set((s) => { s.eggs.push(egg); });
+        set((s) => { s.storedEggs.push(egg); });
+      },
+
+      // Move a stored egg into the hatchery, starting its incubation timer.
+      // Returns false if the hatchery is full.
+      moveEggToHatchery: (eggId) => {
+        const egg = get().storedEggs.find(e => e.id === eggId);
+        if (!egg) return false;
+        if (get().eggs.length >= get().eggCapacity()) return false;
+        const durationMs = Math.max(0, egg.hatchEndMs - egg.hatchStartMs);
+        const now = Date.now();
+        set((s) => {
+          s.storedEggs = s.storedEggs.filter(e => e.id !== eggId);
+          s.eggs.push({
+            ...egg,
+            inStorage: false,
+            hatchStartMs: now,
+            hatchEndMs: now + durationMs,
+            hatcherySlot: s.eggs.length,
+          });
+        });
+        return true;
+      },
+
+      // Sell a stored egg for gold based on its monster's rarity.
+      sellEgg: (eggId) => {
+        const egg = get().storedEggs.find(e => e.id === eggId);
+        if (!egg) return 0;
+        const def = MONSTER_DEFS[egg.monsterDefId];
+        const rank = def ? RARITY_RANK[def.rarity] : 0;
+        const value = Math.floor(120 * Math.pow(2.1, rank)) * (egg.isUnique ? 2 : 1);
+        set((s) => {
+          s.storedEggs = s.storedEggs.filter(e => e.id !== eggId);
+          s.gold += value;
+        });
+        return value;
       },
 
       hatchEgg: (eggId) => {
@@ -732,7 +777,8 @@ export const useGameStore = create<GameStore>()(
         const ab = get().activeBreedings.find(b => b.id === id);
         if (!ab) return;
         if (Date.now() < ab.endMs) return;
-        if (get().eggs.length >= get().eggCapacity()) return;
+        // Collected eggs go to the Lager (storage), which is uncapped — the
+        // hatchery capacity only limits how many can incubate at once.
         get().addEgg(ab.resultDefId, undefined, ab.resultIsUnique, [ab.parent1Id, ab.parent2Id]);
         set((s) => { s.activeBreedings = s.activeBreedings.filter(b => b.id !== id); });
       },
@@ -909,7 +955,7 @@ export const useGameStore = create<GameStore>()(
     })),
     {
       name: 'monsterium-save',
-      version: 6,
+      version: 7,
       migrate: (persisted: any, _version: number) => {
         if (persisted && typeof persisted === 'object') {
           // v1→v2: single activeBreeding slot became an array.
@@ -933,6 +979,15 @@ export const useGameStore = create<GameStore>()(
           }
           if (!Array.isArray(persisted.claimedQuests)) {
             persisted.claimedQuests = [];
+          }
+          // Egg storage (Lager). Existing incubating eggs keep running.
+          if (!Array.isArray(persisted.storedEggs)) {
+            persisted.storedEggs = [];
+          }
+          if (Array.isArray(persisted.eggs)) {
+            for (const e of persisted.eggs) {
+              if (typeof e.inStorage !== 'boolean') e.inStorage = false;
+            }
           }
           // Add knownMoveIds and maxAttackSlots to existing monsters.
           if (persisted.monsters && typeof persisted.monsters === 'object') {

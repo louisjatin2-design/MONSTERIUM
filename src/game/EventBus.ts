@@ -27,4 +27,5 @@ export const GameEvents = {
   OPEN_LEVEL_REWARDS:   'open-level-rewards',  // account level-up reward panel
   OPEN_QUESTS:          'open-quests',         // quest/objectives panel
   OPEN_EVENTS:          'open-events',         // limited-time briefing events
+  OPEN_STORAGE:         'open-storage',        // egg storage (Lager)
 } as const;
