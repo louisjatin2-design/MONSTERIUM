@@ -1,18 +1,15 @@
 import Phaser from 'phaser';
-import { project, tileDepth, TILE_W, TILE_H, LAND_THICK, WATER_THICK } from '@game/iso';
+import { project, tileDepth, TILE_W, TILE_H, LAND_THICK } from '@game/iso';
 
-// Cartoon palette — bright, saturated, with a thick darker outline.
-const LAND_TOP        = 0x7ec850;
-const LAND_TOP_ALT    = 0x86d05a; // checkerboard variation
-const LAND_HOVER      = 0xa6e878;
-const LAND_SIDE_LEFT  = 0xb07a48;
-const LAND_SIDE_RIGHT = 0x8a5c33;
-const LAND_OUTLINE    = 0x4f8a32;
+const LAND_TOP     = 0x7ec850;
+const LAND_TOP_ALT = 0x86d05a;
+const LAND_HOVER   = 0xa6e878;
+const LAND_OUTLINE = 0x4f8a32;
 
-const WATER_TOP       = 0x4aa6e8;
-const WATER_TOP_ALT   = 0x54b0f0;
-const WATER_SIDE      = 0x2f7cc0;
-const WATER_OUTLINE   = 0x2d7fc0;
+// Rocky cliff underside — 6 bands, earthy top to dark stone bottom.
+// Left face is slightly lighter than right to give 3-D shading.
+const ROCK_L = [0xb88848, 0xa0703a, 0x88582c, 0x6a4020, 0x502e14, 0x381e0a];
+const ROCK_R = [0xa07838, 0x886030, 0x704a22, 0x523416, 0x3c240e, 0x281406];
 
 export class GridTile {
   isLand: boolean;
@@ -34,61 +31,78 @@ export class GridTile {
 
     this.gfx = scene.add.graphics();
     this.gfx.setDepth(tileDepth(tileX, tileY));
-    this.draw();
+
+    // Water tiles are invisible — they show the sky behind the island.
+    if (isLand) this.draw();
   }
 
   private topPoints() {
     const { cx, cy } = this;
     return [
-      { x: cx,             y: cy - TILE_H / 2 },
-      { x: cx + TILE_W / 2, y: cy },
-      { x: cx,             y: cy + TILE_H / 2 },
-      { x: cx - TILE_W / 2, y: cy },
+      { x: cx,              y: cy - TILE_H / 2 }, // back
+      { x: cx + TILE_W / 2, y: cy },              // right
+      { x: cx,              y: cy + TILE_H / 2 }, // front
+      { x: cx - TILE_W / 2, y: cy },              // left
     ];
   }
 
   private draw() {
     const g = this.gfx;
     g.clear();
+    if (!this.isLand) return;
 
-    const thick = this.isLand ? LAND_THICK : WATER_THICK;
-    const checker = (this.tileX + this.tileY) % 2 === 0;
-
-    const top = this.topPoints();
-    const bottom = top[2];   // front corner
-    const left = top[3];
+    const top   = this.topPoints();
+    const front = top[2]; // front/bottom corner of the diamond
+    const left  = top[3];
     const right = top[1];
+    const N     = ROCK_L.length;
+    const thick = LAND_THICK;
 
-    // Side faces (give the tile a 3D "block" thickness).
-    const leftSidePts = [
-      left,
-      bottom,
-      { x: bottom.x, y: bottom.y + thick },
-      { x: left.x,   y: left.y + thick },
-    ];
-    const rightSidePts = [
-      right,
-      bottom,
-      { x: bottom.x, y: bottom.y + thick },
-      { x: right.x,  y: right.y + thick },
-    ];
+    // ── Rocky cliff sides, banded top → bottom ──────────────────────────
+    for (let k = 0; k < N; k++) {
+      const y0 = (k       / N) * thick;
+      const y1 = ((k + 1) / N) * thick;
 
-    g.fillStyle(this.isLand ? LAND_SIDE_LEFT : WATER_SIDE, 1);
-    g.fillPoints(leftSidePts, true);
-    g.fillStyle(this.isLand ? LAND_SIDE_RIGHT : WATER_SIDE, 1);
-    g.fillPoints(rightSidePts, true);
+      g.fillStyle(ROCK_L[k], 1);
+      g.fillPoints([
+        { x: left.x,  y: left.y  + y0 },
+        { x: front.x, y: front.y + y0 },
+        { x: front.x, y: front.y + y1 },
+        { x: left.x,  y: left.y  + y1 },
+      ], true);
 
-    // Top face.
-    let topColor: number;
-    if (this.hovering && this.isLand) topColor = LAND_HOVER;
-    else if (this.isLand) topColor = checker ? LAND_TOP : LAND_TOP_ALT;
-    else topColor = checker ? WATER_TOP : WATER_TOP_ALT;
+      g.fillStyle(ROCK_R[k], 1);
+      g.fillPoints([
+        { x: right.x, y: right.y + y0 },
+        { x: front.x, y: front.y + y0 },
+        { x: front.x, y: front.y + y1 },
+        { x: right.x, y: right.y + y1 },
+      ], true);
+    }
 
+    // Subtle horizontal cracks between rock bands
+    g.lineStyle(1, 0x100804, 0.3);
+    for (let k = 1; k < N; k++) {
+      const yK = (k / N) * thick;
+      g.beginPath(); g.moveTo(left.x,  left.y  + yK); g.lineTo(front.x, front.y + yK); g.strokePath();
+      g.beginPath(); g.moveTo(right.x, right.y + yK); g.lineTo(front.x, front.y + yK); g.strokePath();
+    }
+
+    // Dark bottom edge outline
+    g.lineStyle(2, 0x0c0604, 0.8);
+    g.beginPath();
+    g.moveTo(left.x,  left.y  + thick);
+    g.lineTo(front.x, front.y + thick);
+    g.lineTo(right.x, right.y + thick);
+    g.strokePath();
+
+    // ── Grassy top face ──────────────────────────────────────────────────
+    const checker = (this.tileX + this.tileY) % 2 === 0;
+    const topColor = this.hovering ? LAND_HOVER : (checker ? LAND_TOP : LAND_TOP_ALT);
     g.fillStyle(topColor, 1);
     g.fillPoints(top, true);
 
-    // Cartoon outline on the top diamond.
-    g.lineStyle(1.5, this.isLand ? LAND_OUTLINE : WATER_OUTLINE, 0.85);
+    g.lineStyle(1.5, LAND_OUTLINE, 0.85);
     g.strokePoints(top, true, true);
   }
 

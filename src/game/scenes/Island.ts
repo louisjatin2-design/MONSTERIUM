@@ -42,7 +42,7 @@ export class Island extends Phaser.Scene {
     const islandDef = ISLAND_DEFS[state.currentIslandId];
     if (!islandDef) return;
 
-    this.cameras.main.setBackgroundColor(0x4a9e30); // lush green meadow
+    this.cameras.main.setBackgroundColor(0x5ab4e0); // aerial sky
     this.addSkyBackdrop();
 
     // Draw isometric tile grid.
@@ -124,29 +124,33 @@ export class Island extends Phaser.Scene {
     return this.sys.game.renderer.type === Phaser.WEBGL;
   }
 
-  // A soft sky→horizon→meadow gradient pinned behind the world, plus a
-  // glowing sun that bloom turns into real atmospheric light.
+  // Floating-island sky: deep blue overhead, lighter at the horizon, clouds
+  // drifting both above and below the island mass.
   private addSkyBackdrop() {
     const W = this.scale.width, H = this.scale.height;
 
-    const skyKey = 'fx-sky';
+    // Full aerial-sky gradient — no meadow, no ground, only sky.
+    const skyKey = 'fx-sky-float';
     if (!this.textures.exists(skyKey)) {
       const tex = this.textures.createCanvas(skyKey, 8, H);
       const ctx = tex?.getContext();
       if (ctx) {
         const grd = ctx.createLinearGradient(0, 0, 0, H);
-        grd.addColorStop(0.0, '#9fd8ff');
-        grd.addColorStop(0.45, '#cdeede');
-        grd.addColorStop(0.7, '#7ecb52');
-        grd.addColorStop(1.0, '#3f8f2c');
+        grd.addColorStop(0.00, '#0d2a5e');
+        grd.addColorStop(0.22, '#1e5aa0');
+        grd.addColorStop(0.50, '#4a9fd8');
+        grd.addColorStop(0.80, '#90cce8');
+        grd.addColorStop(1.00, '#c8e8f8');
         ctx.fillStyle = grd;
         ctx.fillRect(0, 0, 8, H);
         tex?.refresh();
       }
     }
-    const sky = this.add.image(0, 0, skyKey).setOrigin(0, 0).setScrollFactor(0).setDepth(-1000);
-    sky.setDisplaySize(W, H);
+    this.add.image(0, 0, skyKey)
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(-1000)
+      .setDisplaySize(W, H);
 
+    // Glowing sun near top-right.
     const sunKey = 'fx-sun';
     if (!this.textures.exists(sunKey)) {
       const s = 256;
@@ -154,20 +158,102 @@ export class Island extends Phaser.Scene {
       const ctx = tex?.getContext();
       if (ctx) {
         const grd = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-        grd.addColorStop(0.0, 'rgba(255,248,214,0.95)');
-        grd.addColorStop(0.35, 'rgba(255,238,170,0.55)');
-        grd.addColorStop(1.0, 'rgba(255,238,170,0)');
+        grd.addColorStop(0.00, 'rgba(255,248,214,0.95)');
+        grd.addColorStop(0.35, 'rgba(255,235,160,0.55)');
+        grd.addColorStop(1.00, 'rgba(255,235,160,0)');
         ctx.fillStyle = grd;
         ctx.fillRect(0, 0, s, s);
         tex?.refresh();
       }
     }
-    this.add.image(W * 0.82, H * 0.16, sunKey)
-      .setScrollFactor(0.08).setDepth(-990).setScale(2.2).setAlpha(0.9);
+    this.add.image(W * 0.82, H * 0.12, sunKey)
+      .setScrollFactor(0).setDepth(-990).setScale(2.6).setAlpha(0.88);
 
-    // Subtle dark overlay to dim the overall brightness (no shader needed).
+    // Drifting clouds above and below the island.
+    this.addClouds(W, H);
+
+    // Soft misty haze at the very bottom — horizon atmosphere.
+    const hazeKey = 'fx-haze-float';
+    if (!this.textures.exists(hazeKey)) {
+      const tex = this.textures.createCanvas(hazeKey, 8, 140);
+      const ctx = tex?.getContext();
+      if (ctx) {
+        const grd = ctx.createLinearGradient(0, 0, 0, 140);
+        grd.addColorStop(0.0, 'rgba(180,220,248,0)');
+        grd.addColorStop(1.0, 'rgba(200,232,252,0.45)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, 8, 140);
+        tex?.refresh();
+      }
+    }
+    this.add.image(0, H * 0.62, hazeKey)
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(-960)
+      .setDisplaySize(W, H * 0.38);
+
+    // Subtle overall darkness overlay (no shaders needed).
     this.add.rectangle(0, 0, W, H, 0x0a0a18, 0.22)
       .setOrigin(0, 0).setScrollFactor(0).setDepth(9000);
+  }
+
+  // Procedurally drawn clouds that drift slowly across the screen.
+  // Some are above the island, some below — which sells the "floating" feel.
+  private addClouds(W: number, H: number) {
+    const groups = [
+      // High clouds — above the island mass
+      { sx: W * 0.05, sy: H * 0.10, sc: 1.10, al: 0.72, depth: -870, dur: 82000 },
+      { sx: W * 0.42, sy: H * 0.07, sc: 0.72, al: 0.58, depth: -875, dur: 62000 },
+      { sx: W * 0.78, sy: H * 0.18, sc: 0.90, al: 0.62, depth: -880, dur: 72000 },
+      // Low clouds — below the island, reinforcing that it floats
+      { sx: W * 0.12, sy: H * 0.72, sc: 1.45, al: 0.52, depth: -850, dur: 94000 },
+      { sx: W * 0.52, sy: H * 0.80, sc: 1.10, al: 0.48, depth: -855, dur: 68000 },
+      { sx: W * 0.82, sy: H * 0.68, sc: 0.88, al: 0.56, depth: -858, dur: 78000 },
+    ];
+
+    for (const d of groups) {
+      const g = this.add.graphics();
+      g.setScrollFactor(0);
+      g.setDepth(d.depth);
+      this.drawCloudShape(g, 0, 0, d.sc, d.al);
+      g.setPosition(d.sx, d.sy);
+
+      const drift = () => {
+        this.tweens.add({
+          targets: g,
+          x: g.x + W + 350,
+          duration: d.dur * (0.9 + Math.random() * 0.2),
+          ease: 'Linear',
+          onComplete: () => {
+            g.x = -280 * d.sc;
+            drift();
+          },
+        });
+      };
+      drift();
+    }
+  }
+
+  // A cloud made of overlapping white circles with a soft flat base.
+  private drawCloudShape(
+    g: Phaser.GameObjects.Graphics,
+    cx: number, cy: number,
+    sc: number, alpha: number,
+  ) {
+    g.fillStyle(0xf8fbff, alpha);
+    const blobs = [
+      { x:   0, y:  0, r: 30 },
+      { x:  42, y:  6, r: 24 },
+      { x: -40, y:  9, r: 22 },
+      { x:  22, y: -14, r: 20 },
+      { x: -20, y: -11, r: 18 },
+      { x:  68, y: 14, r: 18 },
+      { x: -64, y: 15, r: 16 },
+    ];
+    for (const b of blobs) {
+      g.fillCircle(cx + b.x * sc, cy + b.y * sc, b.r * sc);
+    }
+    // Soft diffuse underside
+    g.fillStyle(0xe4eefa, alpha * 0.45);
+    g.fillEllipse(cx + 4 * sc, cy + 18 * sc, 132 * sc, 22 * sc);
   }
 
   // World post-processing removed — it washed out shapes. We rely on

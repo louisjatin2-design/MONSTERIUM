@@ -7,8 +7,8 @@ export const TILE_H = 32;        // diamond height (2:1 ratio)
 export const GRID_COLS = 20;
 export const GRID_ROWS = 15;
 
-export const LAND_THICK = 13;    // soil thickness under a land tile
-export const WATER_THICK = 6;    // thin edge under water tiles
+export const LAND_THICK = 52;    // deep rocky cliff under a land tile (floating island)
+export const WATER_THICK = 6;    // unused — water tiles render as open sky
 
 // Offsets chosen so the whole island sits in positive world space with margins.
 export const ORIGIN_X = 520;
