@@ -4,8 +4,8 @@ import { BUILDING_DEFS } from '@data/buildings';
 import { MONSTER_DEFS } from '@data/monsters';
 import { RARITY_COLORS } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
-import { RARITY_RANK } from '@data/rarities';
-import { calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
+import { calculateFeedCost } from '@systems/EconomySystem';
+import { EventBus, GameEvents } from '@game/EventBus';
 import '../styles/global.css';
 
 interface HabitatPanelProps {
@@ -19,7 +19,6 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   const food            = useGameStore(s => s.food);
   const collectGold     = useGameStore(s => s.collectGold);
   const feedMonster     = useGameStore(s => s.feedMonster);
-  const sellMonster     = useGameStore(s => s.sellMonster);
   const assignToHabitat = useGameStore(s => s.assignToHabitat);
   const removeFromHabitat = useGameStore(s => s.removeFromHabitat);
   const gold            = useGameStore(s => s.gold);
@@ -87,25 +86,21 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
           if (!mDef) return null;
           const feedCost = calculateFeedCost(m.level);
           const canFeed = food >= feedCost;
-          const sellValue = calculateSellValue(RARITY_RANK[mDef.rarity], m.level);
           return (
             <div key={m.instanceId} className="monster-card" style={{ marginBottom: 6 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 'bold' }}>
+                <span style={{ fontWeight: 'bold', cursor: 'pointer' }}
+                  title="Details ansehen"
+                  onClick={() => EventBus.emit(GameEvents.OPEN_MONSTER_DETAIL, { instanceId: m.instanceId })}>
                   {m.name}
                   <span className="rarity-badge" style={{ background: RARITY_COLORS[mDef.rarity], color: '#000' }}>
                     {mDef.rarity}
                   </span>
                 </span>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <button className="btn btn-gold" style={{ padding: '2px 8px', fontSize: 11 }}
-                    title={`Verkaufen für ${sellValue} Gold`}
-                    onClick={() => {
-                      if (confirm(`${m.name} (Lv ${m.level}) für 🪙 ${sellValue} Gold verkaufen?`)) {
-                        sellMonster(m.instanceId);
-                      }
-                    }}>
-                    Verkaufen 🪙{sellValue}
+                  <button className="btn btn-info" style={{ padding: '2px 8px', fontSize: 11 }}
+                    onClick={() => EventBus.emit(GameEvents.OPEN_MONSTER_DETAIL, { instanceId: m.instanceId })}>
+                    Details
                   </button>
                   <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: 11 }}
                     onClick={() => removeFromHabitat(m.instanceId)}>

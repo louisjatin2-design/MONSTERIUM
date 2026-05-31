@@ -37,10 +37,9 @@ export function HatchConfirmPanel({ eggId, onClose }: HatchConfirmPanelProps) {
   ));
 
   const handleHatch = () => {
-    // Hand off to the Island scene: it plays the animation, then commits
-    // the hatch (which records the monster in the Pokédex).
-    EventBus.emit(GameEvents.HATCH_EGG_ANIMATE, { eggId });
-    onClose();
+    // A hatched monster must be placed in a habitat first — open the
+    // forced-assignment screen, which commits the hatch once a habitat is picked.
+    EventBus.emit(GameEvents.OPEN_ASSIGN_HABITAT, { eggId });
   };
 
   return (

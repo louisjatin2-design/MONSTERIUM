@@ -21,4 +21,6 @@ export const GameEvents = {
   START_BATTLE:         'start-battle',
   OPEN_HATCH_CONFIRM:   'open-hatch-confirm',  // Phaser → React: egg tapped
   HATCH_EGG_ANIMATE:    'hatch-egg-animate',   // React → Phaser: play hatch anim
+  OPEN_MONSTER_DETAIL:  'open-monster-detail', // open a single monster's detail screen
+  OPEN_ASSIGN_HABITAT:  'open-assign-habitat', // forced habitat assignment after hatching
 } as const;

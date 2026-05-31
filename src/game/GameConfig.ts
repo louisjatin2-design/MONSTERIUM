@@ -7,6 +7,8 @@ import { Battle } from '@game/scenes/Battle';
 import { TimingBarScene } from '@game/scenes/minigames/TimingBarScene';
 import { AimClickScene } from '@game/scenes/minigames/AimClickScene';
 import { ButtonSequenceScene } from '@game/scenes/minigames/ButtonSequenceScene';
+import { MashButtonScene } from '@game/scenes/minigames/MashButtonScene';
+import { SwipePathScene } from '@game/scenes/minigames/SwipePathScene';
 
 export const GameConfig: Phaser.Types.Core.GameConfig = {
   // Prefer WebGL (enables lighting, bloom & post-FX) with a Canvas fallback.
@@ -15,7 +17,7 @@ export const GameConfig: Phaser.Types.Core.GameConfig = {
   height: 720,
   backgroundColor: '#0a0a1a',
   parent: 'game-container',
-  scene: [Boot, Preload, MainMenu, Island, Battle, TimingBarScene, AimClickScene, ButtonSequenceScene],
+  scene: [Boot, Preload, MainMenu, Island, Battle, TimingBarScene, AimClickScene, ButtonSequenceScene, MashButtonScene, SwipePathScene],
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
