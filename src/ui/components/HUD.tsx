@@ -1,6 +1,7 @@
 import React from 'react';
 import { useGameStore } from '@store/gameStore';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { QUESTS, isQuestComplete, type QuestProgressSnapshot } from '@data/quests';
 import '../styles/global.css';
 
 interface HUDProps {
@@ -18,6 +19,22 @@ export function HUD(_props: HUDProps) {
   const playerLevel = useGameStore(s => s.playerLevel);
   const playerXp    = useGameStore(s => s.playerXp);
   const pendingRewards = useGameStore(s => s.pendingLevelRewards.length);
+  const claimableQuests = useGameStore(s => {
+    const snap: QuestProgressSnapshot = {
+      playerLevel: s.playerLevel,
+      storyProgress: s.storyProgress,
+      pokedexSeen: s.pokedexSeen.length,
+      monstersOwned: Object.keys(s.monsters).length,
+      buildingsBuilt: s.stats.buildingsBuilt,
+      feeds: s.stats.feeds,
+      breeds: s.stats.breeds,
+      hatches: s.stats.hatches,
+      collects: s.stats.collects,
+      battlesWon: s.stats.battlesWon,
+      highestRarityOwned: 0,
+    };
+    return QUESTS.filter(q => !s.claimedQuests.includes(q.id) && isQuestComplete(q, snap)).length;
+  });
 
   const redeemCheatCode = useGameStore(s => s.redeemCheatCode);
 
@@ -116,6 +133,45 @@ export function HUD(_props: HUDProps) {
         <span style={{ fontSize: 16 }}>🏆</span>
         <span style={{ color: '#ffd700', fontWeight: 900, fontSize: 13 }}>{trophies}</span>
       </div>
+
+      {/* Quests */}
+      <button
+        onClick={() => EventBus.emit(GameEvents.OPEN_QUESTS, {})}
+        title="Aufträge"
+        style={{
+          position: 'relative',
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          borderRadius: 8, color: '#fff', width: 34, height: 34,
+          cursor: 'pointer', fontSize: 18, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+        📋
+        {claimableQuests > 0 && (
+          <span style={{
+            position: 'absolute', top: -5, right: -5,
+            background: '#44dd66', color: '#04210f',
+            borderRadius: '50%', minWidth: 16, height: 16, padding: '0 3px',
+            fontSize: 10, fontWeight: 900,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid #fff',
+          }}>{claimableQuests}</span>
+        )}
+      </button>
+
+      {/* Events */}
+      <button
+        onClick={() => EventBus.emit(GameEvents.OPEN_EVENTS, {})}
+        title="Events"
+        style={{
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          borderRadius: 8, color: '#fff', width: 34, height: 34,
+          cursor: 'pointer', fontSize: 18, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>🎪</button>
 
       {/* Islands */}
       <button

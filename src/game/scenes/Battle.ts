@@ -904,6 +904,7 @@ export class Battle extends Phaser.Scene {
       store.addGold(rewardGold);
       store.addPlayerXp(rewardXp);
       store.addTrophies(20);
+      store.recordBattleWon();
       if (rewardDiamonds > 0) store.addDiamonds(rewardDiamonds);
 
       // Advance the story if this was the next uncleared story battle.
