@@ -7,7 +7,7 @@ import { RARITY_RANK, RARITY_HATCH_TIME_SEC } from '@data/rarities';
 import { ELEMENT_CSS_COLORS, ELEMENT_COLORS } from '@data/elements';
 import { TRAITS } from '@data/traits';
 import {
-  resolveTurnOrder, calculateDamage, generateAiAttack,
+  buildTurnQueue, calculateDamage, generateAiAttack,
   processStatusTick, buildCombatant, gainUltCharge,
 } from '@systems/BattleSystem';
 import type { BattleCombatant, MoveDef } from '@gtypes/game';
@@ -360,9 +360,15 @@ export class Battle extends Phaser.Scene {
 
   private startRound() {
     const allCombatants = [...this.playerCombatants, ...this.enemyCombatants];
-    this.turnOrder = resolveTurnOrder(allCombatants);
+    this.turnOrder = buildTurnQueue(allCombatants);
     this.turnIndex = 0;
+    this.logTurnOrder();
     this.nextTurn();
+  }
+
+  private logTurnOrder() {
+    const names = this.turnOrder.map(c => c.name).join(' → ');
+    this.log(`Reihenfolge: ${names}`);
   }
 
   private nextTurn() {
@@ -381,14 +387,14 @@ export class Battle extends Phaser.Scene {
 
     if (checkVictory()) return;
 
-    // Refresh turn order (dead monsters fall out)
+    // Remove dead monsters from the remaining queue without rebuilding it
+    // (full rebuild happens at meta-round boundary)
     const alive = [...this.playerCombatants, ...this.enemyCombatants].filter(c => c.currentHp > 0);
-    this.turnOrder = resolveTurnOrder(alive);
+    this.turnOrder = this.turnOrder.filter(c => c.currentHp > 0);
 
     if (this.turnIndex >= this.turnOrder.length) {
-      // New round
+      // New meta-round: tick DOT, rebuild speed-based queue
       this.turnIndex = 0;
-      // Process DOT for all alive
       for (const c of alive) {
         const dot = processStatusTick(c);
         if (dot > 0) {
@@ -399,6 +405,8 @@ export class Battle extends Phaser.Scene {
         this.updateStatusDisplay(c);
       }
       if (checkVictory()) return;
+      this.turnOrder = buildTurnQueue(alive);
+      this.logTurnOrder();
     }
 
     this.currentAttacker = this.turnOrder[this.turnIndex];
