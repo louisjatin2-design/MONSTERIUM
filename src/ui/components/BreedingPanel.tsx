@@ -23,6 +23,7 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
   const breedingCap     = useGameStore(s => s.breedingCapacity);
   const eggCap          = useGameStore(s => s.eggCapacity);
   const upgradeBuilding = useGameStore(s => s.upgradeBuilding);
+  const lastBreedPair   = useGameStore(s => s.lastBreedPair);
 
   const [parent1Id, setParent1Id] = useState('');
   const [parent2Id, setParent2Id] = useState('');
@@ -93,8 +94,36 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
       {/* New breeding form */}
       {slotsFree > 0 ? (
         <div style={{ marginTop: 8, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-          <div style={{ fontSize: 13, fontWeight: 'bold', color: '#ffd700', marginBottom: 8 }}>
-            Neue Paarung ({slotsFree} Slot frei)
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 'bold', color: '#ffd700' }}>
+              Neue Paarung ({slotsFree} Slot frei)
+            </div>
+            {/* Repeat last pair button */}
+            {lastBreedPair && (() => {
+              const m1 = monstersRecord[lastBreedPair.parent1Id];
+              const m2 = monstersRecord[lastBreedPair.parent2Id];
+              const available = !!(m1 && m2);
+              return (
+                <button
+                  className="btn btn-purple"
+                  style={{ padding: '4px 10px', fontSize: 11 }}
+                  disabled={!available}
+                  title={available
+                    ? `${m1.name ?? '?'} × ${m2.name ?? '?'} wiederholen`
+                    : 'Eines der Monster ist nicht mehr verfügbar'}
+                  onClick={() => {
+                    if (available) {
+                      setParent1Id(lastBreedPair.parent1Id);
+                      setParent2Id(lastBreedPair.parent2Id);
+                    }
+                  }}
+                >
+                  🔁 {available
+                    ? `${m1.name ?? '?'} × ${m2.name ?? '?'}`
+                    : 'Nicht verfügbar'}
+                </button>
+              );
+            })()}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <MonsterSelector label="Elternteil 1" value={parent1Id} onChange={setParent1Id} monsters={monsters} exclude={parent2Id} />

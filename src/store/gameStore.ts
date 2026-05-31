@@ -28,6 +28,7 @@ interface GameStoreState {
   buildings: Record<string, BuildingInstance>;
   eggs: Egg[];
   activeBreedings: ActiveBreeding[];
+  lastBreedPair: { parent1Id: string; parent2Id: string } | null;
   unlockedIslands: string[];
   islandFragments: Record<string, number>;
   storyProgress: number;
@@ -163,6 +164,7 @@ const INITIAL_STATE: GameStoreState = {
   },
   eggs: [],
   activeBreedings: [],
+  lastBreedPair: null,
   unlockedIslands: ['emerald_isle'],
   islandFragments: {},
   storyProgress: 0,
@@ -496,6 +498,7 @@ export const useGameStore = create<GameStore>()(
             resultDefId,
             resultIsUnique,
           });
+          s.lastBreedPair = { parent1Id, parent2Id };
         });
         // Breeding together deepens the bond between the two parents.
         get().updateRelationship(parent1Id, parent2Id, 50);
