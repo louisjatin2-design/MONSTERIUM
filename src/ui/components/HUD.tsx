@@ -54,15 +54,15 @@ export function HUD(_props: HUDProps) {
     <div style={{
       position: 'absolute', top: 0, left: 0, right: 0,
       height: 60,
-      background: 'linear-gradient(180deg, #1e0a3c 0%, #120521 100%)',
-      borderBottom: '2px solid #7744cc',
+      background: 'linear-gradient(180deg, #2a1450 0%, #1a0a32 55%, #120521 100%)',
+      borderBottom: '2px solid #8a5cd8',
       display: 'flex',
       alignItems: 'center',
       padding: '0 10px',
       gap: 6,
       pointerEvents: 'auto',
       zIndex: 200,
-      boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+      boxShadow: '0 4px 18px rgba(0,0,0,0.7), inset 0 -2px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12)',
     }}>
       {/* Player avatar + level badge — opens account rewards */}
       <button

@@ -37,15 +37,15 @@ export function BottomBar({ onAttack, onPokedex, onStory, onShop, onBreed, onHat
       left: 0,
       right: 0,
       height: 84,
-      background: 'linear-gradient(180deg, #1a0e35 0%, #0e0820 100%)',
-      borderTop: '2px solid #6644aa',
+      background: 'linear-gradient(180deg, #281642 0%, #160c28 60%, #0c0618 100%)',
+      borderTop: '2px solid #8a5cd8',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-around',
       padding: '0 8px',
       pointerEvents: 'auto',
       zIndex: 200,
-      boxShadow: '0 -4px 20px rgba(0,0,0,0.7)',
+      boxShadow: '0 -6px 24px rgba(0,0,0,0.75), inset 0 2px 0 rgba(255,255,255,0.1), inset 0 -3px 12px rgba(0,0,0,0.5)',
     }}>
       {BUTTONS.map(btn => (
         <BarButton

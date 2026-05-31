@@ -1,16 +1,23 @@
 /* Monster Legends warm UI palette */
 
-/* Panels */
+/* Panels — carved "world" frame: layered gradient, gold inner rim, deep drop */
 .panel {
   position: absolute;
-  background: linear-gradient(160deg, #1e0a3c 0%, #120521 100%);
-  border: 2px solid #7744cc;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(150,110,255,0.18), transparent 60%),
+    linear-gradient(160deg, #241046 0%, #160826 55%, #0e0420 100%);
+  border: 2px solid #8a5cd8;
   border-radius: 18px;
   color: #ffffff;
   font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
   pointer-events: auto;
   overflow: auto;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1);
+  box-shadow:
+    0 18px 50px rgba(0,0,0,0.85),
+    0 0 0 1px rgba(0,0,0,0.5),
+    inset 0 0 0 1px rgba(255,215,120,0.18),
+    inset 0 2px 0 rgba(255,255,255,0.14),
+    inset 0 -18px 40px rgba(0,0,0,0.4);
 }
 
 .panel-title {
