@@ -9,7 +9,7 @@ import { MonsterSprite } from '@game/objects/MonsterSprite';
 import { EggSprite } from '@game/objects/EggSprite';
 import {
   project, worldToGrid, pointInPolygon, footprintCorners,
-  GRID_COLS, GRID_ROWS, CONTENT_W, CONTENT_H, ISLAND_CENTER, TILE_W,
+  GRID_COLS, GRID_ROWS, CONTENT_W, CONTENT_H, ISLAND_CENTER, TILE_W, TILE_H, LAND_THICK,
 } from '@game/iso';
 import type { BuildingInstance } from '@gtypes/game';
 
@@ -44,6 +44,9 @@ export class Island extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(0x5ab4e0); // aerial sky
     this.addSkyBackdrop();
+
+    // Unified organic landmass (rock cliff) drawn under all the grass tops.
+    this.drawLandmass(islandDef.tileMask);
 
     // Draw isometric tile grid.
     for (let row = 0; row < GRID_ROWS; row++) {
@@ -122,6 +125,118 @@ export class Island extends Phaser.Scene {
 
   private isWebGL(): boolean {
     return this.sys.game.renderer.type === Phaser.WEBGL;
+  }
+
+  // Draws the whole island underside as ONE continuous rocky cliff, so the
+  // perimeter reads as an organic floating rock instead of stacked diamonds.
+  // The bottom edge is irregular and a few hanging boulders break the line.
+  private drawLandmass(mask: boolean[][]) {
+    const g = this.add.graphics();
+    g.setDepth(-100); // above the sky, below every grass top (depth >= 0)
+
+    const isLand = (c: number, r: number) =>
+      r >= 0 && r < GRID_ROWS && c >= 0 && c < GRID_COLS && !!mask[r]?.[c];
+
+    // Deterministic pseudo-random so the cliff is stable between frames.
+    const rnd = (a: number, b: number) => {
+      const x = Math.sin(a * 91.7 + b * 47.3) * 43758.5453;
+      return x - Math.floor(x);
+    };
+
+    // 8 vertical rock bands: earthy dirt at the top → dark stone at the base.
+    const BANDS = [0xb88848, 0xa67838, 0x8f632e, 0x785024, 0x60401c, 0x4a3014, 0x36220e, 0x241608];
+    const N = BANDS.length;
+
+    type Cell = { col: number; row: number; cx: number; cy: number; thick: number; front: boolean };
+    const cells: Cell[] = [];
+
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLS; col++) {
+        if (!isLand(col, row)) continue;
+        // A tile shows cliff only if the tile diagonally in front (col+1,row+1)
+        // is open air. Those front-edge tiles get extra, irregular depth.
+        const frontOpen = !isLand(col + 1, row + 1);
+        const sideOpen  = !isLand(col + 1, row) || !isLand(col, row + 1);
+        const front = frontOpen || sideOpen;
+        const extra = front ? 18 + rnd(col, row) * 34 : 4;
+        const c = project(col + 0.5, row + 0.5);
+        cells.push({ col, row, cx: c.x, cy: c.y, thick: LAND_THICK + extra, front });
+      }
+    }
+
+    // Render back-to-front so nearer cliffs overlap farther ones cleanly.
+    cells.sort((a, b) => (a.col + a.row) - (b.col + b.row));
+
+    for (const cell of cells) {
+      const left  = { x: cell.cx - TILE_W / 2, y: cell.cy };
+      const front = { x: cell.cx,              y: cell.cy + TILE_H / 2 };
+      const right = { x: cell.cx + TILE_W / 2, y: cell.cy };
+
+      for (let k = 0; k < N; k++) {
+        const y0 = (k       / N) * cell.thick;
+        const y1 = ((k + 1) / N) * cell.thick;
+        g.fillStyle(BANDS[k], 1);
+        g.fillPoints([
+          { x: left.x,  y: left.y  + y0 },
+          { x: front.x, y: front.y + y0 },
+          { x: right.x, y: right.y + y0 },
+          { x: right.x, y: right.y + y1 },
+          { x: front.x, y: front.y + y1 },
+          { x: left.x,  y: left.y  + y1 },
+        ], true);
+      }
+
+      // Front-edge detailing: cracks, shadow streaks and a hanging boulder.
+      if (cell.front) {
+        // Vertical crack
+        if (rnd(cell.row, cell.col) > 0.5) {
+          g.lineStyle(1.5, 0x140c06, 0.4);
+          const fx = front.x + (rnd(cell.col, cell.row) - 0.5) * TILE_W * 0.4;
+          g.beginPath();
+          g.moveTo(fx, front.y + cell.thick * 0.15);
+          g.lineTo(fx + (rnd(cell.col, 7) - 0.5) * 8, front.y + cell.thick * 0.8);
+          g.strokePath();
+        }
+        // A chunky hanging boulder below the front point, breaking the base line.
+        if (rnd(cell.col * 2, cell.row) > 0.55) {
+          const bx = front.x + (rnd(cell.row, cell.col * 3) - 0.5) * TILE_W * 0.35;
+          const by = front.y + cell.thick;
+          const bw = 10 + rnd(cell.col, cell.row * 2) * 14;
+          const bh = 14 + rnd(cell.row * 3, cell.col) * 26;
+          g.fillStyle(0x241608, 1);
+          g.fillPoints([
+            { x: bx - bw / 2, y: by - 4 },
+            { x: bx + bw / 2, y: by - 4 },
+            { x: bx + bw * 0.28, y: by + bh * 0.6 },
+            { x: bx, y: by + bh },
+            { x: bx - bw * 0.3, y: by + bh * 0.55 },
+          ], true);
+          g.fillStyle(0x36220e, 0.7);
+          g.fillEllipse(bx - bw * 0.12, by + bh * 0.18, bw * 0.5, bh * 0.4);
+        }
+      }
+    }
+
+    // Soft drop-shadow puff far below the island, grounding it in the sky.
+    const shKey = 'fx-island-shadow';
+    if (!this.textures.exists(shKey)) {
+      const w = 360, h = 120;
+      const tex = this.textures.createCanvas(shKey, w, h);
+      const ctx = tex?.getContext();
+      if (ctx) {
+        const grd = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+        grd.addColorStop(0.0, 'rgba(20,40,70,0.30)');
+        grd.addColorStop(1.0, 'rgba(20,40,70,0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        tex?.refresh();
+      }
+    }
+    const sc = project(GRID_COLS / 2, GRID_ROWS / 2 + 4);
+    this.add.image(sc.x, sc.y + LAND_THICK + 80, shKey)
+      .setDepth(-200).setScale(2.4, 1.6).setAlpha(0.8);
   }
 
   // Floating-island sky: deep blue overhead, lighter at the horizon, clouds

@@ -1,15 +1,18 @@
 import Phaser from 'phaser';
-import { project, tileDepth, TILE_W, TILE_H, LAND_THICK } from '@game/iso';
+import { project, tileDepth, TILE_W, TILE_H } from '@game/iso';
 
-const LAND_TOP     = 0x7ec850;
-const LAND_TOP_ALT = 0x86d05a;
-const LAND_HOVER   = 0xa6e878;
-const LAND_OUTLINE = 0x4f8a32;
+// Organic grass palette — several close greens picked pseudo-randomly per
+// tile so the surface reads as natural turf rather than a checkerboard.
+const GRASS = [0x76c24a, 0x7ec850, 0x84d058, 0x70bc44, 0x88d460];
+const GRASS_DARK  = 0x5ea63a; // shaded dips
+const GRASS_LIGHT = 0x9ade6e; // sunlit patches
+const LAND_HOVER  = 0xb4f088;
 
-// Rocky cliff underside — 6 bands, earthy top to dark stone bottom.
-// Left face is slightly lighter than right to give 3-D shading.
-const ROCK_L = [0xb88848, 0xa0703a, 0x88582c, 0x6a4020, 0x502e14, 0x381e0a];
-const ROCK_R = [0xa07838, 0x886030, 0x704a22, 0x523416, 0x3c240e, 0x281406];
+// Deterministic pseudo-random in [0,1) from two ints.
+function hash2(a: number, b: number): number {
+  const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
 
 export class GridTile {
   isLand: boolean;
@@ -19,6 +22,7 @@ export class GridTile {
   private cx: number;
   private cy: number;
   private hovering = false;
+  private baseColor: number;
 
   constructor(scene: Phaser.Scene, tileX: number, tileY: number, isLand: boolean) {
     this.tileX = tileX;
@@ -29,10 +33,17 @@ export class GridTile {
     this.cx = c.x;
     this.cy = c.y;
 
+    // Pick an organic grass shade for this tile.
+    const r = hash2(tileX, tileY);
+    if (r < 0.12) this.baseColor = GRASS_DARK;
+    else if (r > 0.88) this.baseColor = GRASS_LIGHT;
+    else this.baseColor = GRASS[Math.floor(hash2(tileY, tileX) * GRASS.length) % GRASS.length];
+
     this.gfx = scene.add.graphics();
+    // Grass tops sit above the unified landmass cliff (drawn by the scene).
     this.gfx.setDepth(tileDepth(tileX, tileY));
 
-    // Water tiles are invisible — they show the sky behind the island.
+    // Water tiles are invisible — open sky shows through around the island.
     if (isLand) this.draw();
   }
 
@@ -51,59 +62,20 @@ export class GridTile {
     g.clear();
     if (!this.isLand) return;
 
-    const top   = this.topPoints();
-    const front = top[2]; // front/bottom corner of the diamond
-    const left  = top[3];
-    const right = top[1];
-    const N     = ROCK_L.length;
-    const thick = LAND_THICK;
-
-    // ── Rocky cliff sides, banded top → bottom ──────────────────────────
-    for (let k = 0; k < N; k++) {
-      const y0 = (k       / N) * thick;
-      const y1 = ((k + 1) / N) * thick;
-
-      g.fillStyle(ROCK_L[k], 1);
-      g.fillPoints([
-        { x: left.x,  y: left.y  + y0 },
-        { x: front.x, y: front.y + y0 },
-        { x: front.x, y: front.y + y1 },
-        { x: left.x,  y: left.y  + y1 },
-      ], true);
-
-      g.fillStyle(ROCK_R[k], 1);
-      g.fillPoints([
-        { x: right.x, y: right.y + y0 },
-        { x: front.x, y: front.y + y0 },
-        { x: front.x, y: front.y + y1 },
-        { x: right.x, y: right.y + y1 },
-      ], true);
-    }
-
-    // Subtle horizontal cracks between rock bands
-    g.lineStyle(1, 0x100804, 0.3);
-    for (let k = 1; k < N; k++) {
-      const yK = (k / N) * thick;
-      g.beginPath(); g.moveTo(left.x,  left.y  + yK); g.lineTo(front.x, front.y + yK); g.strokePath();
-      g.beginPath(); g.moveTo(right.x, right.y + yK); g.lineTo(front.x, front.y + yK); g.strokePath();
-    }
-
-    // Dark bottom edge outline
-    g.lineStyle(2, 0x0c0604, 0.8);
-    g.beginPath();
-    g.moveTo(left.x,  left.y  + thick);
-    g.lineTo(front.x, front.y + thick);
-    g.lineTo(right.x, right.y + thick);
-    g.strokePath();
-
-    // ── Grassy top face ──────────────────────────────────────────────────
-    const checker = (this.tileX + this.tileY) % 2 === 0;
-    const topColor = this.hovering ? LAND_HOVER : (checker ? LAND_TOP : LAND_TOP_ALT);
-    g.fillStyle(topColor, 1);
+    const top = this.topPoints();
+    g.fillStyle(this.hovering ? LAND_HOVER : this.baseColor, 1);
     g.fillPoints(top, true);
 
-    g.lineStyle(1.5, LAND_OUTLINE, 0.85);
-    g.strokePoints(top, true, true);
+    // Faint same-hue speckles for texture (no hard grid lines).
+    if (!this.hovering) {
+      const r = hash2(this.tileX * 3.3, this.tileY * 1.7);
+      if (r > 0.55) {
+        g.fillStyle(r > 0.8 ? GRASS_LIGHT : GRASS_DARK, 0.35);
+        const sx = this.cx + (hash2(this.tileX, this.tileY * 2) - 0.5) * TILE_W * 0.4;
+        const sy = this.cy + (hash2(this.tileX * 2, this.tileY) - 0.5) * TILE_H * 0.4;
+        g.fillEllipse(sx, sy, 12, 6);
+      }
+    }
   }
 
   highlight() {
