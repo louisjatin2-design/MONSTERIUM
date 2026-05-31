@@ -59,7 +59,7 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
   };
 
   return (
-    <div className="panel" style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 500, maxHeight: '88vh', padding: 20, overflowY: 'auto' }}>
+    <div className="panel panel-modal panel-w-lg" style={{ padding: 20, overflowY: 'auto' }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🧬 Brutstation</div>
 

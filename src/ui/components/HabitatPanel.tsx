@@ -56,7 +56,7 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   });
 
   return (
-    <div className="panel" style={{ right: 20, top: 68, width: 400, maxHeight: 'calc(100vh - 162px)', padding: 16, overflowY: 'auto' }}>
+    <div className="panel panel-side">
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🏠 {def.name}</div>
       <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>

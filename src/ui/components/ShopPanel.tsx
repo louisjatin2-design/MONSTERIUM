@@ -57,17 +57,14 @@ export function ShopPanel({ onClose }: ShopPanelProps) {
   ];
 
   return (
-    <div className="panel" style={{
-      left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-      width: 420, maxHeight: '85vh', padding: 20,
-    }}>
+    <div className="panel panel-modal panel-w-sm" style={{ padding: 20 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🛒 Shop</div>
       <div style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>
         💎 {diamonds} diamonds available
       </div>
 
-      <div style={{ overflowY: 'auto', maxHeight: 'calc(85vh - 130px)' }}>
+      <div style={{ overflowY: 'auto', maxHeight: 'calc(min(88vh, 100vh - 150px) - 130px)' }}>
         {SHOP_ITEMS.map(item => {
           const cost = item.diamondCost ?? 0;
           const canAfford = diamonds >= cost;

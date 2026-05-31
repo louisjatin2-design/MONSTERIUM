@@ -17,10 +17,7 @@ export function MonsterDetail({ defId, isUnlocked, onClose }: MonsterDetailProps
   if (!def) return null;
 
   return (
-    <div className="panel" style={{
-      left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-      width: 460, maxHeight: '85vh', padding: 20, overflowY: 'auto',
-    }}>
+    <div className="panel panel-modal panel-w-md" style={{ padding: 20, overflowY: 'auto' }}>
       <button className="close-btn" onClick={onClose}>✕</button>
 
       {/* Header */}

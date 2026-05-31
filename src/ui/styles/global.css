@@ -108,3 +108,67 @@
 ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
 ::-webkit-scrollbar-thumb { background: rgba(119,68,204,0.6); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(187,136,255,0.8); }
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE LAYOUT — cross-device support
+   ═══════════════════════════════════════════════════════ */
+
+/* Smooth iOS momentum scroll */
+.panel { -webkit-overflow-scrolling: touch; }
+
+/* ── Side panel: right-anchored, collapses to full-width on mobile ── */
+.panel-side {
+  box-sizing: border-box;
+  right: 16px;
+  top: 62px;
+  width: min(420px, calc(100vw - 32px));
+  /* Use --vh to avoid iOS Safari address-bar bug */
+  max-height: calc(var(--vh, 1vh) * 100 - 152px);
+  padding: 16px;
+  overflow-y: auto;
+}
+.panel-side-narrow { width: min(360px, calc(100vw - 32px)); }
+.panel-side-xs     { width: min(320px, calc(100vw - 32px)); }
+
+@media (max-width: 520px) {
+  .panel-side,
+  .panel-side-narrow,
+  .panel-side-xs {
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-height: calc(var(--vh, 1vh) * 100 - 155px);
+  }
+}
+
+/* ── Centered modal panel ─────────────────────────────────────────── */
+.panel-modal {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-height: min(calc(var(--vh, 1vh) * 88), calc(var(--vh, 1vh) * 100 - 150px));
+  overflow-y: auto;
+}
+
+/* Width modifiers — box-sizing: border-box so padding/border are included */
+.panel-w-xl { box-sizing: border-box; width: min(600px, calc(100vw - 16px)); }
+.panel-w-lg { box-sizing: border-box; width: min(500px, calc(100vw - 16px)); }
+.panel-w-md { box-sizing: border-box; width: min(460px, calc(100vw - 16px)); }
+.panel-w-sm { box-sizing: border-box; width: min(420px, calc(100vw - 16px)); }
+.panel-w-xs { box-sizing: border-box; width: min(320px, calc(100vw - 16px)); }
+
+/* ── Small-screen touch polish ───────────────────────────────────── */
+@media (max-width: 420px) {
+  .panel-title { font-size: 17px; }
+  .btn { padding: 7px 12px; font-size: 12px; }
+}
+
+/* ── HUD responsive hooks ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .hud-xp            { display: none !important; }
+  .hud-resource-btn  { display: none !important; }
+}
+@media (max-width: 370px) {
+  .hud-trophy        { display: none !important; }
+  .hud-avatar-xp     { display: none !important; }
+}

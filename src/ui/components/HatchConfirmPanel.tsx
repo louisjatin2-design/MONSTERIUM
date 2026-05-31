@@ -44,10 +44,7 @@ export function HatchConfirmPanel({ eggId, onClose }: HatchConfirmPanelProps) {
   };
 
   return (
-    <div className="panel" style={{
-      left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-      width: 320, padding: 20, textAlign: 'center',
-    }}>
+    <div className="panel panel-modal panel-w-xs" style={{ padding: 20, textAlign: 'center' }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">{egg.isUnique ? '✨ ' : ''}{def.name} Ei</div>
 

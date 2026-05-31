@@ -47,11 +47,7 @@ export function TeamSelectPanel({ battlePayload, onClose }: Props) {
   };
 
   return (
-    <div className="panel" style={{
-      left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-      width: 480, maxHeight: '88vh', padding: 20, display: 'flex',
-      flexDirection: 'column', gap: 14,
-    }}>
+    <div className="panel panel-modal panel-w-lg" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">⚔️ Team auswählen</div>
 

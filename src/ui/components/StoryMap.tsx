@@ -38,10 +38,7 @@ export function StoryMap({ onClose }: StoryMapProps) {
   };
 
   return (
-    <div className="panel" style={{
-      left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-      width: 560, maxHeight: '85vh', padding: 20,
-    }}>
+    <div className="panel panel-modal panel-w-xl" style={{ padding: 20 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">⚔️ Story — Der Riss ({storyProgress}/{STORY_BATTLES.length})</div>
 
@@ -54,7 +51,7 @@ export function StoryMap({ onClose }: StoryMapProps) {
         {STORY_INTRO}
       </div>
 
-      <div style={{ overflowY: 'auto', maxHeight: 'calc(85vh - 100px)' }}>
+      <div style={{ overflowY: 'auto', maxHeight: 'calc(min(88vh, 100vh - 150px) - 100px)' }}>
         {STORY_BATTLES.map((battle, i) => {
           const cleared = i < storyProgress;
           const available = i === storyProgress;
