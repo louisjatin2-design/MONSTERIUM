@@ -25,7 +25,7 @@ export function StoryMap({ onClose }: StoryMapProps) {
       alert('Du brauchst mindestens ein Monster! Kaufe eines im Shop oder züchte es.');
       return;
     }
-    // Open team-selection first — player picks which monsters to bring.
+    // Open team-selection — switching activePanel closes the story map automatically.
     EventBus.emit(GameEvents.OPEN_TEAM_SELECT, {
       enemyTeam: battle.enemyMonsterDefs,
       enemyLevels: battle.enemyLevels,
@@ -35,7 +35,6 @@ export function StoryMap({ onClose }: StoryMapProps) {
       rewardMonsterDefId: battle.rewards.monsterDefId,
       storyIndex: index,
     });
-    onClose();
   };
 
   return (
@@ -115,7 +114,6 @@ export function StoryMap({ onClose }: StoryMapProps) {
               rewardGold: 100 + trophies,
               rewardXp: 200 + trophies,
             });
-            onClose();
           }}>
           ⚔️ Find Opponent
         </button>
