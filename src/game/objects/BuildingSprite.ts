@@ -260,7 +260,7 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     edge(left, front, true);    // front-left edge with a gate gap
   }
 
-  // ---- Temple: 3-tier Japanese pagoda, element-tinted -------------------
+  // ---- Temple: 3-tier Japanese pagoda, element-tinted --------------------
   private buildTemple(
     g: Phaser.GameObjects.Graphics, scene: Phaser.Scene, element: string | undefined,
     buildingLevel: number, ground: Pt[], halfW: number, halfH: number,
@@ -268,65 +268,141 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     extras: Phaser.GameObjects.GameObject[],
   ) {
     const elColor = (element && (ELEMENT_COLORS as Record<string, number>)[element]) || 0xf2c14e;
-    const roofTop = elColor;
-    const roofMid = darken(elColor, 0.78);
-    const roofDark = darken(elColor, 0.6);
-    const wall = 0xe9ddc4, wallL = 0xd2c4a4, wallR = 0xb6a684;
-    const woodDark = 0x7a4a2a;
 
-    // Stone ground platform.
-    g.fillStyle(0xb8ad97, 1); g.fillPoints(ground, true);
-    g.lineStyle(2, 0x000000, 0.2); g.strokePoints(ground, true, true);
+    // ── Colour palette ───────────────────────────────────────────────────────
+    const roofBright = elColor;
+    const roofMid    = darken(elColor, 0.78);
+    const roofShad   = darken(elColor, 0.46);   // eave underside shadow
+    const roofEdge   = darken(elColor, 0.36);
+    const ACCENT     = darken(elColor, 0.62);   // element-coloured trim bands
+    const WALL       = 0xf2e8d0;
+    const WALL_L     = 0xd8c8a8;
+    const WALL_R     = 0xb8a480;
+    const BEAM       = 0x4a2e14;
 
-    // A flared pagoda roof: wide isometric "diamond" eaves + short ridge.
-    const flaredRoof = (cx: number, cy: number, dw: number, dh: number, lift: number) => {
-      const b = { x: cx, y: cy - dh - lift }, r = { x: cx + dw, y: cy - lift };
-      const f = { x: cx, y: cy + dh - lift }, l = { x: cx - dw, y: cy - lift };
-      // underside shadow (eaves)
-      g.fillStyle(woodDark, 1);
-      g.fillPoints([{ x: l.x, y: l.y + 4 }, { x: f.x, y: f.y + 4 }, { x: r.x, y: r.y + 4 }, f, l], true);
-      // top surface, split front/back for shading
-      g.fillStyle(roofMid, 1); g.fillPoints([b, r, f, l], true);
-      g.fillStyle(roofTop, 1); g.fillPoints([b, r, { x: cx, y: cy - lift }, l], true);
-      g.lineStyle(2, darken(elColor, 0.45), 0.9); g.strokePoints([b, r, f, l], true, true);
-      // ridge cap
-      g.fillStyle(roofDark, 1); g.fillRect(cx - dw * 0.16, cy - dh * 0.5 - lift, dw * 0.32, 4);
-      return { topY: cy - lift };
+    // ── Stone stepped base ───────────────────────────────────────────────────
+    g.fillStyle(0xc8bcaa, 1); g.fillPoints(ground, true);
+    g.lineStyle(1.5, 0x8a8070, 0.6); g.strokePoints(ground, true, true);
+    isoBox(0, halfH * 0.92, halfW * 0.88, halfH * 0.88, 7, 0xbeb2a0, 0x9a9080, 0x7a7060);
+
+    // ── Per-tier draw function ───────────────────────────────────────────────
+    // Returns the screen-Y of the back eave top (next tier stacks on it).
+    const SHAD_DROP = 18; // how deep the eave underside shadow hangs
+    const drawTier = (
+      cy: number,       // front-centre Y of this tier's wall box
+      ww: number, wdh: number, wallH: number, // wall dw, dh, height
+      ew: number, edh: number,               // eave half-extents (wider)
+    ): number => {
+      // ── Wall body ──────────────────────────────────────────────────────────
+      const wTop = isoBox(0, cy, ww, wdh, wallH, WALL, WALL_L, WALL_R);
+
+      // Element-colour cornice at wall top (two offset lines for depth)
+      g.lineStyle(4.5, ACCENT, 0.88);
+      g.beginPath(); g.moveTo(wTop.ul.x, wTop.ul.y);
+      g.lineTo(wTop.uf.x, wTop.uf.y); g.lineTo(wTop.ur.x, wTop.ur.y); g.strokePath();
+      g.lineStyle(1.5, BEAM, 0.55);
+      g.beginPath(); g.moveTo(wTop.ul.x, wTop.ul.y + 3);
+      g.lineTo(wTop.uf.x, wTop.uf.y + 3); g.lineTo(wTop.ur.x, wTop.ur.y + 3); g.strokePath();
+
+      // Lattice window on front-right face (grille + cross)
+      const wx = (wTop.uf.x + wTop.ur.x) / 2;
+      const wy = (wTop.uf.y + wTop.ur.y) / 2 + 2;
+      const wh = Math.max(5, wallH - 3);
+      g.fillStyle(ACCENT, 0.6); g.fillRect(wx - 5, wy, 10, wh);
+      g.lineStyle(1.2, BEAM, 0.85); g.strokeRect(wx - 5, wy, 10, wh);
+      g.lineStyle(1, darken(ACCENT, 0.65), 0.75);
+      g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx, wy + wh);
+      g.moveTo(wx - 5, wy + wh * 0.45); g.lineTo(wx + 5, wy + wh * 0.45); g.strokePath();
+
+      // ── Flared eave ────────────────────────────────────────────────────────
+      // Eave base sits at the wall-top height, extended outward.
+      const ovW = ew - ww, ovH = edh - wdh;
+      const eB = { x: wTop.ub.x,        y: wTop.ub.y };
+      const eR = { x: wTop.ur.x + ovW,  y: wTop.ur.y };
+      const eF = { x: wTop.uf.x,        y: wTop.uf.y + ovH };
+      const eL = { x: wTop.ul.x - ovW,  y: wTop.ul.y };
+
+      // Eave top is slightly raised above the wall-top plane (roof pitch)
+      const eRise = Math.round(ew * 0.13);
+      const rB = { x: eB.x, y: eB.y - eRise };
+      const rR = { x: eR.x, y: eR.y - eRise };
+      const rF = { x: eF.x, y: eF.y - eRise };
+      const rL = { x: eL.x, y: eL.y - eRise };
+
+      // Eave underside — left face (most visible)
+      g.fillStyle(roofShad, 1);
+      g.fillPoints([
+        wTop.ul, wTop.uf,
+        { x: eF.x, y: eF.y + SHAD_DROP * 0.55 },
+        { x: eL.x, y: eL.y + SHAD_DROP },
+      ], true);
+      g.lineStyle(1.2, roofEdge, 0.65);
+      g.strokePoints([wTop.ul, wTop.uf, { x: eF.x, y: eF.y + SHAD_DROP * 0.55 }, { x: eL.x, y: eL.y + SHAD_DROP }], true, true);
+
+      // Eave underside — right face (darker)
+      g.fillStyle(darken(roofShad, 0.78), 1);
+      g.fillPoints([
+        wTop.uf, wTop.ur,
+        { x: eR.x, y: eR.y + SHAD_DROP * 0.75 },
+        { x: eF.x, y: eF.y + SHAD_DROP * 0.45 },
+      ], true);
+      g.lineStyle(1.2, roofEdge, 0.65);
+      g.strokePoints([wTop.uf, wTop.ur, { x: eR.x, y: eR.y + SHAD_DROP * 0.75 }, { x: eF.x, y: eF.y + SHAD_DROP * 0.45 }], true, true);
+
+      // Eave top surface — back half brighter (sunlit), front half mid-tone
+      g.fillStyle(roofMid,   1); g.fillPoints([rB, rR, rF, rL], true);
+      g.fillStyle(roofBright, 1);
+      g.fillPoints([rB, rR, { x: 0, y: (rB.y + rF.y) / 2 - 3 }, rL], true);
+      g.lineStyle(2.2, roofEdge, 0.9); g.strokePoints([rB, rR, rF, rL], true, true);
+
+      // ── Upturned corner tips (the signature pagoda detail) ─────────────────
+      const TH = 12, TW = 6;
+      const drawTip = (px: number, py: number, tx: number, ty: number) => {
+        g.fillStyle(roofBright, 1);
+        g.fillTriangle(px - TW * 0.5, py, px + TW * 0.5, py, tx, ty);
+        g.lineStyle(1.5, roofEdge, 0.85);
+        g.strokeTriangle(px - TW * 0.5, py, px + TW * 0.5, py, tx, ty);
+        g.fillStyle(0xffe060, 1); g.fillCircle(tx, ty, 3.2);
+      };
+      drawTip(rL.x, rL.y, rL.x - TH * 0.85, rL.y - TH * 0.55);
+      drawTip(rR.x, rR.y, rR.x + TH * 0.85, rR.y - TH * 0.55);
+      drawTip(rF.x, rF.y, rF.x,              rF.y + TH * 0.55); // front dips down then lifts
+      drawTip(rB.x, rB.y, rB.x,              rB.y - TH * 0.7);
+
+      // Ridge cap
+      const capW = ew * 0.20;
+      g.fillStyle(darken(elColor, 0.52), 1);
+      g.fillRect(rB.x - capW, rB.y + 1, capW * 2, 5);
+      g.lineStyle(1, roofEdge, 0.65); g.strokeRect(rB.x - capW, rB.y + 1, capW * 2, 5);
+
+      return rB.y;
     };
 
-    // Three diminishing tiers (wall box + flared roof each).
-    const tiers = [
-      { dw: halfW * 0.74, dh: halfH * 0.74, wh: 16, rdw: halfW * 0.98, rdh: halfH * 0.98 },
-      { dw: halfW * 0.54, dh: halfH * 0.54, wh: 14, rdw: halfW * 0.72, rdh: halfH * 0.72 },
-      { dw: halfW * 0.34, dh: halfH * 0.34, wh: 12, rdw: halfW * 0.48, rdh: halfH * 0.48 },
+    // ── Three stacked tiers ─────────────────────────────────────────────────
+    let topY = drawTier(halfH * 0.78, halfW * 0.68, halfH * 0.68, 19, halfW * 0.96, halfH * 0.96);
+    topY     = drawTier(topY - 10,    halfW * 0.50, halfH * 0.50, 15, halfW * 0.72, halfH * 0.72);
+    topY     = drawTier(topY - 8,     halfW * 0.33, halfH * 0.33, 12, halfW * 0.48, halfH * 0.48);
+
+    // ── Sōrin finial: slim shaft + stacked tapering rings + jewel tip ───────
+    const spireBaseY = topY - 5;
+    g.fillStyle(BEAM, 1); g.fillRect(-2, spireBaseY - 24, 4, 24);
+    // Tapering rings (widest at bottom)
+    const rings = [
+      { y: spireBaseY - 7,  rw: 14, rh: 5.5 },
+      { y: spireBaseY - 14, rw: 10, rh: 4.5 },
+      { y: spireBaseY - 20, rw: 7,  rh: 3.5 },
     ];
+    for (const r of rings) {
+      g.fillStyle(0xffe060, 1); g.fillEllipse(0, r.y, r.rw * 2, r.rh);
+      g.lineStyle(1.2, darken(elColor, 0.42), 1); g.strokeEllipse(0, r.y, r.rw * 2, r.rh);
+    }
+    // Jewel tip
+    g.fillStyle(0xffd700, 1);
+    g.fillTriangle(-3, spireBaseY - 21, 3, spireBaseY - 21, 0, spireBaseY - 33);
+    g.lineStyle(1.5, darken(elColor, 0.38), 1);
+    g.strokeTriangle(-3, spireBaseY - 21, 3, spireBaseY - 21, 0, spireBaseY - 33);
 
-    let baseY = halfH * 0.82;
-    let lastRoofTopY = 0;
-    tiers.forEach((t, i) => {
-      // wall box for this tier
-      const boxTop = isoBox(0, baseY, t.dw, t.dh, t.wh, wall, wallL, wallR);
-      // a thin door/lattice on the front-right wall of the ground tier
-      if (i === 0) {
-        const mx = (boxTop.uf.x + boxTop.ur.x) / 2;
-        const my = (boxTop.uf.y + boxTop.ur.y) / 2 + 5;
-        g.fillStyle(woodDark, 1); g.fillRect(mx - 5, my, 10, t.wh - 2);
-        g.lineStyle(1, 0x000000, 0.3); g.strokeRect(mx - 5, my, 10, t.wh - 2);
-      }
-      // flared roof sits on top of the wall box
-      const roofCy = boxTop.ub.y + t.dh;
-      const rr = flaredRoof(0, roofCy, t.rdw, t.rdh, 0);
-      lastRoofTopY = rr.topY;
-      // next tier starts above this roof
-      baseY = roofCy - t.dh - t.wh - 2;
-    });
-
-    // Golden finial (sōrin) on the very top.
-    g.fillStyle(0xffe27a, 1); g.fillCircle(0, lastRoofTopY - 6, 3.5);
-    g.fillStyle(darken(elColor, 0.7), 1); g.fillRect(-1.2, lastRoofTopY - 14, 2.4, 10);
-
-    // Element-themed effect: drifting particles tinted to the element,
-    // emitted from the top of the pagoda (WebGL bloom makes them glow).
+    // ── Element particles from finial ────────────────────────────────────────
     const emberKey = 'fx-ember';
     if (!scene.textures.exists(emberKey)) {
       const tex = scene.textures.createCanvas(emberKey, 16, 16);
@@ -335,20 +411,15 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
         const grd = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
         grd.addColorStop(0, 'rgba(255,255,255,1)');
         grd.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = grd; ctx.fillRect(0, 0, 16, 16);
-        tex?.refresh();
+        ctx.fillStyle = grd; ctx.fillRect(0, 0, 16, 16); tex?.refresh();
       }
     }
-    const tint = elColor;
-    const emitter = scene.add.particles(0, lastRoofTopY - 6, emberKey, {
-      lifespan: 1600,
-      speedY: { min: -18, max: -34 },
-      speedX: { min: -8, max: 8 },
+    const emitter = scene.add.particles(0, spireBaseY - 32, emberKey, {
+      lifespan: 1700,
+      speedY: { min: -20, max: -38 }, speedX: { min: -9, max: 9 },
       scale: { start: 0.5 + buildingLevel * 0.04, end: 0 },
-      alpha: { start: 0.85, end: 0 },
-      frequency: 220,
-      quantity: 1,
-      tint,
+      alpha: { start: 0.9, end: 0 },
+      frequency: 200, quantity: 1, tint: elColor,
       blendMode: scene.sys.game.renderer.type === Phaser.WEBGL ? 'ADD' : 'NORMAL',
     });
     extras.push(emitter);
