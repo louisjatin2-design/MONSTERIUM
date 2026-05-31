@@ -160,6 +160,7 @@ export interface BreedOutcome {
 }
 
 export interface ActiveBreeding {
+  id: string;
   parent1Id: string;
   parent2Id: string;
   startMs: number;
@@ -177,7 +178,7 @@ export interface StoryBattle {
   description: string;
   enemyMonsterDefs: string[];
   enemyLevels: number[];
-  rewards: { xp: number; gold: number; monsterDefId?: string };
+  rewards: { xp: number; gold: number; diamonds?: number; monsterDefId?: string };
 }
 
 export interface LeagueInfo {

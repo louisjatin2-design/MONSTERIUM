@@ -94,6 +94,7 @@ export class Island extends Phaser.Scene {
     EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
     EventBus.on(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.on(GameEvents.START_BATTLE, this.onStartBattle, this);
+    EventBus.on(GameEvents.ISLAND_CHANGED, this.onIslandChanged, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.onShutdown());
   }
@@ -242,6 +243,11 @@ export class Island extends Phaser.Scene {
     this.scene.pause();
   };
 
+  // Rebuild the whole island view when the player switches islands.
+  private onIslandChanged = () => {
+    this.scene.restart();
+  };
+
   private exitPlacementMode() {
     this.placementMode = false;
     this.placementDefId = '';
@@ -306,6 +312,7 @@ export class Island extends Phaser.Scene {
     EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
     EventBus.off(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.off(GameEvents.START_BATTLE, this.onStartBattle, this);
+    EventBus.off(GameEvents.ISLAND_CHANGED, this.onIslandChanged, this);
     this.buildingSprites.clear();
     this.residentSprites.clear();
     this.residentSignature.clear();

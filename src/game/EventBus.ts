@@ -10,6 +10,7 @@ export const GameEvents = {
   OPEN_FARM_PANEL:      'open-farm-panel',
   OPEN_POKEDEX:         'open-pokedex',
   OPEN_SHOP:            'open-shop',
+  OPEN_ISLANDS_PANEL:   'open-islands-panel',
   BATTLE_STARTED:       'battle-started',
   BATTLE_ENDED:         'battle-ended',
   MINIGAME_START:       'minigame-start',

@@ -18,6 +18,7 @@ export class TimingBarScene extends Phaser.Scene {
   private indicatorPos = 0;
   private rarityRank = 0;
   private completed = false;
+  private armed = false;
   private moveDef!: MoveDef;
 
   constructor() { super('TimingBarScene'); }
@@ -26,6 +27,7 @@ export class TimingBarScene extends Phaser.Scene {
     this.rarityRank = data.rarityRank ?? 0;
     this.moveDef = data.moveDef;
     this.completed = false;
+    this.armed = false;
   }
 
   create() {
@@ -66,9 +68,12 @@ export class TimingBarScene extends Phaser.Scene {
       fontSize: '18px', color: '#ffffff',
     }).setOrigin(0.5);
 
+    // Brief arming delay so the launching tap isn't counted as the stop input.
+    this.time.delayedCall(300, () => { this.armed = true; });
+
     // Input handlers
-    this.input.keyboard?.once('keydown-SPACE', () => this.submitResult());
-    this.input.once('pointerdown', () => this.submitResult());
+    this.input.keyboard?.once('keydown-SPACE', () => { if (this.armed) this.submitResult(); });
+    this.input.on('pointerdown', () => { if (this.armed) this.submitResult(); });
   }
 
   update(_: number, delta: number) {

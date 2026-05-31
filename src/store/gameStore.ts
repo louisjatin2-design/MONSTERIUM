@@ -6,6 +6,7 @@ import type {
 } from '@gtypes/game';
 import { MONSTER_DEFS } from '@data/monsters';
 import { BUILDING_DEFS } from '@data/buildings';
+import { ISLAND_DEFS } from '@data/islands';
 import { RARITY_HATCH_TIME_SEC, RARITY_BREED_TIME_SEC, RARITY_RANK } from '@data/rarities';
 import { calculateXpToLevel, calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
 import { getUnlockedMoves } from '@systems/ProgressionSystem';
@@ -26,7 +27,7 @@ interface GameStoreState {
   monsters: Record<string, MonsterInstance>;
   buildings: Record<string, BuildingInstance>;
   eggs: Egg[];
-  activeBreeding: ActiveBreeding | null;
+  activeBreedings: ActiveBreeding[];
   unlockedIslands: string[];
   islandFragments: Record<string, number>;
   storyProgress: number;
@@ -42,6 +43,7 @@ interface GameStoreActions {
   spendDiamonds: (n: number) => boolean;
   addFood: (n: number) => void;
   spendFood: (n: number) => boolean;
+  convertGoldToFood: (foodAmount: number) => boolean;
 
   // Buildings
   placeBuilding: (defId: string, islandId: string, tileX: number, tileY: number) => string | null;
@@ -64,15 +66,18 @@ interface GameStoreActions {
   hatchEgg: (eggId: string) => MonsterInstance | null;
   speedUpEgg: (eggId: string) => void;
   startBreeding: (parent1Id: string, parent2Id: string) => boolean;
-  collectBreedingEgg: () => void;
-  speedUpBreeding: () => void;
-  cancelBreeding: () => void;
+  collectBreedingEgg: (id: string) => void;
+  speedUpBreeding: (id: string) => void;
+  cancelBreeding: (id: string) => void;
+  breedingCapacity: () => number;
+  eggCapacity: () => number;
 
   // Progression
   addPlayerXp: (amount: number) => void;
   addTrophies: (amount: number) => void;
   advanceStory: () => void;
   unlockIsland: (islandId: string) => void;
+  purchaseIsland: (islandId: string) => boolean;
   setCurrentIsland: (islandId: string) => void;
   addPokedexEntry: (defId: string) => void;
 
@@ -154,7 +159,7 @@ const INITIAL_STATE: GameStoreState = {
     },
   },
   eggs: [],
-  activeBreeding: null,
+  activeBreedings: [],
   unlockedIslands: ['emerald_isle'],
   islandFragments: {},
   storyProgress: 0,
@@ -183,6 +188,14 @@ export const useGameStore = create<GameStore>()(
       spendFood: (n) => {
         if (get().food < n) return false;
         set((s) => { s.food -= n; });
+        return true;
+      },
+      // Convert gold into food at a fixed 20 : 1 rate (gold : food).
+      convertGoldToFood: (foodAmount) => {
+        if (foodAmount <= 0) return false;
+        const goldCost = foodAmount * 20;
+        if (!get().spendGold(goldCost)) return false;
+        set((s) => { s.food += foodAmount; });
         return true;
       },
 
@@ -273,15 +286,17 @@ export const useGameStore = create<GameStore>()(
       feedMonster: (instanceId, foodAmount) => {
         const monster = get().monsters[instanceId];
         if (!monster) return;
+        if (monster.level >= 100) return;
         const cost = calculateFeedCost(monster.level);
-        const times = Math.floor(foodAmount / cost);
-        if (times <= 0) return;
-        if (!get().spendFood(times * cost)) return;
+        // One feed cycle per call. Always exactly 4 feed cycles per level-up.
+        if (foodAmount < cost) return;
+        if (!get().spendFood(cost)) return;
         set((s) => {
           const m = s.monsters[instanceId];
-          const xpGain = times * 50;
-          m.xp += xpGain;
-          // Level up check
+          if (m.level >= 100) return;
+          // Each feed grants a quarter of the XP needed for the current level,
+          // so a level always takes 4 feed cycles (Monster-Legends style steps).
+          m.xp += Math.ceil(calculateXpToLevel(m.level) / 4);
           let xpNeeded = calculateXpToLevel(m.level);
           while (m.xp >= xpNeeded && m.level < 100) {
             m.xp -= xpNeeded;
@@ -437,11 +452,26 @@ export const useGameStore = create<GameStore>()(
         });
       },
 
+      breedingCapacity: () => {
+        const station = Object.values(get().buildings).find(
+          b => BUILDING_DEFS[b.defId]?.category === 'BreedingStation'
+        );
+        return station ? station.level : 1;
+      },
+
+      eggCapacity: () => {
+        const hatchery = Object.values(get().buildings).find(
+          b => BUILDING_DEFS[b.defId]?.category === 'Hatchery'
+        );
+        const level = hatchery ? hatchery.level : 1;
+        return 1 + level * 2; // L1=3, L2=5, L3=7, L4=9
+      },
+
       startBreeding: (parent1Id, parent2Id) => {
-        if (get().activeBreeding) return false;
         const m1 = get().monsters[parent1Id];
         const m2 = get().monsters[parent2Id];
         if (!m1 || !m2 || parent1Id === parent2Id) return false;
+        if (get().activeBreedings.length >= get().breedingCapacity()) return false;
 
         const rel = m1.relationshipScores[parent2Id] ?? 0;
         const outcomes = calculateBreedOutcomes(m1, m2, rel);
@@ -454,40 +484,44 @@ export const useGameStore = create<GameStore>()(
         const now = Date.now();
 
         set((s) => {
-          s.activeBreeding = {
+          s.activeBreedings.push({
+            id: 'br_' + uid(),
             parent1Id, parent2Id,
             startMs: now,
             endMs: now + breedSec * 1000,
             outcomes,
             resultDefId,
             resultIsUnique,
-          };
+          });
         });
         // Breeding together deepens the bond between the two parents.
         get().updateRelationship(parent1Id, parent2Id, 50);
         return true;
       },
 
-      collectBreedingEgg: () => {
-        const ab = get().activeBreeding;
+      collectBreedingEgg: (id) => {
+        const ab = get().activeBreedings.find(b => b.id === id);
         if (!ab) return;
         if (Date.now() < ab.endMs) return;
-        if (get().eggs.length >= 5) return;
+        if (get().eggs.length >= get().eggCapacity()) return;
         get().addEgg(ab.resultDefId, undefined, ab.resultIsUnique, [ab.parent1Id, ab.parent2Id]);
-        set((s) => { s.activeBreeding = null; });
+        set((s) => { s.activeBreedings = s.activeBreedings.filter(b => b.id !== id); });
       },
 
-      speedUpBreeding: () => {
-        const ab = get().activeBreeding;
+      speedUpBreeding: (id) => {
+        const ab = get().activeBreedings.find(b => b.id === id);
         if (!ab) return;
         const secondsLeft = Math.max(0, (ab.endMs - Date.now()) / 1000);
         const diamondCost = Math.ceil(secondsLeft / 60);
         if (diamondCost > 0 && !get().spendDiamonds(diamondCost)) return;
-        set((s) => { if (s.activeBreeding) s.activeBreeding.endMs = Date.now(); });
+        set((s) => {
+          const b = s.activeBreedings.find(x => x.id === id);
+          if (b) b.endMs = Date.now();
+        });
       },
 
-      cancelBreeding: () => {
-        set((s) => { s.activeBreeding = null; });
+      cancelBreeding: (id) => {
+        set((s) => { s.activeBreedings = s.activeBreedings.filter(b => b.id !== id); });
       },
 
       addPlayerXp: (amount) => {
@@ -516,6 +550,18 @@ export const useGameStore = create<GameStore>()(
             s.unlockedIslands.push(islandId);
           }
         });
+      },
+
+      purchaseIsland: (islandId) => {
+        if (get().unlockedIslands.includes(islandId)) return true;
+        const def = ISLAND_DEFS[islandId];
+        if (!def) return false;
+        const cost = def.goldCost ?? 0;
+        if (!get().spendGold(cost)) return false;
+        set((s) => {
+          if (!s.unlockedIslands.includes(islandId)) s.unlockedIslands.push(islandId);
+        });
+        return true;
       },
 
       setCurrentIsland: (islandId) => {
@@ -569,7 +615,19 @@ export const useGameStore = create<GameStore>()(
     })),
     {
       name: 'monsterium-save',
-      version: 1,
+      version: 2,
+      migrate: (persisted: any, _version: number) => {
+        if (persisted && typeof persisted === 'object') {
+          // v1 used a single activeBreeding slot; v2 uses an array.
+          if (!Array.isArray(persisted.activeBreedings)) {
+            persisted.activeBreedings = persisted.activeBreeding
+              ? [{ id: 'br_legacy', ...persisted.activeBreeding }]
+              : [];
+          }
+          delete persisted.activeBreeding;
+        }
+        return persisted;
+      },
     }
   )
 );

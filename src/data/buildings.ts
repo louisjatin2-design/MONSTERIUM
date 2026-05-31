@@ -158,17 +158,25 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     id: 'breeding_station', name: 'Breeding Station', category: 'BreedingStation',
     tilesW: 2, tilesH: 3,
     goldCost: 0, buildTimeSec: 0,
-    levels: [{ level: 1, upgradeCost: 0, upgradeTimeSec: 0 }],
-    description: 'Where two monsters come together to create a new egg.',
+    // Each level unlocks one more simultaneous breeding slot (1 → 2 → 3 → 4).
+    levels: [
+      { level: 1, upgradeCost: 0,     upgradeTimeSec: 0 },
+      { level: 2, upgradeCost: 3000,  upgradeTimeSec: 300,  trainingSlotsTotal: 2 },
+      { level: 3, upgradeCost: 12000, upgradeTimeSec: 1800, trainingSlotsTotal: 3 },
+      { level: 4, upgradeCost: 40000, upgradeTimeSec: 7200, trainingSlotsTotal: 4 },
+    ],
+    description: 'Where two monsters come together to create a new egg. Each level adds a breeding slot.',
   },
   hatchery: {
     id: 'hatchery', name: 'Hatchery', category: 'Hatchery',
     tilesW: 2, tilesH: 2,
     goldCost: 0, buildTimeSec: 0,
+    // Each level adds two egg slots (3 → 5 → 7 → 9).
     levels: [
-      { level: 1, upgradeCost: 0, upgradeTimeSec: 0 },
-      { level: 2, upgradeCost: 2000, upgradeTimeSec: 300 },
-      { level: 3, upgradeCost: 8000, upgradeTimeSec: 900 },
+      { level: 1, upgradeCost: 0,     upgradeTimeSec: 0 },
+      { level: 2, upgradeCost: 2000,  upgradeTimeSec: 300 },
+      { level: 3, upgradeCost: 8000,  upgradeTimeSec: 900 },
+      { level: 4, upgradeCost: 25000, upgradeTimeSec: 3600 },
     ],
     description: 'Hatches monster eggs. Upgrade for more slots.',
   },
