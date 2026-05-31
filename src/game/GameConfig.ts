@@ -9,8 +9,8 @@ import { AimClickScene } from '@game/scenes/minigames/AimClickScene';
 import { ButtonSequenceScene } from '@game/scenes/minigames/ButtonSequenceScene';
 
 export const GameConfig: Phaser.Types.Core.GameConfig = {
-  // Force Canvas renderer — WebGL on iOS Safari is unreliable
-  type: Phaser.CANVAS,
+  // Prefer WebGL (enables lighting, bloom & post-FX) with a Canvas fallback.
+  type: Phaser.AUTO,
   width: 1280,
   height: 720,
   backgroundColor: '#0a0a1a',
@@ -28,7 +28,10 @@ export const GameConfig: Phaser.Types.Core.GameConfig = {
     touch: true,
   },
   render: {
-    antialias: false,
+    antialias: true,
+    antialiasGL: true,
     pixelArt: false,
+    roundPixels: false,
+    powerPreference: 'high-performance',
   },
 };

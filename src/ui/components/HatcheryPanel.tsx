@@ -3,13 +3,13 @@ import { useGameStore } from '@store/gameStore';
 import { MONSTER_DEFS } from '@data/monsters';
 import { BUILDING_DEFS } from '@data/buildings';
 import { RARITY_COLORS } from '@data/rarities';
+import { EventBus, GameEvents } from '@game/EventBus';
 import '../styles/global.css';
 
 interface HatcheryPanelProps { onClose: () => void; }
 
 export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
   const eggs = useGameStore(s => s.eggs);
-  const hatchEgg = useGameStore(s => s.hatchEgg);
   const speedUpEgg = useGameStore(s => s.speedUpEgg);
   const eggCap = useGameStore(s => s.eggCapacity);
   const gold = useGameStore(s => s.gold);
@@ -90,7 +90,7 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
                   </button>
                 ) : (
                   <button className="btn btn-primary"
-                    onClick={() => { hatchEgg(egg.id); }}>
+                    onClick={() => { EventBus.emit(GameEvents.HATCH_EGG_ANIMATE, { eggId: egg.id }); onClose(); }}>
                     🐣 Hatch!
                   </button>
                 )}

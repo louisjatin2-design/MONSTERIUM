@@ -97,6 +97,12 @@
 .diamond-text { color: #44ddff; font-weight: bold; }
 .food-text    { color: #ff9966; font-weight: bold; }
 
+/* Egg ready-to-hatch wobble */
+@keyframes eggWobble {
+  0%, 100% { transform: rotate(-7deg); }
+  50%      { transform: rotate(7deg); }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }

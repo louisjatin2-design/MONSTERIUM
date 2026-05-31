@@ -6,6 +6,7 @@ import { EventBus, GameEvents } from '@game/EventBus';
 import { GridTile } from '@game/objects/GridTile';
 import { BuildingSprite } from '@game/objects/BuildingSprite';
 import { MonsterSprite } from '@game/objects/MonsterSprite';
+import { EggSprite } from '@game/objects/EggSprite';
 import {
   project, worldToGrid, pointInPolygon, footprintCorners,
   GRID_COLS, GRID_ROWS, CONTENT_W, CONTENT_H, ISLAND_CENTER, TILE_W,
@@ -17,6 +18,8 @@ export class Island extends Phaser.Scene {
   private buildingSprites: Map<string, BuildingSprite> = new Map();
   private residentSprites: Map<string, MonsterSprite[]> = new Map();
   private residentSignature: Map<string, string> = new Map();
+  private eggSprites: Map<string, EggSprite> = new Map();
+  private eggSignature = '';
   private placementHighlight?: Phaser.GameObjects.Graphics;
   private unsubscribe?: () => void;
 
@@ -40,6 +43,7 @@ export class Island extends Phaser.Scene {
     if (!islandDef) return;
 
     this.cameras.main.setBackgroundColor(0x4a9e30); // lush green meadow
+    this.addSkyBackdrop();
 
     // Draw isometric tile grid.
     for (let row = 0; row < GRID_ROWS; row++) {
@@ -53,6 +57,7 @@ export class Island extends Phaser.Scene {
     // Camera bounds + center on the island.
     this.cameras.main.setBounds(0, 0, CONTENT_W, CONTENT_H);
     this.cameras.main.centerOn(ISLAND_CENTER.x, ISLAND_CENTER.y);
+    this.applyCameraFX();
 
     // Spawn pre-placed buildings + their residents.
     for (const b of Object.values(state.buildings)) {
@@ -90,13 +95,91 @@ export class Island extends Phaser.Scene {
     // Subscribe to store: new buildings, construction state, residents.
     this.unsubscribe = useGameStore.subscribe((s) => this.reconcile(s));
 
+    // Spawn eggs on pedestals around the hatchery.
+    this.refreshEggs(state);
+
     // EventBus wiring.
     EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
     EventBus.on(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.on(GameEvents.START_BATTLE, this.onStartBattle, this);
     EventBus.on(GameEvents.ISLAND_CHANGED, this.onIslandChanged, this);
+    EventBus.on(GameEvents.HATCH_EGG_ANIMATE, this.onHatchAnimate, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.onShutdown());
+  }
+
+  update() {
+    if (this.eggSprites.size === 0) return;
+    const now = Date.now();
+    const eggs = useGameStore.getState().eggs;
+    for (const egg of eggs) {
+      const spr = this.eggSprites.get(egg.id);
+      if (spr) spr.updateTimer(egg.hatchEndMs - now);
+    }
+  }
+
+  // ---- Visuals / atmosphere --------------------------------------------
+
+  private isWebGL(): boolean {
+    return this.sys.game.renderer.type === Phaser.WEBGL;
+  }
+
+  // A soft sky→horizon→meadow gradient pinned behind the world, plus a
+  // glowing sun that bloom turns into real atmospheric light.
+  private addSkyBackdrop() {
+    const W = this.scale.width, H = this.scale.height;
+
+    const skyKey = 'fx-sky';
+    if (!this.textures.exists(skyKey)) {
+      const tex = this.textures.createCanvas(skyKey, 8, H);
+      const ctx = tex?.getContext();
+      if (ctx) {
+        const grd = ctx.createLinearGradient(0, 0, 0, H);
+        grd.addColorStop(0.0, '#9fd8ff');
+        grd.addColorStop(0.45, '#cdeede');
+        grd.addColorStop(0.7, '#7ecb52');
+        grd.addColorStop(1.0, '#3f8f2c');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, 8, H);
+        tex?.refresh();
+      }
+    }
+    const sky = this.add.image(0, 0, skyKey).setOrigin(0, 0).setScrollFactor(0).setDepth(-1000);
+    sky.setDisplaySize(W, H);
+
+    const sunKey = 'fx-sun';
+    if (!this.textures.exists(sunKey)) {
+      const s = 256;
+      const tex = this.textures.createCanvas(sunKey, s, s);
+      const ctx = tex?.getContext();
+      if (ctx) {
+        const grd = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+        grd.addColorStop(0.0, 'rgba(255,248,214,0.95)');
+        grd.addColorStop(0.35, 'rgba(255,238,170,0.55)');
+        grd.addColorStop(1.0, 'rgba(255,238,170,0)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, s, s);
+        tex?.refresh();
+      }
+    }
+    this.add.image(W * 0.82, H * 0.16, sunKey)
+      .setScrollFactor(0.08).setDepth(-990).setScale(2.2).setAlpha(0.9);
+  }
+
+  // Cinematic post-processing on the main camera (WebGL only — no-op on Canvas).
+  private applyCameraFX() {
+    if (!this.isWebGL()) return;
+    const cam = this.cameras.main;
+    // Punchy, high-contrast color grade so shapes read clearly.
+    const cm = cam.postFX.addColorMatrix();
+    cm.brightness(1.06);
+    cm.saturate(0.28);
+    cm.contrast(1.22);
+    // Restrained bloom: only the brightest highlights/glows, so it doesn't
+    // wash out building edges.
+    cam.postFX.addBloom(0xffffff, 1, 1, 0.55, 1.4, 4);
+    // Very light vignette so the corners/edges stay readable.
+    cam.postFX.addVignette(0.5, 0.5, 0.92, 0.18);
   }
 
   // ---- Input helpers ----------------------------------------------------
@@ -123,6 +206,15 @@ export class Island extends Phaser.Scene {
       const { col, row } = worldToGrid(w.x, w.y);
       this.tryPlaceBuilding(col, row);
       return;
+    }
+
+    // Eggs first — they sit on top of everything near the hatchery.
+    for (const spr of this.eggSprites.values()) {
+      const dx = w.x - spr.x, dy = w.y - spr.y;
+      if (dx * dx + dy * dy <= spr.hitRadius * spr.hitRadius) {
+        EventBus.emit(GameEvents.OPEN_HATCH_CONFIRM, { eggId: spr.eggId });
+        return;
+      }
     }
 
     // Buildings first (front-to-back), using their world silhouettes.
@@ -211,6 +303,59 @@ export class Island extends Phaser.Scene {
     this.residentSprites.set(b.instanceId, sprites);
   }
 
+  // Place eggs on pedestals fanned out in front of the hatchery.
+  private refreshEggs(s: ReturnType<typeof useGameStore.getState>) {
+    const sig = s.eggs.map(e => e.id).join(',');
+    if (sig === this.eggSignature) return;
+    this.eggSignature = sig;
+
+    // Find the hatchery on the current island for an anchor point.
+    const hatchery = Object.values(s.buildings).find(
+      b => b.islandId === s.currentIslandId && BUILDING_DEFS[b.defId]?.category === 'Hatchery',
+    );
+
+    // Remove eggs no longer present.
+    const liveIds = new Set(s.eggs.map(e => e.id));
+    for (const [id, spr] of this.eggSprites) {
+      if (!liveIds.has(id)) { spr.destroy(); this.eggSprites.delete(id); }
+    }
+
+    if (!hatchery) return;
+    const hd = BUILDING_DEFS[hatchery.defId];
+    const { tileX, tileY } = hatchery;
+    const W = hd.tilesW, H = hd.tilesH;
+    const OUT = 0.45; // how far outside the footprint the pedestals hug
+
+    // Pedestal slots that hug the hatchery's two camera-facing edges, so the
+    // eggs sit attached to the building base. Each slot carries its grid
+    // coords so we can project to iso space and depth-sort correctly.
+    const slots: { col: number; row: number }[] = [];
+    // Front-left edge (row = tileY + H), walking across the columns.
+    for (let c = 0; c < W; c++) {
+      slots.push({ col: tileX + c + 0.5, row: tileY + H + OUT });
+    }
+    // Right-front edge (col = tileX + W), walking down the rows.
+    for (let r = 0; r < H; r++) {
+      slots.push({ col: tileX + W + OUT, row: tileY + r + 0.5 });
+    }
+    // Front corner gets an extra slot for overflow.
+    slots.push({ col: tileX + W + OUT, row: tileY + H + OUT });
+
+    // Lay each egg onto the next pedestal slot, anchored to the hatchery.
+    s.eggs.forEach((egg, i) => {
+      if (this.eggSprites.has(egg.id)) return;
+      const slot = slots[i % slots.length];
+      // Stack extra eggs slightly outward if we run out of distinct slots.
+      const ring = Math.floor(i / slots.length);
+      const p = project(slot.col + ring * 0.3, slot.row + ring * 0.3);
+      const spr = new EggSprite(this, egg, p.x, p.y);
+      // Grid-based depth keeps eggs grounded against the building.
+      spr.setDepth(120 + (slot.col + slot.row) + ring);
+      spr.updateTimer(egg.hatchEndMs - Date.now());
+      this.eggSprites.set(egg.id, spr);
+    });
+  }
+
   // Reconcile Phaser visuals with store changes (new buildings, construction, residents).
   private reconcile(s: ReturnType<typeof useGameStore.getState>) {
     const islandId = s.currentIslandId;
@@ -224,7 +369,23 @@ export class Island extends Phaser.Scene {
         this.refreshResidents(b);
       }
     }
+    this.refreshEggs(s);
   }
+
+  // React asked us to play the hatch animation for an egg, then commit it.
+  private onHatchAnimate = (data: { eggId: string }) => {
+    const spr = this.eggSprites.get(data.eggId);
+    if (!spr) {
+      // No sprite (e.g. hatched from panel) — commit immediately.
+      useGameStore.getState().hatchEgg(data.eggId);
+      return;
+    }
+    this.eggSprites.delete(data.eggId);
+    this.eggSignature = ''; // force re-sync afterwards
+    spr.playHatchAnimation(() => {
+      useGameStore.getState().hatchEgg(data.eggId);
+    });
+  };
 
   // ---- Placement mode ---------------------------------------------------
 
@@ -312,9 +473,14 @@ export class Island extends Phaser.Scene {
     EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
     EventBus.off(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.off(GameEvents.START_BATTLE, this.onStartBattle, this);
+<<<<<<< HEAD
     EventBus.off(GameEvents.ISLAND_CHANGED, this.onIslandChanged, this);
+=======
+    EventBus.off(GameEvents.HATCH_EGG_ANIMATE, this.onHatchAnimate, this);
+>>>>>>> origin/claude/monster-breeding-game-53GjL
     this.buildingSprites.clear();
     this.residentSprites.clear();
     this.residentSignature.clear();
+    this.eggSprites.clear();
   }
 }
