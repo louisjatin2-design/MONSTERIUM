@@ -90,7 +90,7 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
                   </button>
                 ) : (
                   <button className="btn btn-primary"
-                    onClick={() => { EventBus.emit(GameEvents.HATCH_EGG_ANIMATE, { eggId: egg.id }); onClose(); }}>
+                    onClick={() => { EventBus.emit(GameEvents.OPEN_ASSIGN_HABITAT, { eggId: egg.id }); }}>
                     🐣 Hatch!
                   </button>
                 )}

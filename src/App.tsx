@@ -13,6 +13,9 @@ import { BattleHUD } from '@ui/components/BattleHUD';
 import { FarmPanel } from '@ui/components/FarmPanel';
 import { IslandsPanel } from '@ui/components/IslandsPanel';
 import { HatchConfirmPanel } from '@ui/components/HatchConfirmPanel';
+import { AssignHabitatPanel } from '@ui/components/AssignHabitatPanel';
+import { MonsterInstanceDetail } from '@ui/components/MonsterInstanceDetail';
+import { TutorialOverlay } from '@ui/components/TutorialOverlay';
 import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
@@ -26,6 +29,8 @@ export type ActivePanel =
   | { type: 'breeding' }
   | { type: 'hatchery' }
   | { type: 'hatchConfirm'; eggId: string }
+  | { type: 'assignHabitat'; eggId: string }
+  | { type: 'monsterDetail'; instanceId: string }
   | { type: 'pokedex' }
   | { type: 'story' }
   | { type: 'shop' }
@@ -37,6 +42,10 @@ export default function App() {
   const phaserRef = useRef<Phaser.Game | null>(null);
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const tickTimers = useGameStore((s) => s.tickTimers);
+  const tutorialStep = useGameStore((s) => s.tutorialStep);
+  const [tutorialDismissed, setTutorialDismissed] = useState(false);
+  // Show the onboarding flow until the player finishes or skips it (step 99).
+  const showTutorial = tutorialStep < 5 && !tutorialDismissed;
 
   useEffect(() => {
     const id = setInterval(() => tickTimers(), 1000);
@@ -50,6 +59,9 @@ export default function App() {
     const onOpenBreeding = () => setActivePanel({ type: 'breeding' });
     const onOpenHatchery = () => setActivePanel({ type: 'hatchery' });
     const onHatchConfirm = (d: { eggId: string }) => setActivePanel({ type: 'hatchConfirm', eggId: d.eggId });
+    // Forced habitat assignment when the player chooses to hatch an egg.
+    const onAssignHabitat = (d: { eggId: string }) => setActivePanel({ type: 'assignHabitat', eggId: d.eggId });
+    const onMonsterDetail = (d: { instanceId: string }) => setActivePanel({ type: 'monsterDetail', instanceId: d.instanceId });
     const onOpenPokedex  = () => setActivePanel({ type: 'pokedex' });
     const onOpenShop     = () => setActivePanel({ type: 'shop' });
     const onOpenIslands    = () => setActivePanel({ type: 'islands' });
@@ -63,6 +75,8 @@ export default function App() {
     EventBus.on(GameEvents.OPEN_BREEDING_PANEL, onOpenBreeding);
     EventBus.on(GameEvents.OPEN_HATCHERY_PANEL, onOpenHatchery);
     EventBus.on(GameEvents.OPEN_HATCH_CONFIRM, onHatchConfirm);
+    EventBus.on(GameEvents.OPEN_ASSIGN_HABITAT, onAssignHabitat);
+    EventBus.on(GameEvents.OPEN_MONSTER_DETAIL, onMonsterDetail);
     EventBus.on(GameEvents.OPEN_POKEDEX, onOpenPokedex);
     EventBus.on(GameEvents.OPEN_SHOP, onOpenShop);
     EventBus.on(GameEvents.OPEN_ISLANDS_PANEL, onOpenIslands);
@@ -77,6 +91,8 @@ export default function App() {
       EventBus.off(GameEvents.OPEN_BREEDING_PANEL, onOpenBreeding);
       EventBus.off(GameEvents.OPEN_HATCHERY_PANEL, onOpenHatchery);
       EventBus.off(GameEvents.OPEN_HATCH_CONFIRM, onHatchConfirm);
+      EventBus.off(GameEvents.OPEN_ASSIGN_HABITAT, onAssignHabitat);
+      EventBus.off(GameEvents.OPEN_MONSTER_DETAIL, onMonsterDetail);
       EventBus.off(GameEvents.OPEN_POKEDEX, onOpenPokedex);
       EventBus.off(GameEvents.OPEN_SHOP, onOpenShop);
       EventBus.off(GameEvents.OPEN_ISLANDS_PANEL, onOpenIslands);
@@ -154,6 +170,12 @@ export default function App() {
         {activePanel?.type === 'hatchConfirm' && (
           <HatchConfirmPanel eggId={activePanel.eggId} onClose={closePanel} />
         )}
+        {activePanel?.type === 'assignHabitat' && (
+          <AssignHabitatPanel eggId={activePanel.eggId} onClose={closePanel} />
+        )}
+        {activePanel?.type === 'monsterDetail' && (
+          <MonsterInstanceDetail instanceId={activePanel.instanceId} onClose={closePanel} />
+        )}
         {activePanel?.type === 'pokedex' && (
           <Pokedex onClose={closePanel} />
         )}
@@ -171,6 +193,9 @@ export default function App() {
         )}
         {isBattleActive && <BattleHUD />}
       </div>
+
+      {/* First-run onboarding flow */}
+      {showTutorial && <TutorialOverlay onClose={() => setTutorialDismissed(true)} />}
     </div>
   );
 }

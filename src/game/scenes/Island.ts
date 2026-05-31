@@ -23,6 +23,13 @@ export class Island extends Phaser.Scene {
   private placementHighlight?: Phaser.GameObjects.Graphics;
   private unsubscribe?: () => void;
 
+  // Neighbour islands drawn beside the active one to form one big world.
+  // Each region records a world-space bounding box for tap handling.
+  private neighborRegions: {
+    islandId: string; locked: boolean; cost: number;
+    minX: number; maxX: number; minY: number; maxY: number;
+  }[] = [];
+
   private isDragging = false;
   private dragMoved = false;
   private dragStartX = 0;
@@ -57,8 +64,12 @@ export class Island extends Phaser.Scene {
       }
     }
 
-    // Camera bounds + center on the island.
-    this.cameras.main.setBounds(0, 0, CONTENT_W, CONTENT_H);
+    // Draw the other islands as dimmed neighbours beside this one, forming
+    // one big pannable world. Returns how far the world extends to the right.
+    const worldRight = this.drawNeighborIslands(state);
+
+    // Camera bounds span the whole world (active island + neighbours).
+    this.cameras.main.setBounds(0, 0, Math.max(CONTENT_W, worldRight), CONTENT_H);
     this.cameras.main.centerOn(ISLAND_CENTER.x, ISLAND_CENTER.y);
     this.applyCameraFX();
 
@@ -459,6 +470,110 @@ export class Island extends Phaser.Scene {
     /* intentionally empty: no camera-wide shaders */
   }
 
+  // Render every OTHER island as a dimmed neighbour to the right of the active
+  // one, so the whole game reads as a single big world. Locked islands are
+  // greyed out with a 🔒 and their gold price. Tapping a neighbour switches to
+  // it (or, if locked and affordable, offers to unlock it). Returns the world-
+  // space right edge so the camera bounds can include the neighbours.
+  private drawNeighborIslands(state: ReturnType<typeof useGameStore.getState>): number {
+    this.neighborRegions = [];
+    const ISLAND_SPAN = GRID_COLS * (TILE_W / 2) + GRID_COLS * (TILE_W / 2); // full diamond width
+    const GAP = 260;
+    const others = Object.values(ISLAND_DEFS).filter(d => d.id !== state.currentIslandId);
+    let rightEdge = CONTENT_W;
+
+    others.forEach((island, i) => {
+      const offsetX = CONTENT_W + GAP + i * (ISLAND_SPAN + GAP);
+      const locked = !state.unlockedIslands.includes(island.id);
+      const cost = island.goldCost ?? 0;
+
+      const g = this.add.graphics();
+      g.setDepth(-50);
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+
+      // Draw the island's land tiles as flat dimmed diamonds.
+      for (let row = 0; row < GRID_ROWS; row++) {
+        for (let col = 0; col < GRID_COLS; col++) {
+          if (!island.tileMask[row]?.[col]) continue;
+          const c = project(col + 0.5, row + 0.5);
+          const cx = c.x + offsetX, cy = c.y;
+          const top    = { x: cx, y: cy - TILE_H / 2 };
+          const right  = { x: cx + TILE_W / 2, y: cy };
+          const bottom = { x: cx, y: cy + TILE_H / 2 };
+          const left   = { x: cx - TILE_W / 2, y: cy };
+          const checker = (col + row) % 2 === 0;
+          // Locked islands desaturated to grey; unlocked keep a muted green.
+          const fill = locked
+            ? (checker ? 0x6b6b6b : 0x767676)
+            : (checker ? 0x5a9e44 : 0x64a84c);
+          g.fillStyle(fill, locked ? 0.7 : 0.92);
+          g.fillPoints([top, right, bottom, left], true);
+          g.lineStyle(1, 0x000000, 0.15);
+          g.strokePoints([top, right, bottom, left], true, true);
+          minX = Math.min(minX, left.x); maxX = Math.max(maxX, right.x);
+          minY = Math.min(minY, top.y);  maxY = Math.max(maxY, bottom.y);
+        }
+      }
+      if (minX === Infinity) return; // empty mask, skip
+
+      const midX = (minX + maxX) / 2;
+
+      // Name label.
+      this.add.text(midX, minY - 26, island.name, {
+        fontSize: '18px', color: locked ? '#cccccc' : '#ffffff', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 4,
+      }).setOrigin(0.5).setDepth(40);
+
+      if (locked) {
+        // Lock badge + price.
+        this.add.text(midX, (minY + maxY) / 2 - 16, '🔒', { fontSize: '48px' })
+          .setOrigin(0.5).setDepth(40);
+        this.add.text(midX, (minY + maxY) / 2 + 30, `🪙 ${cost}`, {
+          fontSize: '20px', color: '#ffd700', fontStyle: 'bold',
+          stroke: '#000000', strokeThickness: 4,
+        }).setOrigin(0.5).setDepth(40);
+        this.add.text(midX, maxY + 6, 'Tippen zum Freischalten', {
+          fontSize: '12px', color: '#dddddd', stroke: '#000000', strokeThickness: 3,
+        }).setOrigin(0.5).setDepth(40);
+      } else {
+        this.add.text(midX, maxY + 6, 'Tippen zum Besuchen', {
+          fontSize: '12px', color: '#bff5a8', stroke: '#000000', strokeThickness: 3,
+        }).setOrigin(0.5).setDepth(40);
+      }
+
+      this.neighborRegions.push({ islandId: island.id, locked, cost, minX, maxX, minY: minY - 30, maxY: maxY + 24 });
+      rightEdge = Math.max(rightEdge, maxX + GAP);
+    });
+
+    return rightEdge;
+  }
+
+  // Did the player tap a neighbour island? Handle switch / unlock if so.
+  private handleNeighborTap(wx: number, wy: number): boolean {
+    for (const r of this.neighborRegions) {
+      if (wx >= r.minX && wx <= r.maxX && wy >= r.minY && wy <= r.maxY) {
+        const store = useGameStore.getState();
+        if (r.locked) {
+          if (store.gold < r.cost) {
+            EventBus.emit(GameEvents.OPEN_ISLANDS_PANEL, {});
+            return true;
+          }
+          if (confirm(`Insel für 🪙 ${r.cost} Gold freischalten?`)) {
+            if (store.purchaseIsland(r.islandId)) {
+              store.setCurrentIsland(r.islandId);
+              EventBus.emit(GameEvents.ISLAND_CHANGED, { islandId: r.islandId });
+            }
+          }
+        } else {
+          store.setCurrentIsland(r.islandId);
+          EventBus.emit(GameEvents.ISLAND_CHANGED, { islandId: r.islandId });
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
   // ---- Input helpers ----------------------------------------------------
 
   private updateHover(p: Phaser.Input.Pointer) {
@@ -484,6 +599,9 @@ export class Island extends Phaser.Scene {
       this.tryPlaceBuilding(col, row);
       return;
     }
+
+    // Tapping a neighbouring island switches to / unlocks it.
+    if (this.handleNeighborTap(w.x, w.y)) return;
 
     // Eggs first — they sit on top of everything near the hatchery.
     for (const spr of this.eggSprites.values()) {

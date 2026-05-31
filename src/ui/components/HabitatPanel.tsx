@@ -12,6 +12,7 @@ import {
   EVOLUTION_LEVELS, getTrainableAttacks, getAttackTrainCost,
 } from '@systems/ProgressionSystem';
 import type { MonsterInstance } from '@gtypes/game';
+import { EventBus, GameEvents } from '@game/EventBus';
 import '../styles/global.css';
 
 interface HabitatPanelProps {
@@ -117,6 +118,11 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-info" style={{ padding: '2px 6px', fontSize: 10 }}
+                    title="Detailansicht"
+                    onClick={() => EventBus.emit(GameEvents.OPEN_MONSTER_DETAIL, { instanceId: m.instanceId })}>
+                    ℹ️
+                  </button>
                   <button className="btn btn-gold" style={{ padding: '2px 6px', fontSize: 10 }}
                     title={`Verkaufen für ${sellValue} Gold`}
                     onClick={() => { if (confirm(`${m.name} für 🪙 ${sellValue} verkaufen?`)) sellMonster(m.instanceId); }}>

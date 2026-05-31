@@ -21,7 +21,9 @@ export type EvolutionStage = 'Baby' | 'Juvenile' | 'Adult' | 'Elder';
 export type BuildingCategory =
   | 'Habitat' | 'Temple' | 'Farm' | 'BreedingStation' | 'Hatchery';
 
-export type MinigameType = 'TimingBar' | 'AimClick' | 'ButtonSequence';
+export type MinigameType = 'TimingBar' | 'AimClick' | 'ButtonSequence' | 'MashButton' | 'SwipePath';
+
+export type AttackTargeting = 'single' | 'aoe';
 
 export interface MonsterBaseStats {
   hp: number;
@@ -77,6 +79,8 @@ export interface MoveDef {
   minigameType: MinigameType;
   statusEffect?: { effect: StatusEffect; threshold: number };
   description: string;
+  // 'aoe' hits every enemy; 'single' (default) hits one chosen target.
+  targeting?: AttackTargeting;
 }
 
 export interface BuildingLevelData {

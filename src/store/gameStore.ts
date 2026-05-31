@@ -38,6 +38,7 @@ interface GameStoreState {
   storyProgress: number;
   pokedexSeen: string[];
   currentIslandId: string;
+  tutorialStep: number; // 0 = not started; advances through the onboarding flow
 }
 
 interface GameStoreActions {
@@ -79,6 +80,8 @@ interface GameStoreActions {
   // Eggs & Breeding
   addEgg: (monsterDefId: string, hatchTimeOverrideSec?: number, isUnique?: boolean, parentIds?: [string, string]) => void;
   hatchEgg: (eggId: string) => MonsterInstance | null;
+  hatchEggToHabitat: (eggId: string, habitatId: string) => MonsterInstance | null;
+  eligibleHabitats: (monsterDefId: string) => string[];
   speedUpEgg: (eggId: string) => void;
   startBreeding: (parent1Id: string, parent2Id: string) => boolean;
   collectBreedingEgg: (id: string) => void;
@@ -95,6 +98,7 @@ interface GameStoreActions {
   purchaseIsland: (islandId: string) => boolean;
   setCurrentIsland: (islandId: string) => void;
   addPokedexEntry: (defId: string) => void;
+  setTutorialStep: (step: number) => void;
 
   // Timer tick (called every second from App.tsx)
   tickTimers: () => void;
@@ -112,7 +116,21 @@ const INITIAL_STATE: GameStoreState = {
   playerLevel: 1,
   playerXp: 0,
   trophies: 0,
-  monsters: {},
+  monsters: {
+    // Two starter monsters so the tutorial can teach breeding right away.
+    'm_starter_fire': {
+      instanceId: 'm_starter_fire', defId: 'flameling', level: 1, xp: 0, stage: 'Baby',
+      equippedMoveIds: ['ember'], knownMoveIds: ['ember'], maxAttackSlots: 2,
+      currentHp: 300, maxHp: 300, statusEffects: [],
+      habitatId: 'b_habitat_fire_start', relationshipScores: {}, isUnique: false, name: 'Flameling',
+    },
+    'm_starter_water': {
+      instanceId: 'm_starter_water', defId: 'aquapup', level: 1, xp: 0, stage: 'Baby',
+      equippedMoveIds: ['aquajet'], knownMoveIds: ['aquajet'], maxAttackSlots: 2,
+      currentHp: 320, maxHp: 320, statusEffects: [],
+      habitatId: 'b_habitat_water_start', relationshipScores: {}, isUnique: false, name: 'Aquapup',
+    },
+  },
   buildings: {
     // Pre-placed starter buildings
     'b_breeding': {
@@ -147,7 +165,7 @@ const INITIAL_STATE: GameStoreState = {
       level: 1,
       constructionEndMs: null,
       upgradeEndMs: null,
-      monsterIds: [],
+      monsterIds: ['m_starter_fire'],
       goldAccumulated: 0,
       lastCollectedMs: Date.now(),
     },
@@ -159,7 +177,7 @@ const INITIAL_STATE: GameStoreState = {
       level: 1,
       constructionEndMs: null,
       upgradeEndMs: null,
-      monsterIds: [],
+      monsterIds: ['m_starter_water'],
       goldAccumulated: 0,
       lastCollectedMs: Date.now(),
     },
@@ -184,6 +202,7 @@ const INITIAL_STATE: GameStoreState = {
   storyProgress: 0,
   pokedexSeen: ['flameling', 'aquapup'],
   currentIslandId: 'emerald_isle',
+  tutorialStep: 0,
 };
 
 export const useGameStore = create<GameStore>()(
@@ -538,6 +557,38 @@ export const useGameStore = create<GameStore>()(
         return get().addMonster(egg.monsterDefId, egg.isUnique, egg.parentIds);
       },
 
+      // Habitats on the current island that can house this monster (matching
+      // element + free space). 'Legendary' habitats (no linked element) accept all.
+      eligibleHabitats: (monsterDefId) => {
+        const def = MONSTER_DEFS[monsterDefId];
+        if (!def) return [];
+        const state = get();
+        return Object.values(state.buildings).filter(b => {
+          const bd = BUILDING_DEFS[b.defId];
+          if (!bd || bd.category !== 'Habitat') return false;
+          if (b.islandId !== state.currentIslandId) return false;
+          if (b.constructionEndMs) return false;
+          const levelData = bd.levels[b.level - 1];
+          const cap = levelData?.monsterCapacity ?? 3;
+          if (b.monsterIds.length >= cap) return false;
+          if (bd.linkedElement) return def.elements.includes(bd.linkedElement);
+          return true; // legendary habitat
+        }).map(b => b.instanceId);
+      },
+
+      // Hatch an egg and immediately move the new monster into a habitat.
+      // Returns null (and does nothing) if the habitat isn't valid/free.
+      hatchEggToHabitat: (eggId, habitatId) => {
+        const egg = get().eggs.find(e => e.id === eggId);
+        if (!egg) return null;
+        if (Date.now() < egg.hatchEndMs) return null;
+        if (!get().eligibleHabitats(egg.monsterDefId).includes(habitatId)) return null;
+        set((s) => { s.eggs = s.eggs.filter(e => e.id !== eggId); });
+        const monster = get().addMonster(egg.monsterDefId, egg.isUnique, egg.parentIds);
+        get().assignToHabitat(monster.instanceId, habitatId);
+        return monster;
+      },
+
       speedUpEgg: (eggId) => {
         const egg = get().eggs.find(e => e.id === eggId);
         if (!egg) return;
@@ -675,6 +726,10 @@ export const useGameStore = create<GameStore>()(
         });
       },
 
+      setTutorialStep: (step) => {
+        set((s) => { s.tutorialStep = step; });
+      },
+
       tickTimers: () => {
         const now = Date.now();
         set((s) => {
@@ -736,7 +791,7 @@ export const useGameStore = create<GameStore>()(
     })),
     {
       name: 'monsterium-save',
-      version: 3,
+      version: 4,
       migrate: (persisted: any, _version: number) => {
         if (persisted && typeof persisted === 'object') {
           // v1→v2: single activeBreeding slot became an array.
@@ -746,7 +801,11 @@ export const useGameStore = create<GameStore>()(
               : [];
           }
           delete persisted.activeBreeding;
-          // v2→v3: add knownMoveIds and maxAttackSlots to existing monsters.
+          // Add the tutorial flag; existing players skip onboarding.
+          if (typeof persisted.tutorialStep !== 'number') {
+            persisted.tutorialStep = 99;
+          }
+          // Add knownMoveIds and maxAttackSlots to existing monsters.
           if (persisted.monsters && typeof persisted.monsters === 'object') {
             for (const m of Object.values(persisted.monsters) as any[]) {
               if (!Array.isArray(m.knownMoveIds)) {

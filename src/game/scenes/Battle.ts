@@ -10,7 +10,16 @@ import {
   buildTurnQueue, calculateDamage, generateAiAttack,
   processStatusTick, buildCombatant, gainUltCharge,
 } from '@systems/BattleSystem';
-import type { BattleCombatant, MoveDef } from '@gtypes/game';
+import type { BattleCombatant, MoveDef, MinigameType } from '@gtypes/game';
+
+// Which Phaser scene drives each minigame type.
+const MINIGAME_SCENE_KEYS: Record<MinigameType, string> = {
+  TimingBar: 'TimingBarScene',
+  AimClick: 'AimClickScene',
+  ButtonSequence: 'ButtonSequenceScene',
+  MashButton: 'MashButtonScene',
+  SwipePath: 'SwipePathScene',
+};
 
 type BattleState = 'INTRO' | 'PLAYER_TURN' | 'MINIGAME_ACTIVE' | 'ULT_MINIGAME_1' | 'ULT_MINIGAME_2' | 'AI_TURN' | 'VICTORY' | 'DEFEAT';
 
@@ -544,10 +553,9 @@ export class Battle extends Phaser.Scene {
     this.state = 'MINIGAME_ACTIVE';
     this.statusText.setText(`Executing ${moveDef.name}...`);
 
-    const sceneName = moveDef.minigameType === 'TimingBar' ? 'TimingBarScene' :
-      moveDef.minigameType === 'AimClick' ? 'AimClickScene' : 'ButtonSequenceScene';
-    this.scene.launch(sceneName, { moveDef, rarityRank });
-    this.scene.bringToTop(sceneName);
+    const sceneKey = MINIGAME_SCENE_KEYS[moveDef.minigameType] ?? 'ButtonSequenceScene';
+    this.scene.launch(sceneKey, { moveDef, rarityRank });
+    this.scene.bringToTop(sceneKey);
     this.scene.pause();
   }
 
