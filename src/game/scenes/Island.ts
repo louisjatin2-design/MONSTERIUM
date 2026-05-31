@@ -320,16 +320,35 @@ export class Island extends Phaser.Scene {
 
     if (!hatchery) return;
     const hd = BUILDING_DEFS[hatchery.defId];
-    const anchor = project(hatchery.tileX + hd.tilesW / 2, hatchery.tileY + hd.tilesH + 0.4);
+    const { tileX, tileY } = hatchery;
+    const W = hd.tilesW, H = hd.tilesH;
+    const OUT = 0.45; // how far outside the footprint the pedestals hug
 
-    // Lay eggs in a small arc in front of the hatchery.
+    // Pedestal slots that hug the hatchery's two camera-facing edges, so the
+    // eggs sit attached to the building base. Each slot carries its grid
+    // coords so we can project to iso space and depth-sort correctly.
+    const slots: { col: number; row: number }[] = [];
+    // Front-left edge (row = tileY + H), walking across the columns.
+    for (let c = 0; c < W; c++) {
+      slots.push({ col: tileX + c + 0.5, row: tileY + H + OUT });
+    }
+    // Right-front edge (col = tileX + W), walking down the rows.
+    for (let r = 0; r < H; r++) {
+      slots.push({ col: tileX + W + OUT, row: tileY + r + 0.5 });
+    }
+    // Front corner gets an extra slot for overflow.
+    slots.push({ col: tileX + W + OUT, row: tileY + H + OUT });
+
+    // Lay each egg onto the next pedestal slot, anchored to the hatchery.
     s.eggs.forEach((egg, i) => {
       if (this.eggSprites.has(egg.id)) return;
-      const n = s.eggs.length;
-      const ox = (i - (n - 1) / 2) * 40;
-      const oy = (i % 2) * 16;
-      const spr = new EggSprite(this, egg, anchor.x + ox, anchor.y + oy);
-      spr.setDepth(400 + i);
+      const slot = slots[i % slots.length];
+      // Stack extra eggs slightly outward if we run out of distinct slots.
+      const ring = Math.floor(i / slots.length);
+      const p = project(slot.col + ring * 0.3, slot.row + ring * 0.3);
+      const spr = new EggSprite(this, egg, p.x, p.y);
+      // Grid-based depth keeps eggs grounded against the building.
+      spr.setDepth(120 + (slot.col + slot.row) + ring);
       spr.updateTimer(egg.hatchEndMs - Date.now());
       this.eggSprites.set(egg.id, spr);
     });
