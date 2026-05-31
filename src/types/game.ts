@@ -151,6 +151,7 @@ export interface BattleCombatant {
   isPlayer: boolean;
   equippedMoveIds: string[];
   name: string;
+  ultCharge: number;  // 0–100; fills as this monster deals damage
 }
 
 export interface BreedOutcome {

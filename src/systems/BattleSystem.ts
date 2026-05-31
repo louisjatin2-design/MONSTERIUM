@@ -89,6 +89,10 @@ export function processStatusTick(combatant: BattleCombatant): number {
   return dotDamage;
 }
 
+export function gainUltCharge(c: BattleCombatant, damageDealt: number): void {
+  c.ultCharge = Math.min(100, c.ultCharge + Math.floor(damageDealt * 0.22));
+}
+
 export function generateAiAttack(
   equippedMoves: string[]
 ): { moveId: string; accuracy: number } {
@@ -121,5 +125,6 @@ export function buildCombatant(
     isPlayer,
     equippedMoveIds,
     name,
+    ultCharge: 0,
   };
 }
