@@ -16,7 +16,7 @@ export type TraitType =
   | 'Mania' | 'Tough' | 'Swift' | 'Undead' | 'Fireproof'
   | 'Berserk' | 'Lucky' | 'Echo' | 'Guardian' | 'None';
 
-export type EvolutionStage = 'Baby' | 'Juvenile' | 'Adult';
+export type EvolutionStage = 'Baby' | 'Juvenile' | 'Adult' | 'Elder';
 
 export type BuildingCategory =
   | 'Habitat' | 'Temple' | 'Farm' | 'BreedingStation' | 'Hatchery';
@@ -50,7 +50,9 @@ export interface MonsterInstance {
   level: number;
   xp: number;
   stage: EvolutionStage;
-  equippedMoveIds: string[];
+  equippedMoveIds: string[];   // currently active in battle, max = maxAttackSlots
+  knownMoveIds: string[];      // every attack this instance has ever learned
+  maxAttackSlots: number;      // 2 → 3 → 4 → 5 as stages unlock
   currentHp: number;
   maxHp: number;
   statusEffects: ActiveStatusEffect[];

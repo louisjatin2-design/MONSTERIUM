@@ -57,6 +57,9 @@ export class Battle extends Phaser.Scene {
   private attackerArrow: Phaser.GameObjects.Text | null = null;
   private attackerPulseTween: Phaser.Tweens.Tween | null = null;
 
+  // Tracks enemy moves used during battle for the post-victory learn offer
+  private enemyUsedMoveIds: Set<string> = new Set();
+
   constructor() { super('Battle'); }
 
   init(data: BattleData) {
@@ -607,6 +610,7 @@ export class Battle extends Phaser.Scene {
     const { moveId, accuracy } = generateAiAttack(attacker.equippedMoveIds);
     const moveDef = ATTACKS[moveId];
     if (!moveDef) { this.turnIndex++; this.nextTurn(); return; }
+    this.enemyUsedMoveIds.add(moveId); // track for post-battle learn
 
     const players = this.playerCombatants.filter(c => c.currentHp > 0);
     if (players.length === 0) { this.endBattle(false); return; }
@@ -909,9 +913,12 @@ export class Battle extends Phaser.Scene {
       this.add.text(width / 2, height / 2 + 10, rewardLine, {
         fontSize: '20px', color: '#ffd700',
       }).setOrigin(0.5);
+
+      // ── Post-battle attack learn offer ──────────────────────────────────────
+      this.offerBattleLearn(width, height);
     }
 
-    this.add.text(width / 2, height / 2 + 60, 'Click to continue', {
+    this.add.text(width / 2, height / 2 + 60, 'Tippe zum Fortfahren', {
       fontSize: '16px', color: '#aaaaaa',
     }).setOrigin(0.5);
 
@@ -920,6 +927,73 @@ export class Battle extends Phaser.Scene {
       this.scene.stop();
       this.scene.resume('Island');
     });
+  }
+
+  /**
+   * After a victory, pick one move the enemy used that a player monster could
+   * learn but doesn't yet know.  Show a small offer panel — 20% chance it fires.
+   */
+  private offerBattleLearn(width: number, height: number) {
+    if (Math.random() > 0.35) return; // 35% chance per battle
+
+    const store = useGameStore.getState();
+    const playerMonsters = this.playerCombatants
+      .map(c => store.monsters[c.instanceId])
+      .filter(Boolean);
+
+    // Find an enemy move that at least one player monster can learn but doesn't know
+    const offers: Array<{ moveId: string; learnerId: string; learnerName: string }> = [];
+    for (const moveId of this.enemyUsedMoveIds) {
+      const move = ATTACKS[moveId];
+      if (!move) continue;
+      for (const m of playerMonsters) {
+        const def = MONSTER_DEFS[m.defId];
+        if (!def) continue;
+        if ((m.knownMoveIds ?? m.equippedMoveIds).includes(moveId)) continue;
+        if (def.elements.includes(move.element as Parameters<typeof def.elements.includes>[0])) {
+          offers.push({ moveId, learnerId: m.instanceId, learnerName: m.name });
+          break;
+        }
+      }
+    }
+    if (offers.length === 0) return;
+
+    const pick = offers[Math.floor(Math.random() * offers.length)];
+    const move = ATTACKS[pick.moveId]!;
+
+    // Show a small floating panel above the victory box
+    const panelY = height / 2 - 130;
+    const bg = this.add.rectangle(width / 2, panelY, 350, 72, 0x0d1929, 1)
+      .setStrokeStyle(2, 0x4488ff).setDepth(1100);
+    const title = this.add.text(width / 2, panelY - 20, `✨ ${pick.learnerName} kann lernen:`, {
+      fontSize: '13px', color: '#88aaff', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(1101);
+    const moveTxt = this.add.text(width / 2, panelY - 1, `${move.name}  (${move.element} · ${move.power}×)`, {
+      fontSize: '14px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(1101);
+
+    const yesBtn = this.add.rectangle(width / 2 - 55, panelY + 22, 90, 26, 0x003300)
+      .setStrokeStyle(1, 0x66ff66).setInteractive({ useHandCursor: true }).setDepth(1101);
+    const yesTxt = this.add.text(width / 2 - 55, panelY + 22, '✓ Erlernen', {
+      fontSize: '12px', color: '#66ff66',
+    }).setOrigin(0.5).setDepth(1102);
+
+    const noBtn = this.add.rectangle(width / 2 + 55, panelY + 22, 90, 26, 0x330000)
+      .setStrokeStyle(1, 0xff4444).setInteractive({ useHandCursor: true }).setDepth(1101);
+    const noTxt = this.add.text(width / 2 + 55, panelY + 22, '✗ Überspringen', {
+      fontSize: '12px', color: '#ff4444',
+    }).setOrigin(0.5).setDepth(1102);
+
+    const cleanup = () => [bg, title, moveTxt, yesBtn, yesTxt, noBtn, noTxt].forEach(o => o.destroy());
+
+    yesBtn.on('pointerdown', () => {
+      store.learnAttack(pick.learnerId, pick.moveId);
+      this.add.text(width / 2, panelY, `${pick.learnerName} hat ${move.name} erlernt! ✨`, {
+        fontSize: '14px', color: '#ffd700', fontStyle: 'bold', stroke: '#000', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(1103);
+      cleanup();
+    });
+    noBtn.on('pointerdown', cleanup);
   }
 
   shutdown() {

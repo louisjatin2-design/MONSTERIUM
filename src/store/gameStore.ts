@@ -9,7 +9,11 @@ import { BUILDING_DEFS } from '@data/buildings';
 import { ISLAND_DEFS } from '@data/islands';
 import { RARITY_HATCH_TIME_SEC, RARITY_BREED_TIME_SEC, RARITY_RANK } from '@data/rarities';
 import { calculateXpToLevel, calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
-import { getUnlockedMoves } from '@systems/ProgressionSystem';
+import {
+  getUnlockedMoves, getMaxAttackSlots, getNextEvolutionStage,
+  pickRandomNewAttack, getTrainableAttacks, getAttackTrainCost,
+  EVOLUTION_LEVELS,
+} from '@systems/ProgressionSystem';
 import { calculateBreedOutcomes, rollBreedOutcome } from '@systems/BreedingSystem';
 
 // Simple uid generator (no external dependency)
@@ -61,6 +65,16 @@ interface GameStoreActions {
   evolveMonster: (instanceId: string) => void;
   equipMove: (instanceId: string, moveId: string, replaceSlot?: number) => void;
   updateRelationship: (id1: string, id2: string, delta: number) => void;
+
+  // Attack management
+  /** Learn an attack (adds to knownMoveIds, auto-equips if slot free). */
+  learnAttack: (instanceId: string, moveId: string) => boolean;
+  /** Equip a known attack into a battle slot (unequips replaceId if slots full). */
+  equipAttack: (instanceId: string, moveId: string, replaceId?: string) => void;
+  /** Remove an attack from equipped slots (stays in knownMoveIds). */
+  unequipAttack: (instanceId: string, moveId: string) => void;
+  /** Pay gold/diamonds to teach a trainable attack. Returns false if not affordable. */
+  trainAttack: (instanceId: string, moveId: string) => boolean;
 
   // Eggs & Breeding
   addEgg: (monsterDefId: string, hatchTimeOverrideSec?: number, isUnique?: boolean, parentIds?: [string, string]) => void;
@@ -263,13 +277,16 @@ export const useGameStore = create<GameStore>()(
         const def = MONSTER_DEFS[defId];
         if (!def) throw new Error(`Unknown monster def: ${defId}`);
         const id = 'm_' + uid();
+        const startMoves = def.availableMoveIds.slice(0, 2).filter(Boolean);
         const instance: MonsterInstance = {
           instanceId: id,
           defId,
           level: 1,
           xp: 0,
           stage: 'Baby',
-          equippedMoveIds: [def.availableMoveIds[0]].filter(Boolean),
+          equippedMoveIds: startMoves,
+          knownMoveIds: [...startMoves],
+          maxAttackSlots: 2,
           currentHp: def.baseStats.hp,
           maxHp: def.baseStats.hp,
           statusEffects: [],
@@ -307,11 +324,15 @@ export const useGameStore = create<GameStore>()(
             m.xp -= xpNeeded;
             m.level++;
             xpNeeded = calculateXpToLevel(m.level);
-            // Unlock new move
+            // Unlock new move from pool (every 10 levels)
             const unlockedMoves = getUnlockedMoves(m.defId, m.level);
             const newMove = unlockedMoves[unlockedMoves.length - 1];
-            if (newMove && !m.equippedMoveIds.includes(newMove) && m.equippedMoveIds.length < 4) {
-              m.equippedMoveIds.push(newMove);
+            if (newMove) {
+              if (!m.knownMoveIds) m.knownMoveIds = [...m.equippedMoveIds];
+              if (!m.knownMoveIds.includes(newMove)) m.knownMoveIds.push(newMove);
+              if (!m.equippedMoveIds.includes(newMove) && m.equippedMoveIds.length < (m.maxAttackSlots ?? 4)) {
+                m.equippedMoveIds.push(newMove);
+              }
             }
           }
         });
@@ -377,8 +398,12 @@ export const useGameStore = create<GameStore>()(
             xpNeeded = calculateXpToLevel(m.level);
             const unlockedMoves = getUnlockedMoves(m.defId, m.level);
             const newMove = unlockedMoves[unlockedMoves.length - 1];
-            if (newMove && !m.equippedMoveIds.includes(newMove) && m.equippedMoveIds.length < 4) {
-              m.equippedMoveIds.push(newMove);
+            if (newMove) {
+              if (!m.knownMoveIds) m.knownMoveIds = [...m.equippedMoveIds];
+              if (!m.knownMoveIds.includes(newMove)) m.knownMoveIds.push(newMove);
+              if (!m.equippedMoveIds.includes(newMove) && m.equippedMoveIds.length < (m.maxAttackSlots ?? 4)) {
+                m.equippedMoveIds.push(newMove);
+              }
             }
           }
         });
@@ -388,8 +413,20 @@ export const useGameStore = create<GameStore>()(
         set((s) => {
           const m = s.monsters[instanceId];
           if (!m) return;
-          if (m.stage === 'Baby' && m.level >= 10) m.stage = 'Juvenile';
-          else if (m.stage === 'Juvenile' && m.level >= 20) m.stage = 'Adult';
+          const next = getNextEvolutionStage(m.stage);
+          if (!next) return;
+          if (m.level < EVOLUTION_LEVELS[next]) return;
+          m.stage = next;
+          m.maxAttackSlots = getMaxAttackSlots(next);
+          // Learn one random new attack and auto-equip it in the newly unlocked slot
+          const newAttack = pickRandomNewAttack(m as MonsterInstance);
+          if (newAttack) {
+            if (!m.knownMoveIds) m.knownMoveIds = [...m.equippedMoveIds];
+            if (!m.knownMoveIds.includes(newAttack)) m.knownMoveIds.push(newAttack);
+            if (m.equippedMoveIds.length < m.maxAttackSlots) {
+              m.equippedMoveIds.push(newAttack);
+            }
+          }
         });
       },
 
@@ -397,12 +434,68 @@ export const useGameStore = create<GameStore>()(
         set((s) => {
           const m = s.monsters[instanceId];
           if (!m) return;
-          if (replaceSlot !== undefined && replaceSlot >= 0 && replaceSlot < 4) {
+          const slots = m.maxAttackSlots ?? 4;
+          if (replaceSlot !== undefined && replaceSlot >= 0 && replaceSlot < slots) {
             m.equippedMoveIds[replaceSlot] = moveId;
-          } else if (m.equippedMoveIds.length < 4) {
+          } else if (m.equippedMoveIds.length < slots) {
             m.equippedMoveIds.push(moveId);
           }
         });
+      },
+
+      learnAttack: (instanceId, moveId) => {
+        const m = get().monsters[instanceId];
+        if (!m) return false;
+        set((s) => {
+          const mon = s.monsters[instanceId];
+          if (!mon) return;
+          if (!mon.knownMoveIds) mon.knownMoveIds = [...mon.equippedMoveIds];
+          if (!mon.knownMoveIds.includes(moveId)) mon.knownMoveIds.push(moveId);
+          if (mon.equippedMoveIds.length < mon.maxAttackSlots && !mon.equippedMoveIds.includes(moveId)) {
+            mon.equippedMoveIds.push(moveId);
+          }
+        });
+        return true;
+      },
+
+      equipAttack: (instanceId, moveId, replaceId) => {
+        set((s) => {
+          const m = s.monsters[instanceId];
+          if (!m) return;
+          if (!m.knownMoveIds) m.knownMoveIds = [...m.equippedMoveIds];
+          if (!m.knownMoveIds.includes(moveId)) return;
+          if (m.equippedMoveIds.includes(moveId)) return;
+          if (replaceId) {
+            const idx = m.equippedMoveIds.indexOf(replaceId);
+            if (idx >= 0) m.equippedMoveIds[idx] = moveId;
+          } else if (m.equippedMoveIds.length < m.maxAttackSlots) {
+            m.equippedMoveIds.push(moveId);
+          }
+        });
+      },
+
+      unequipAttack: (instanceId, moveId) => {
+        set((s) => {
+          const m = s.monsters[instanceId];
+          if (!m) return;
+          if (m.equippedMoveIds.length <= 1) return; // keep at least one attack
+          m.equippedMoveIds = m.equippedMoveIds.filter(id => id !== moveId);
+        });
+      },
+
+      trainAttack: (instanceId, moveId) => {
+        const m = get().monsters[instanceId];
+        if (!m) return false;
+        const trainable = getTrainableAttacks(m);
+        if (!trainable.includes(moveId)) return false;
+        const cost = getAttackTrainCost(moveId);
+        if (cost.diamonds > 0) {
+          if (!get().spendDiamonds(cost.diamonds)) return false;
+        } else {
+          if (!get().spendGold(cost.gold)) return false;
+        }
+        get().learnAttack(instanceId, moveId);
+        return true;
       },
 
       updateRelationship: (id1, id2, delta) => {

@@ -77,18 +77,19 @@ export function MonsterDetail({ defId, isUnlocked, onClose }: MonsterDetailProps
             )}
           </div>
 
-          {/* Evolution stages */}
+          {/* Evolution stages — 4 stages at Lv 0 / 25 / 50 / 75 */}
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontWeight: 'bold', color: '#ffd700', marginBottom: 4 }}>Evolution:</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {def.evolutionStages.map((s, i) => (
+            <div style={{ fontWeight: 'bold', color: '#ffd700', marginBottom: 4 }}>Entwicklungsstufen:</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[...def.evolutionStages, def.evolutionStages[2] + ' Elder'].map((s, i) => (
                 <div key={i} style={{
                   flex: 1, textAlign: 'center', padding: '6px 4px',
-                  background: 'rgba(255,255,255,0.07)', borderRadius: 6, fontSize: 12,
+                  background: 'rgba(255,255,255,0.07)', borderRadius: 6, fontSize: 11,
                 }}>
-                  <div>{['Baby', 'Juvenile', 'Adult'][i]}</div>
-                  <div style={{ color: '#ffd700', fontWeight: 'bold', marginTop: 2 }}>{s}</div>
-                  <div style={{ color: '#888', fontSize: 10 }}>{['Lv 0', 'Lv 10', 'Lv 20'][i]}</div>
+                  <div style={{ color: '#aaa' }}>{['Baby', 'Juvenile', 'Adult', 'Elder'][i]}</div>
+                  <div style={{ color: '#ffd700', fontWeight: 'bold', marginTop: 2, fontSize: 10 }}>{s}</div>
+                  <div style={{ color: '#888', fontSize: 10 }}>{['Lv 1', 'Lv 25', 'Lv 50', 'Lv 75'][i]}</div>
+                  <div style={{ color: '#66aaff', fontSize: 9, marginTop: 2 }}>{[2, 3, 4, 5][i]} Slots</div>
                 </div>
               ))}
             </div>
