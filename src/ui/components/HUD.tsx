@@ -17,6 +17,7 @@ export function HUD(_props: HUDProps) {
   const trophies    = useGameStore(s => s.trophies);
   const playerLevel = useGameStore(s => s.playerLevel);
   const playerXp    = useGameStore(s => s.playerXp);
+  const pendingRewards = useGameStore(s => s.pendingLevelRewards.length);
 
   const redeemCheatCode = useGameStore(s => s.redeemCheatCode);
 
@@ -46,16 +47,22 @@ export function HUD(_props: HUDProps) {
       zIndex: 200,
       boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
     }}>
-      {/* Player avatar + level badge */}
-      <div style={{ position: 'relative', flexShrink: 0 }}>
+      {/* Player avatar + level badge — opens account rewards */}
+      <button
+        onClick={() => EventBus.emit(GameEvents.OPEN_LEVEL_REWARDS, {})}
+        title="Account-Belohnungen"
+        style={{
+          position: 'relative', flexShrink: 0,
+          background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+        }}>
         <div style={{
           width: 44, height: 44,
           borderRadius: '50%',
           background: 'linear-gradient(135deg, #7744cc, #4422aa)',
-          border: '2px solid #bb88ff',
+          border: pendingRewards > 0 ? '2px solid #ffd700' : '2px solid #bb88ff',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 22,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+          boxShadow: pendingRewards > 0 ? '0 0 12px #ffd700' : '0 2px 8px rgba(0,0,0,0.5)',
         }}>⭐</div>
         {/* Level badge */}
         <div style={{
@@ -67,7 +74,19 @@ export function HUD(_props: HUDProps) {
           whiteSpace: 'nowrap',
           boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
         }}>{playerLevel}</div>
-      </div>
+        {/* Pending-reward gift badge */}
+        {pendingRewards > 0 && (
+          <div style={{
+            position: 'absolute', top: -5, right: -5,
+            background: '#ff3355', color: '#fff',
+            borderRadius: '50%', width: 18, height: 18,
+            fontSize: 11, fontWeight: 900,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid #fff',
+            boxShadow: '0 0 6px #ff3355',
+          }}>🎁</div>
+        )}
+      </button>
 
       {/* XP bar */}
       <div className="hud-xp" style={{ width: 48, flexShrink: 0 }}>

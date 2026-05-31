@@ -16,6 +16,7 @@ import { HatchConfirmPanel } from '@ui/components/HatchConfirmPanel';
 import { AssignHabitatPanel } from '@ui/components/AssignHabitatPanel';
 import { MonsterInstanceDetail } from '@ui/components/MonsterInstanceDetail';
 import { TutorialOverlay } from '@ui/components/TutorialOverlay';
+import { LevelRewardPanel } from '@ui/components/LevelRewardPanel';
 import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
@@ -35,6 +36,7 @@ export type ActivePanel =
   | { type: 'story' }
   | { type: 'shop' }
   | { type: 'islands' }
+  | { type: 'levelRewards' }
   | { type: 'teamSelect'; battlePayload: BattlePayload }
   | { type: 'battle' };
 
@@ -65,6 +67,7 @@ export default function App() {
     const onOpenPokedex  = () => setActivePanel({ type: 'pokedex' });
     const onOpenShop     = () => setActivePanel({ type: 'shop' });
     const onOpenIslands    = () => setActivePanel({ type: 'islands' });
+    const onOpenLevelRewards = () => setActivePanel({ type: 'levelRewards' });
     const onOpenTeamSelect = (d: BattlePayload) => setActivePanel({ type: 'teamSelect', battlePayload: d });
     const onBattleStart    = () => setActivePanel({ type: 'battle' });
     const onBattleEnd    = () => setActivePanel(null);
@@ -80,6 +83,7 @@ export default function App() {
     EventBus.on(GameEvents.OPEN_POKEDEX, onOpenPokedex);
     EventBus.on(GameEvents.OPEN_SHOP, onOpenShop);
     EventBus.on(GameEvents.OPEN_ISLANDS_PANEL, onOpenIslands);
+    EventBus.on(GameEvents.OPEN_LEVEL_REWARDS, onOpenLevelRewards);
     EventBus.on(GameEvents.OPEN_TEAM_SELECT,   onOpenTeamSelect);
     EventBus.on(GameEvents.BATTLE_STARTED,     onBattleStart);
     EventBus.on(GameEvents.BATTLE_ENDED,       onBattleEnd);
@@ -96,6 +100,7 @@ export default function App() {
       EventBus.off(GameEvents.OPEN_POKEDEX, onOpenPokedex);
       EventBus.off(GameEvents.OPEN_SHOP, onOpenShop);
       EventBus.off(GameEvents.OPEN_ISLANDS_PANEL, onOpenIslands);
+      EventBus.off(GameEvents.OPEN_LEVEL_REWARDS, onOpenLevelRewards);
       EventBus.off(GameEvents.OPEN_TEAM_SELECT,   onOpenTeamSelect);
       EventBus.off(GameEvents.BATTLE_STARTED,     onBattleStart);
       EventBus.off(GameEvents.BATTLE_ENDED,       onBattleEnd);
@@ -187,6 +192,9 @@ export default function App() {
         )}
         {activePanel?.type === 'islands' && (
           <IslandsPanel onClose={closePanel} />
+        )}
+        {activePanel?.type === 'levelRewards' && (
+          <LevelRewardPanel onClose={closePanel} />
         )}
         {activePanel?.type === 'teamSelect' && (
           <TeamSelectPanel battlePayload={activePanel.battlePayload} onClose={closePanel} />

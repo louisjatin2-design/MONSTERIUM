@@ -15,6 +15,7 @@ import {
   EVOLUTION_LEVELS,
 } from '@systems/ProgressionSystem';
 import { calculateBreedOutcomes, rollBreedOutcome } from '@systems/BreedingSystem';
+import { getLevelReward } from '@data/levelRewards';
 
 // Simple uid generator (no external dependency)
 function uid(): string {
@@ -39,6 +40,7 @@ interface GameStoreState {
   pokedexSeen: string[];
   currentIslandId: string;
   tutorialStep: number; // 0 = not started; advances through the onboarding flow
+  pendingLevelRewards: number[]; // account levels reached but not yet claimed
 }
 
 interface GameStoreActions {
@@ -95,6 +97,8 @@ interface GameStoreActions {
 
   // Progression
   addPlayerXp: (amount: number) => void;
+  /** Claim the account-level reward for a level in pendingLevelRewards. */
+  claimLevelReward: (level: number) => void;
   addTrophies: (amount: number) => void;
   advanceStory: () => void;
   unlockIsland: (islandId: string) => void;
@@ -206,6 +210,7 @@ const INITIAL_STATE: GameStoreState = {
   pokedexSeen: ['flameling', 'aquapup'],
   currentIslandId: 'emerald_isle',
   tutorialStep: 0,
+  pendingLevelRewards: [],
 };
 
 export const useGameStore = create<GameStore>()(
@@ -708,9 +713,28 @@ export const useGameStore = create<GameStore>()(
           while (s.playerXp >= xpNeeded) {
             s.playerXp -= xpNeeded;
             s.playerLevel++;
+            // Queue a claimable account-level reward for the new level.
+            if (!s.pendingLevelRewards.includes(s.playerLevel)) {
+              s.pendingLevelRewards.push(s.playerLevel);
+            }
             xpNeeded = calculateXpToLevel(s.playerLevel);
           }
         });
+      },
+
+      claimLevelReward: (level) => {
+        if (!get().pendingLevelRewards.includes(level)) return;
+        const reward = getLevelReward(level);
+        set((s) => {
+          s.gold += reward.gold;
+          s.diamonds += reward.diamonds;
+          s.food += reward.food;
+          s.pendingLevelRewards = s.pendingLevelRewards.filter(l => l !== level);
+        });
+        // Milestone egg goes to the storage/hatchery flow via addEgg.
+        if (reward.eggDefId) {
+          get().addEgg(reward.eggDefId, undefined, false);
+        }
       },
 
       addTrophies: (amount) => {
@@ -818,7 +842,7 @@ export const useGameStore = create<GameStore>()(
     })),
     {
       name: 'monsterium-save',
-      version: 4,
+      version: 5,
       migrate: (persisted: any, _version: number) => {
         if (persisted && typeof persisted === 'object') {
           // v1→v2: single activeBreeding slot became an array.
@@ -831,6 +855,10 @@ export const useGameStore = create<GameStore>()(
           // Add the tutorial flag; existing players skip onboarding.
           if (typeof persisted.tutorialStep !== 'number') {
             persisted.tutorialStep = 99;
+          }
+          // Account level-up reward queue (existing players start empty).
+          if (!Array.isArray(persisted.pendingLevelRewards)) {
+            persisted.pendingLevelRewards = [];
           }
           // Add knownMoveIds and maxAttackSlots to existing monsters.
           if (persisted.monsters && typeof persisted.monsters === 'object') {
