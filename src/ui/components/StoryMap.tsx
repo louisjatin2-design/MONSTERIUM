@@ -32,7 +32,9 @@ export function StoryMap({ onClose }: StoryMapProps) {
       enemyLevels: battle.enemyLevels,
       rewardGold: battle.rewards.gold,
       rewardXp: battle.rewards.xp,
+      rewardDiamonds: battle.rewards.diamonds,
       rewardMonsterDefId: battle.rewards.monsterDefId,
+      storyIndex: index,
     });
     onClose();
   };
@@ -82,7 +84,9 @@ export function StoryMap({ onClose }: StoryMapProps) {
                       🥚 {MONSTER_DEFS[battle.rewards.monsterDefId]?.name}
                     </span>
                   )}
-                  🪙 {battle.rewards.gold} · ⭐ {battle.rewards.xp} XP
+                  🪙 {battle.rewards.gold}
+                  {battle.rewards.diamonds ? ` · 💎 ${battle.rewards.diamonds}` : ''}
+                  {' · ⭐ '}{battle.rewards.xp} XP
                 </div>
               </div>
               <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{battle.description}</div>

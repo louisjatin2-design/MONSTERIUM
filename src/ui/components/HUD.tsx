@@ -1,5 +1,6 @@
 import React from 'react';
 import { useGameStore } from '@store/gameStore';
+import { EventBus, GameEvents } from '@game/EventBus';
 import '../styles/global.css';
 
 interface HUDProps {
@@ -85,6 +86,19 @@ export function HUD(_props: HUDProps) {
         <span style={{ fontSize: 16 }}>🏆</span>
         <span style={{ color: '#ffd700', fontWeight: 900, fontSize: 13 }}>{trophies}</span>
       </div>
+
+      {/* Islands */}
+      <button
+        onClick={() => EventBus.emit(GameEvents.OPEN_ISLANDS_PANEL, {})}
+        title="Inseln"
+        style={{
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          borderRadius: 8, color: '#fff', width: 34, height: 34,
+          cursor: 'pointer', fontSize: 18, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>🏝️</button>
 
       {/* Settings */}
       <button style={{

@@ -11,6 +11,7 @@ import { StoryMap } from '@ui/components/StoryMap';
 import { ShopPanel } from '@ui/components/ShopPanel';
 import { BattleHUD } from '@ui/components/BattleHUD';
 import { FarmPanel } from '@ui/components/FarmPanel';
+import { IslandsPanel } from '@ui/components/IslandsPanel';
 import { HatchConfirmPanel } from '@ui/components/HatchConfirmPanel';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
@@ -27,6 +28,7 @@ export type ActivePanel =
   | { type: 'pokedex' }
   | { type: 'story' }
   | { type: 'shop' }
+  | { type: 'islands' }
   | { type: 'battle' };
 
 export default function App() {
@@ -48,6 +50,7 @@ export default function App() {
     const onHatchConfirm = (d: { eggId: string }) => setActivePanel({ type: 'hatchConfirm', eggId: d.eggId });
     const onOpenPokedex  = () => setActivePanel({ type: 'pokedex' });
     const onOpenShop     = () => setActivePanel({ type: 'shop' });
+    const onOpenIslands  = () => setActivePanel({ type: 'islands' });
     const onBattleStart  = () => setActivePanel({ type: 'battle' });
     const onBattleEnd    = () => setActivePanel(null);
 
@@ -59,6 +62,7 @@ export default function App() {
     EventBus.on(GameEvents.OPEN_HATCH_CONFIRM, onHatchConfirm);
     EventBus.on(GameEvents.OPEN_POKEDEX, onOpenPokedex);
     EventBus.on(GameEvents.OPEN_SHOP, onOpenShop);
+    EventBus.on(GameEvents.OPEN_ISLANDS_PANEL, onOpenIslands);
     EventBus.on(GameEvents.BATTLE_STARTED, onBattleStart);
     EventBus.on(GameEvents.BATTLE_ENDED, onBattleEnd);
 
@@ -71,6 +75,7 @@ export default function App() {
       EventBus.off(GameEvents.OPEN_HATCH_CONFIRM, onHatchConfirm);
       EventBus.off(GameEvents.OPEN_POKEDEX, onOpenPokedex);
       EventBus.off(GameEvents.OPEN_SHOP, onOpenShop);
+      EventBus.off(GameEvents.OPEN_ISLANDS_PANEL, onOpenIslands);
       EventBus.off(GameEvents.BATTLE_STARTED, onBattleStart);
       EventBus.off(GameEvents.BATTLE_ENDED, onBattleEnd);
     };
@@ -126,6 +131,7 @@ export default function App() {
             tileX={activePanel.tileX}
             tileY={activePanel.tileY}
             onClose={closePanel}
+            onStartPlacement={() => setActivePanel(null)}
           />
         )}
         {activePanel?.type === 'habitat' && (
@@ -151,6 +157,9 @@ export default function App() {
         )}
         {activePanel?.type === 'shop' && (
           <ShopPanel onClose={closePanel} />
+        )}
+        {activePanel?.type === 'islands' && (
+          <IslandsPanel onClose={closePanel} />
         )}
         {isBattleActive && <BattleHUD />}
       </div>

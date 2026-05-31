@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '@store/gameStore';
 import { MONSTER_DEFS } from '@data/monsters';
+import { BUILDING_DEFS } from '@data/buildings';
 import { RARITY_COLORS } from '@data/rarities';
 import { EventBus, GameEvents } from '@game/EventBus';
 import '../styles/global.css';
@@ -10,6 +11,10 @@ interface HatcheryPanelProps { onClose: () => void; }
 export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
   const eggs = useGameStore(s => s.eggs);
   const speedUpEgg = useGameStore(s => s.speedUpEgg);
+  const eggCap = useGameStore(s => s.eggCapacity);
+  const gold = useGameStore(s => s.gold);
+  const buildings = useGameStore(s => s.buildings);
+  const upgradeBuilding = useGameStore(s => s.upgradeBuilding);
   const [, forceUpdate] = useState(0);
 
   useEffect(() => {
@@ -18,11 +23,38 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
   }, []);
 
   const now = Date.now();
+  const capacity = eggCap();
+  const hatchery = Object.values(buildings).find(b => BUILDING_DEFS[b.defId]?.category === 'Hatchery');
+  const hatcheryDef = hatchery ? BUILDING_DEFS[hatchery.defId] : null;
+  const nextLevel = hatchery && hatcheryDef ? hatcheryDef.levels[hatchery.level] : undefined;
 
   return (
     <div className="panel" style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 420, padding: 20 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🥚 Hatchery</div>
+
+      {/* Capacity + upgrade */}
+      {hatchery && (
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          marginBottom: 12, padding: '6px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 8,
+        }}>
+          <div style={{ fontSize: 12, color: '#ccc' }}>
+            Level {hatchery.level} · {eggs.length}/{capacity} Eier-Slots
+          </div>
+          {hatchery.upgradeEndMs ? (
+            <span style={{ color: '#ffaa00', fontSize: 12 }}>⏳ Ausbau läuft…</span>
+          ) : nextLevel ? (
+            <button className="btn btn-gold" style={{ padding: '4px 10px', fontSize: 12 }}
+              disabled={gold < nextLevel.upgradeCost}
+              onClick={() => upgradeBuilding(hatchery.instanceId)}>
+              ⬆️ Slots +2 (🪙 {nextLevel.upgradeCost})
+            </button>
+          ) : (
+            <span style={{ color: '#66ff88', fontSize: 12 }}>Max-Level</span>
+          )}
+        </div>
+      )}
 
       {eggs.length === 0 && (
         <div style={{ color: '#666', fontSize: 14, textAlign: 'center', padding: 20 }}>

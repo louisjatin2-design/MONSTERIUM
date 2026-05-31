@@ -4,7 +4,8 @@ import { useGameStore } from '@store/gameStore';
 import { MONSTER_DEFS } from '@data/monsters';
 import { ATTACKS } from '@data/attacks';
 import { RARITY_RANK, RARITY_HATCH_TIME_SEC } from '@data/rarities';
-import { ELEMENT_CSS_COLORS } from '@data/elements';
+import { ELEMENT_CSS_COLORS, ELEMENT_COLORS } from '@data/elements';
+import { TRAITS } from '@data/traits';
 import {
   resolveTurnOrder, calculateDamage, generateAiAttack,
   processStatusTick, buildCombatant,
@@ -20,7 +21,9 @@ interface BattleData {
   isTutorial?: boolean;
   rewardGold?: number;
   rewardXp?: number;
+  rewardDiamonds?: number;
   rewardMonsterDefId?: string;
+  storyIndex?: number;    // index into STORY_BATTLES, if this is a story fight
 }
 
 export class Battle extends Phaser.Scene {
@@ -37,6 +40,7 @@ export class Battle extends Phaser.Scene {
   private hpBars: Map<string, { bar: Phaser.GameObjects.Rectangle; bg: Phaser.GameObjects.Rectangle }> = new Map();
   private nameLabels: Map<string, Phaser.GameObjects.Text> = new Map();
   private hpLabels: Map<string, Phaser.GameObjects.Text> = new Map();
+  private statusLabels: Map<string, Phaser.GameObjects.Text> = new Map();
   private cardCenters: Map<string, { x: number; y: number }> = new Map();
   private attackButtons: Phaser.GameObjects.Container[] = [];
   private detailOverlay: Phaser.GameObjects.Container | null = null;
@@ -52,12 +56,13 @@ export class Battle extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
 
-    // Background
-    this.add.rectangle(width / 2, height / 2, width, height, 0x0a0a2a);
+    // Themed battle arena background.
+    this.drawBackground();
 
     // Title
-    this.add.text(width / 2, 20, 'BATTLE', {
+    this.add.text(width / 2, 20, '⚔️ KAMPF', {
       fontSize: '24px', color: '#ffd700', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 4,
     }).setOrigin(0.5, 0);
 
     // Build combatants
@@ -98,6 +103,37 @@ export class Battle extends Phaser.Scene {
     this.time.delayedCall(800, () => this.startRound());
   }
 
+  private drawBackground() {
+    const { width, height } = this.scale;
+    const g = this.add.graphics();
+
+    // Sky gradient (deep purple → dusky magenta).
+    g.fillGradientStyle(0x1a0a3c, 0x1a0a3c, 0x3a1030, 0x3a1030, 1);
+    g.fillRect(0, 0, width, height);
+
+    // Arena floor band at the bottom.
+    const floorY = height * 0.62;
+    g.fillGradientStyle(0x2a1840, 0x2a1840, 0x140820, 0x140820, 1);
+    g.fillRect(0, floorY, width, height - floorY);
+
+    // Horizon glow line.
+    g.lineStyle(3, 0x7744cc, 0.5);
+    g.lineBetween(0, floorY, width, floorY);
+
+    // A faint central divider between the two sides.
+    g.lineStyle(2, 0xffffff, 0.06);
+    g.lineBetween(width / 2, 70, width / 2, height - 90);
+
+    // Scatter a few stars in the sky for atmosphere.
+    g.fillStyle(0xffffff, 0.5);
+    for (let i = 0; i < 40; i++) {
+      const sx = Phaser.Math.Between(0, width);
+      const sy = Phaser.Math.Between(0, floorY - 10);
+      g.fillCircle(sx, sy, Phaser.Math.Between(1, 2));
+    }
+    g.setDepth(-10);
+  }
+
   private drawMonsterCards() {
     const { width, height } = this.scale;
     const cardW = 156, cardH = 72;
@@ -132,7 +168,7 @@ export class Battle extends Phaser.Scene {
 
     this.cardCenters.set(c.instanceId, { x, y });
 
-    const bg = this.add.rectangle(x, y, w, h, isPlayer ? 0x224422 : 0x442222)
+    const bg = this.add.rectangle(x, y, w, h, isPlayer ? 0x1c3a1c : 0x3a1c1c)
       .setStrokeStyle(2, isPlayer ? 0x44ff44 : 0xff4444)
       .setInteractive({ useHandCursor: true });
     // Tapping a card opens its detail view (level, stats, attacks).
@@ -140,8 +176,17 @@ export class Battle extends Phaser.Scene {
     bg.on('pointerover', () => bg.setStrokeStyle(3, 0xffffff));
     bg.on('pointerout', () => bg.setStrokeStyle(2, isPlayer ? 0x44ff44 : 0xff4444));
 
+    // Monster avatar — a coloured disc (element colour) with a creature glyph.
+    const avX = x - w / 2 + 24;
+    const avY = y - 6;
+    const elColor = ELEMENT_COLORS[def.elements[0]] ?? 0x888888;
+    this.add.circle(avX, avY, 20, elColor).setStrokeStyle(2, 0xffffff);
+    this.add.text(avX, avY, '👾', { fontSize: '22px' }).setOrigin(0.5);
+
+    const textLeft = x - w / 2 + 48;
+
     // Name + level
-    const nameLabel = this.add.text(x - w / 2 + 6, y - h / 2 + 6, c.name, {
+    const nameLabel = this.add.text(textLeft, y - h / 2 + 6, c.name, {
       fontSize: '12px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0, 0);
     this.nameLabels.set(c.instanceId, nameLabel);
@@ -150,11 +195,19 @@ export class Battle extends Phaser.Scene {
       fontSize: '11px', color: '#ffd700', fontStyle: 'bold',
     }).setOrigin(1, 0);
 
-    // Element + tap hint
-    this.add.text(x - w / 2 + 6, y - 2, def.elements.join('/'), {
-      fontSize: '10px', color: '#ffffff',
-      backgroundColor: '#00000066', padding: { x: 3, y: 1 },
+    // Trait
+    const traitName = c.trait !== 'None' ? (TRAITS[c.trait]?.name ?? c.trait) : '';
+    this.add.text(textLeft, y - h / 2 + 22, traitName ? `✦ ${traitName}` : '', {
+      fontSize: '10px', color: '#bb99ff',
+    }).setOrigin(0, 0);
+
+    // Status effect icons (updated each turn).
+    const statusLabel = this.add.text(textLeft, y + 2, '', {
+      fontSize: '13px',
     }).setOrigin(0, 0.5);
+    this.statusLabels.set(c.instanceId, statusLabel);
+
+    // Info hint
     this.add.text(x + w / 2 - 6, y - 2, 'ℹ️', { fontSize: '11px' }).setOrigin(1, 0.5);
 
     // HP bar background
@@ -168,6 +221,20 @@ export class Battle extends Phaser.Scene {
       fontSize: '10px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
     this.hpLabels.set(c.instanceId, hpLabel);
+
+    this.updateStatusDisplay(c);
+  }
+
+  // Map status effects to icons and refresh the on-card indicator.
+  private updateStatusDisplay(c: BattleCombatant) {
+    const label = this.statusLabels.get(c.instanceId);
+    if (!label) return;
+    const ICONS: Record<string, string> = {
+      Burn: '🔥', Freeze: '🧊', Paralyze: '⚡', Poison: '☠️',
+      Stun: '💫', Blind: '🌫️', DefDown: '🛡️', AtkDown: '⚔️',
+    };
+    const icons = c.statusEffects.map(e => ICONS[e.effect] ?? '•').join(' ');
+    label.setText(icons);
   }
 
   private showCombatantDetail(c: BattleCombatant) {
@@ -297,6 +364,7 @@ export class Battle extends Phaser.Scene {
           this.updateHpBar(c);
           this.showDamageText(c.instanceId, dot, 0xff8800);
         }
+        this.updateStatusDisplay(c);
       }
       if (checkVictory()) return;
     }
@@ -480,6 +548,7 @@ export class Battle extends Phaser.Scene {
       }
     }
 
+    this.updateStatusDisplay(target);
     this.log(`${attacker.name} → ${target.name}: ${move.name} for ${totalDmg} dmg (${Math.floor(score)}% acc)`);
 
     // Reward XP to player monsters for dealing damage
@@ -547,20 +616,28 @@ export class Battle extends Phaser.Scene {
     }).setOrigin(0.5);
 
     if (victory) {
+      const store = useGameStore.getState();
       const rewardGold = this.data_.rewardGold ?? 200;
       const rewardXp = this.data_.rewardXp ?? 300;
-      useGameStore.getState().addGold(rewardGold);
-      useGameStore.getState().addPlayerXp(rewardXp);
-      useGameStore.getState().addTrophies(20);
+      const rewardDiamonds = this.data_.rewardDiamonds ?? 0;
+      store.addGold(rewardGold);
+      store.addPlayerXp(rewardXp);
+      store.addTrophies(20);
+      if (rewardDiamonds > 0) store.addDiamonds(rewardDiamonds);
 
-      if (this.data_.rewardMonsterDefId) {
-        const def = MONSTER_DEFS[this.data_.rewardMonsterDefId];
-        if (def) {
-          useGameStore.getState().addEgg(this.data_.rewardMonsterDefId, 30);
-        }
+      // Advance the story if this was the next uncleared story battle.
+      if (this.data_.storyIndex !== undefined && this.data_.storyIndex === store.storyProgress) {
+        store.advanceStory();
       }
 
-      this.add.text(width / 2, height / 2 + 10, `+${rewardGold} Gold  +${rewardXp} XP`, {
+      const rewardMonsterDefId = this.data_.rewardMonsterDefId;
+      if (rewardMonsterDefId && MONSTER_DEFS[rewardMonsterDefId]) {
+        store.addEgg(rewardMonsterDefId, 30);
+      }
+
+      const rewardLine = `+${rewardGold} 🪙  +${rewardXp} XP`
+        + (rewardDiamonds > 0 ? `  +${rewardDiamonds} 💎` : '');
+      this.add.text(width / 2, height / 2 + 10, rewardLine, {
         fontSize: '20px', color: '#ffd700',
       }).setOrigin(0.5);
     }

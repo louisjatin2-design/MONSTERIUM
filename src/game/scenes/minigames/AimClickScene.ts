@@ -16,6 +16,7 @@ export class AimClickScene extends Phaser.Scene {
   private targetX = 0;
   private targetY = 0;
   private completed = false;
+  private armed = false;
   private moveDef!: MoveDef;
   private rarityRank = 0;
 
@@ -25,6 +26,7 @@ export class AimClickScene extends Phaser.Scene {
     this.rarityRank = data.rarityRank ?? 0;
     this.moveDef = data.moveDef;
     this.completed = false;
+    this.armed = false;
   }
 
   create() {
@@ -63,8 +65,20 @@ export class AimClickScene extends Phaser.Scene {
 
     this.startTime = this.time.now;
 
+    // Brief "get ready" delay so the same tap that launched this minigame
+    // doesn't instantly register as a click (which made it impossible).
+    const ready = this.add.text(width / 2, 160, 'Gleich geht\'s los…', {
+      fontSize: '16px', color: '#ffdd55',
+    }).setOrigin(0.5);
+    this.time.delayedCall(400, () => {
+      this.armed = true;
+      this.startTime = this.time.now; // start the shrink clock only now
+      ready.destroy();
+    });
+
     // Click anywhere to try
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (!this.armed || this.completed) return;
       const dist = Phaser.Math.Distance.Between(p.x, p.y, this.targetX, this.targetY);
       if (dist <= this.currentRadius) {
         this.onHit(dist);
@@ -75,7 +89,7 @@ export class AimClickScene extends Phaser.Scene {
   }
 
   update() {
-    if (this.completed) return;
+    if (this.completed || !this.armed) return;
     const elapsed = this.time.now - this.startTime;
     const ratio = 1 - elapsed / this.timeLimit;
     this.currentRadius = Math.max(5, this.initialRadius * ratio);

@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useGameStore } from '@store/gameStore';
 import { MONSTER_DEFS } from '@data/monsters';
+import { BUILDING_DEFS } from '@data/buildings';
 import { RARITY_COLORS } from '@data/rarities';
 import { calculateBreedOutcomes, getRelationScore } from '@systems/BreedingSystem';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
+import type { ActiveBreeding } from '@gtypes/game';
 import '../styles/global.css';
 
 interface BreedingPanelProps { onClose: () => void; }
@@ -12,65 +14,99 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
   const monstersRecord  = useGameStore(s => s.monsters);
   const monsters        = Object.values(monstersRecord);
   const eggs            = useGameStore(s => s.eggs);
-  const activeBreeding  = useGameStore(s => s.activeBreeding);
+  const activeBreedings = useGameStore(s => s.activeBreedings);
+  const buildings       = useGameStore(s => s.buildings);
+  const gold            = useGameStore(s => s.gold);
   const startBreeding   = useGameStore(s => s.startBreeding);
   const collectEgg      = useGameStore(s => s.collectBreedingEgg);
   const speedUp         = useGameStore(s => s.speedUpBreeding);
+  const breedingCap     = useGameStore(s => s.breedingCapacity);
+  const eggCap          = useGameStore(s => s.eggCapacity);
+  const upgradeBuilding = useGameStore(s => s.upgradeBuilding);
 
   const [parent1Id, setParent1Id] = useState('');
   const [parent2Id, setParent2Id] = useState('');
 
-  // Re-render every second so the breeding countdown stays live.
+  // Re-render every second so the breeding countdowns stay live.
   const [, force] = useState(0);
   useEffect(() => {
     const id = setInterval(() => force(n => n + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
+  const station = Object.values(buildings).find(b => BUILDING_DEFS[b.defId]?.category === 'BreedingStation');
+  const stationDef = station ? BUILDING_DEFS[station.defId] : null;
+  const nextLevel = station && stationDef ? stationDef.levels[station.level] : undefined;
+  const capacity = breedingCap();
+  const slotsFree = capacity - activeBreedings.length;
+
   const parent1 = monsters.find(m => m.instanceId === parent1Id);
   const parent2 = monsters.find(m => m.instanceId === parent2Id);
 
-  // Preview probabilities only while no breeding is running (so the table is a
-  // planning tool, not a spoiler of the in-progress result).
   const preview = useMemo(() => {
-    if (activeBreeding) return [];
     if (!parent1 || !parent2) return [];
     const rel = getRelationScore(parent1, parent2);
     return calculateBreedOutcomes(parent1, parent2, rel);
-  }, [parent1Id, parent2Id, activeBreeding]);
+  }, [parent1Id, parent2Id]);
 
   const handleBreed = () => {
     if (!parent1 || !parent2 || parent1Id === parent2Id) return;
-    if (eggs.length >= 5) { alert('Die Brutstation ist voll! Lass zuerst Eier schlüpfen.'); return; }
+    if (eggs.length >= eggCap()) { alert('Die Brutstation (Eier) ist voll! Lass zuerst Eier schlüpfen.'); return; }
+    if (slotsFree <= 0) { alert('Alle Brut-Slots sind belegt! Werte die Brutstation auf.'); return; }
     const ok = startBreeding(parent1Id, parent2Id);
     if (ok) { setParent1Id(''); setParent2Id(''); }
   };
 
   return (
-    <div className="panel" style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 480, maxHeight: '85vh', padding: 20, overflowY: 'auto' }}>
+    <div className="panel" style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 500, maxHeight: '88vh', padding: 20, overflowY: 'auto' }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🧬 Brutstation</div>
 
-      {activeBreeding ? (
-        <BreedingInProgress
-          activeBreeding={activeBreeding}
-          onCollect={collectEgg}
-          onSpeedUp={speedUp}
-        />
-      ) : (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+      {/* Station level + upgrade */}
+      {station && stationDef && (
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          marginBottom: 12, padding: '6px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 8,
+        }}>
+          <div style={{ fontSize: 12, color: '#ccc' }}>
+            Level {station.level} · {activeBreedings.length}/{capacity} Slots belegt
+          </div>
+          {station.upgradeEndMs ? (
+            <span style={{ color: '#ffaa00', fontSize: 12 }}>⏳ Ausbau läuft…</span>
+          ) : nextLevel ? (
+            <button className="btn btn-gold" style={{ padding: '4px 10px', fontSize: 12 }}
+              disabled={gold < nextLevel.upgradeCost}
+              onClick={() => upgradeBuilding(station.instanceId)}>
+              ⬆️ Slot +1 (🪙 {nextLevel.upgradeCost})
+            </button>
+          ) : (
+            <span style={{ color: '#66ff88', fontSize: 12 }}>Max-Level</span>
+          )}
+        </div>
+      )}
+
+      {/* Active breedings */}
+      {activeBreedings.map(ab => (
+        <BreedingSlot key={ab.id} breeding={ab} onCollect={() => collectEgg(ab.id)} onSpeedUp={() => speedUp(ab.id)} />
+      ))}
+
+      {/* New breeding form */}
+      {slotsFree > 0 ? (
+        <div style={{ marginTop: 8, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ fontSize: 13, fontWeight: 'bold', color: '#ffd700', marginBottom: 8 }}>
+            Neue Paarung ({slotsFree} Slot frei)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <MonsterSelector label="Elternteil 1" value={parent1Id} onChange={setParent1Id} monsters={monsters} exclude={parent2Id} />
             <MonsterSelector label="Elternteil 2" value={parent2Id} onChange={setParent2Id} monsters={monsters} exclude={parent1Id} />
           </div>
 
-          {/* Probability preview */}
           {preview.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 'bold', marginBottom: 6, color: '#ffd700' }}>
                 Mögliche Nachkommen:
               </div>
-              <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+              <div style={{ maxHeight: 180, overflowY: 'auto' }}>
                 {preview.slice(0, 8).map(o => (
                   <OutcomeRow key={o.monsterDefId} defId={o.monsterDefId} probability={o.probability} isHybrid={o.isHybrid} />
                 ))}
@@ -83,56 +119,53 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
             onClick={handleBreed}>
             🧬 Brüten starten
           </button>
-
-          <div style={{ marginTop: 10, fontSize: 11, color: '#888' }}>
-            Das Brüten braucht Zeit. Sobald es fertig ist, kannst du das Ei in die Brutstation legen.
-            {eggs.length > 0 && ` · ${eggs.length} Ei(er) warten in der Brutstation.`}
-          </div>
-        </>
+        </div>
+      ) : (
+        <div style={{ marginTop: 10, fontSize: 12, color: '#888', textAlign: 'center' }}>
+          Alle Slots belegt — sammle ein Ei ein oder werte die Station auf.
+        </div>
       )}
     </div>
   );
 }
 
-function BreedingInProgress({ activeBreeding, onCollect, onSpeedUp }: {
-  activeBreeding: NonNullable<ReturnType<typeof useGameStore.getState>['activeBreeding']>;
+function BreedingSlot({ breeding, onCollect, onSpeedUp }: {
+  breeding: ActiveBreeding;
   onCollect: () => void;
   onSpeedUp: () => void;
 }) {
   const monsters = useGameStore(s => s.monsters);
-  const p1 = monsters[activeBreeding.parent1Id];
-  const p2 = monsters[activeBreeding.parent2Id];
+  const [showProb, setShowProb] = useState(false);
+  const p1 = monsters[breeding.parent1Id];
+  const p2 = monsters[breeding.parent2Id];
 
   const now = Date.now();
-  const remaining = Math.max(0, activeBreeding.endMs - now);
+  const remaining = Math.max(0, breeding.endMs - now);
   const isReady = remaining === 0;
-  const total = Math.max(1, activeBreeding.endMs - activeBreeding.startMs);
+  const total = Math.max(1, breeding.endMs - breeding.startMs);
   const progress = Math.min(100, ((total - remaining) / total) * 100);
   const secondsLeft = Math.ceil(remaining / 1000);
   const diamondCost = Math.ceil(secondsLeft / 60);
-
-  // The single unique hybrid combo for this pair (shown once, here).
-  const uniqueOutcome = activeBreeding.outcomes.find(o => o.isHybrid);
+  const uniqueOutcome = breeding.outcomes.find(o => o.isHybrid);
 
   return (
-    <div>
-      {/* Parents */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 14 }}>
+    <div style={{
+      marginBottom: 12, padding: 12, borderRadius: 12,
+      background: 'rgba(232,69,168,0.08)', border: '1px solid rgba(232,69,168,0.3)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
         <ParentChip defId={p1?.defId} name={p1?.name} />
-        <span style={{ fontSize: 22 }}>💞</span>
+        <span style={{ fontSize: 18 }}>💞</span>
         <ParentChip defId={p2?.defId} name={p2?.name} />
       </div>
 
-      {/* Countdown / progress */}
-      <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        {isReady ? (
-          <div style={{ color: '#66ff88', fontWeight: 'bold', fontSize: 16 }}>✨ Ein Ei ist bereit!</div>
-        ) : (
-          <div style={{ color: '#aaa', fontSize: 14 }}>Brütet… noch {formatTime(secondsLeft)}</div>
-        )}
+      <div style={{ textAlign: 'center', marginBottom: 6 }}>
+        {isReady
+          ? <span style={{ color: '#66ff88', fontWeight: 'bold' }}>✨ Ein Ei ist bereit!</span>
+          : <span style={{ color: '#aaa', fontSize: 13 }}>Brütet… noch {formatTime(secondsLeft)}</span>}
       </div>
-      <div style={{ height: 10, background: '#333', borderRadius: 5, marginBottom: 16, overflow: 'hidden' }}>
-        <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg,#e845a8,#ffd700)', borderRadius: 5, transition: 'width 1s' }} />
+      <div style={{ height: 8, background: '#333', borderRadius: 4, marginBottom: 10, overflow: 'hidden' }}>
+        <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg,#e845a8,#ffd700)', borderRadius: 4, transition: 'width 1s' }} />
       </div>
 
       {isReady ? (
@@ -145,36 +178,23 @@ function BreedingInProgress({ activeBreeding, onCollect, onSpeedUp }: {
         </button>
       )}
 
-      {/* Frozen probability table — shown exactly once for this breeding */}
-      <div style={{ marginTop: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 'bold', marginBottom: 6, color: '#ffd700' }}>
-          Wahrscheinlichkeiten dieser Paarung:
+      {uniqueOutcome && (
+        <div style={{ marginTop: 8, fontSize: 12, color: '#ffd700' }}>
+          ✨ Einzigartiges Kombitier: <b>{MONSTER_DEFS[uniqueOutcome.monsterDefId]?.name}</b>
+          {' '}({(uniqueOutcome.probability * 100).toFixed(1)}%)
         </div>
-        <div style={{ maxHeight: 180, overflowY: 'auto' }}>
-          {activeBreeding.outcomes.slice(0, 8).map(o => (
+      )}
+
+      <button
+        onClick={() => setShowProb(v => !v)}
+        style={{ background: 'none', border: 'none', color: '#aaccff', fontSize: 11, cursor: 'pointer', marginTop: 6, padding: 0 }}>
+        {showProb ? '▾ Wahrscheinlichkeiten ausblenden' : '▸ Wahrscheinlichkeiten anzeigen'}
+      </button>
+      {showProb && (
+        <div style={{ maxHeight: 150, overflowY: 'auto', marginTop: 6 }}>
+          {breeding.outcomes.slice(0, 8).map(o => (
             <OutcomeRow key={o.monsterDefId} defId={o.monsterDefId} probability={o.probability} isHybrid={o.isHybrid} />
           ))}
-        </div>
-      </div>
-
-      {/* The one unique combination creature, called out separately */}
-      {uniqueOutcome && (
-        <div style={{
-          marginTop: 12, padding: 10, borderRadius: 10,
-          background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.4)',
-        }}>
-          <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 'bold', marginBottom: 4 }}>
-            ✨ Einzigartiges Kombitier
-          </div>
-          <div style={{ fontSize: 13 }}>
-            {MONSTER_DEFS[uniqueOutcome.monsterDefId]?.name}
-            <span style={{ color: '#aaa', marginLeft: 8 }}>
-              {(uniqueOutcome.probability * 100).toFixed(1)}% Chance
-            </span>
-          </div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-            Nur diese Eltern können dieses Wesen hervorbringen.
-          </div>
         </div>
       )}
     </div>
@@ -208,9 +228,9 @@ function ParentChip({ defId, name }: { defId?: string; name?: string }) {
   return (
     <div style={{ textAlign: 'center' }}>
       <div style={{
-        width: 48, height: 48, borderRadius: '50%', margin: '0 auto',
+        width: 44, height: 44, borderRadius: '50%', margin: '0 auto',
         background: color, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 22, boxShadow: `0 0 12px ${color}88`,
+        fontSize: 20, boxShadow: `0 0 12px ${color}88`,
       }}>👾</div>
       <div style={{ fontSize: 11, color: '#ccc', marginTop: 4, maxWidth: 80 }}>{name ?? '???'}</div>
     </div>

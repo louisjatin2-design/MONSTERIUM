@@ -22,11 +22,14 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   const sellMonster     = useGameStore(s => s.sellMonster);
   const assignToHabitat = useGameStore(s => s.assignToHabitat);
   const removeFromHabitat = useGameStore(s => s.removeFromHabitat);
+  const gold            = useGameStore(s => s.gold);
+  const upgradeBuilding = useGameStore(s => s.upgradeBuilding);
   const monsters = building?.monsterIds.map(id => allMonsters[id]).filter(Boolean) ?? [];
 
   if (!building) return null;
   const def = BUILDING_DEFS[building.defId];
   const levelData = def.levels[building.level - 1];
+  const nextLevel = def.levels[building.level];
 
   // Monsters not yet assigned to this habitat that could fit
   const unassigned = Object.values(allMonsters).filter(m => {
@@ -55,6 +58,23 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
       {building.constructionEndMs && (
         <div style={{ color: '#ffaa00', marginBottom: 8, fontSize: 13 }}>
           ⏳ Under construction...
+        </div>
+      )}
+
+      {/* Upgrade */}
+      {!building.constructionEndMs && (
+        <div style={{ marginBottom: 10 }}>
+          {building.upgradeEndMs ? (
+            <div style={{ color: '#ffaa00', fontSize: 13 }}>⏳ Ausbau läuft…</div>
+          ) : nextLevel ? (
+            <button className="btn btn-gold" style={{ width: '100%', fontSize: 12 }}
+              disabled={gold < nextLevel.upgradeCost}
+              onClick={() => upgradeBuilding(instanceId)}>
+              ⬆️ Auf Level {building.level + 1} (🪙 {nextLevel.upgradeCost}) · Platz {nextLevel.monsterCapacity ?? '?'}
+            </button>
+          ) : (
+            <div style={{ color: '#66ff88', fontSize: 12, textAlign: 'center' }}>Max-Level erreicht</div>
+          )}
         </div>
       )}
 
@@ -96,19 +116,30 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
               <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
                 Lv {m.level} · {m.stage} · {mDef.elements.join('/')}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                <div style={{ flex: 1, height: 6, background: '#333', borderRadius: 3 }}>
-                  <div style={{
-                    width: `${(m.xp / Math.floor(100 * Math.pow(m.level, 1.5))) * 100}%`,
-                    height: '100%', background: '#4488ff', borderRadius: 3,
-                  }} />
-                </div>
-                <button className="btn btn-primary" style={{ padding: '2px 8px', fontSize: 11 }}
-                  disabled={!canFeed}
-                  onClick={() => feedMonster(m.instanceId, feedCost)}>
-                  Feed (🌾 {feedCost})
-                </button>
-              </div>
+              {(() => {
+                const need = Math.floor(100 * Math.pow(m.level, 1.5));
+                const perFeed = Math.ceil(need / 4);
+                const feedsDone = Math.min(4, Math.round(m.xp / perFeed));
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                    <div style={{ flex: 1, display: 'flex', gap: 3 }}>
+                      {/* 4 feed-cycle steps to the next level */}
+                      {[0, 1, 2, 3].map(i => (
+                        <div key={i} style={{
+                          flex: 1, height: 8, borderRadius: 3,
+                          background: i < feedsDone ? '#4488ff' : '#333',
+                        }} />
+                      ))}
+                    </div>
+                    <span style={{ fontSize: 10, color: '#888' }}>{feedsDone}/4</span>
+                    <button className="btn btn-primary" style={{ padding: '2px 8px', fontSize: 11 }}
+                      disabled={!canFeed || m.level >= 100}
+                      onClick={() => feedMonster(m.instanceId, feedCost)}>
+                      Füttern (🌾 {feedCost})
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

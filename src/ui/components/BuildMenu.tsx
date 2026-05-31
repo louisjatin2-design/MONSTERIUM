@@ -8,6 +8,9 @@ interface BuildMenuProps {
   tileX: number;
   tileY: number;
   onClose: () => void;
+  // Closes the menu WITHOUT emitting PANEL_CLOSED, so entering placement mode
+  // isn't immediately cancelled by the panel-closed handler.
+  onStartPlacement: () => void;
 }
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -18,7 +21,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   Hatchery: '🥚',
 };
 
-export function BuildMenu({ tileX, tileY, onClose }: BuildMenuProps) {
+export function BuildMenu({ tileX, tileY, onClose, onStartPlacement }: BuildMenuProps) {
   const gold = useGameStore(s => s.gold);
   const [filter, setFilter] = useState<string>('All');
 
@@ -32,7 +35,7 @@ export function BuildMenu({ tileX, tileY, onClose }: BuildMenuProps) {
     const def = BUILDING_DEFS[defId];
     if (gold < def.goldCost) return;
     EventBus.emit(GameEvents.ENTER_PLACEMENT_MODE, { defId });
-    onClose();
+    onStartPlacement();
   };
 
   return (

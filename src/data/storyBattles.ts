@@ -36,7 +36,7 @@ export const STORY_BATTLES: StoryBattle[] = [
       'hat überlebt — wenn du es rettest, kämpft es an deiner Seite.',
     enemyMonsterDefs: ['voltkit', 'voltkit', 'zephyrling'],
     enemyLevels: [5, 5, 4],
-    rewards: { xp: 500, gold: 400, monsterDefId: 'voltkit' },
+    rewards: { xp: 500, gold: 400, diamonds: 10, monsterDefId: 'voltkit' },
   },
   {
     id: 'sb_04', name: 'Kapitel 4 — Schatten im Canyon',
@@ -52,7 +52,7 @@ export const STORY_BATTLES: StoryBattle[] = [
       'und verkehrt. Befreie ihn von der Verderbnis und sein Glanz gehört dir.',
     enemyMonsterDefs: ['luminos', 'aquapup', 'flameling'],
     enemyLevels: [8, 6, 6],
-    rewards: { xp: 900, gold: 700, monsterDefId: 'luminos' },
+    rewards: { xp: 900, gold: 700, diamonds: 15, monsterDefId: 'luminos' },
   },
   {
     id: 'sb_06', name: 'Kapitel 6 — Die Eiserne Bastion',
@@ -60,7 +60,7 @@ export const STORY_BATTLES: StoryBattle[] = [
       'uralte Festung. Der Glitch hat ihren Schwur in blinde Wut verkehrt.',
     enemyMonsterDefs: ['ironhide', 'ironhide', 'pebblor'],
     enemyLevels: [10, 9, 8],
-    rewards: { xp: 1200, gold: 900 },
+    rewards: { xp: 1200, gold: 900, diamonds: 10 },
   },
   {
     id: 'sb_07', name: 'Kapitel 7 — Der psychische Sturm',
@@ -76,7 +76,7 @@ export const STORY_BATTLES: StoryBattle[] = [
       'frostige Armee — zähme ihre Königin und der Winter dient dir.',
     enemyMonsterDefs: ['glaciara', 'frostpaw', 'aquapup'],
     enemyLevels: [14, 13, 12],
-    rewards: { xp: 2000, gold: 1600, monsterDefId: 'glaciara' },
+    rewards: { xp: 2000, gold: 1600, diamonds: 20, monsterDefId: 'glaciara' },
   },
   {
     id: 'sb_09', name: 'Kapitel 9 — Der Void-Riss',
@@ -84,7 +84,7 @@ export const STORY_BATTLES: StoryBattle[] = [
       'die in dieser Dimension gar nicht existieren. Du siehst sie nur, weil du es glaubst.',
     enemyMonsterDefs: ['voidspecter', 'shadowfox', 'psychoveil'],
     enemyLevels: [16, 15, 14],
-    rewards: { xp: 3000, gold: 2500 },
+    rewards: { xp: 3000, gold: 2500, diamonds: 25 },
   },
   {
     id: 'sb_10', name: 'Kapitel 10 — Das Erwachen',
@@ -92,7 +92,7 @@ export const STORY_BATTLES: StoryBattle[] = [
       'Geschichte längst gesehen — und schweigt. Zwing es, dir seine Macht zu leihen.',
     enemyMonsterDefs: ['timewyrm', 'voidspecter', 'glitchfiend'],
     enemyLevels: [20, 18, 16],
-    rewards: { xp: 5000, gold: 4000, monsterDefId: 'timewyrm' },
+    rewards: { xp: 5000, gold: 4000, diamonds: 40, monsterDefId: 'timewyrm' },
   },
   {
     id: 'sb_11', name: 'Kapitel 11 — Der Glitch im Kern',
@@ -100,7 +100,7 @@ export const STORY_BATTLES: StoryBattle[] = [
       'es ist die Verderbnis selbst, die Bewusstsein erlangt hat. Dein Blick gleitet von ihm ab.',
     enemyMonsterDefs: ['glitchfiend', 'voidspecter', 'timewyrm'],
     enemyLevels: [24, 22, 20],
-    rewards: { xp: 7500, gold: 6000 },
+    rewards: { xp: 7500, gold: 6000, diamonds: 50 },
   },
   {
     id: 'sb_12', name: 'Kapitel 12 — Das Wesen am Ende',
@@ -109,7 +109,7 @@ export const STORY_BATTLES: StoryBattle[] = [
       'warum, weiß niemand. Bestehe, und Monsterium gehört wieder dir.',
     enemyMonsterDefs: ['cosmolord', 'glitchfiend', 'timewyrm'],
     enemyLevels: [30, 26, 24],
-    rewards: { xp: 12000, gold: 10000, monsterDefId: 'cosmolord' },
+    rewards: { xp: 12000, gold: 10000, diamonds: 100, monsterDefId: 'cosmolord' },
   },
 ];
 
