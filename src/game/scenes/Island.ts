@@ -163,6 +163,10 @@ export class Island extends Phaser.Scene {
     }
     this.add.image(W * 0.82, H * 0.16, sunKey)
       .setScrollFactor(0.08).setDepth(-990).setScale(2.2).setAlpha(0.9);
+
+    // Subtle dark overlay to dim the overall brightness (no shader needed).
+    this.add.rectangle(0, 0, W, H, 0x0a0a18, 0.22)
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(9000);
   }
 
   // World post-processing removed — it washed out shapes. We rely on
