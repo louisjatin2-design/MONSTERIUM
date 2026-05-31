@@ -272,7 +272,6 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     // ── Colour palette ───────────────────────────────────────────────────────
     const roofBright = elColor;
     const roofMid    = darken(elColor, 0.78);
-    const roofShad   = darken(elColor, 0.46);   // eave underside shadow
     const roofEdge   = darken(elColor, 0.36);
     const ACCENT     = darken(elColor, 0.62);   // element-coloured trim bands
     const WALL       = 0xf2e8d0;
@@ -287,7 +286,6 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
 
     // ── Per-tier draw function ───────────────────────────────────────────────
     // Returns the screen-Y of the back eave top (next tier stacks on it).
-    const SHAD_DROP = 18; // how deep the eave underside shadow hangs
     const drawTier = (
       cy: number,       // front-centre Y of this tier's wall box
       ww: number, wdh: number, wallH: number, // wall dw, dh, height
@@ -328,26 +326,6 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
       const rR = { x: eR.x, y: eR.y - eRise };
       const rF = { x: eF.x, y: eF.y - eRise };
       const rL = { x: eL.x, y: eL.y - eRise };
-
-      // Eave underside — left face (most visible)
-      g.fillStyle(roofShad, 1);
-      g.fillPoints([
-        wTop.ul, wTop.uf,
-        { x: eF.x, y: eF.y + SHAD_DROP * 0.55 },
-        { x: eL.x, y: eL.y + SHAD_DROP },
-      ], true);
-      g.lineStyle(1.2, roofEdge, 0.65);
-      g.strokePoints([wTop.ul, wTop.uf, { x: eF.x, y: eF.y + SHAD_DROP * 0.55 }, { x: eL.x, y: eL.y + SHAD_DROP }], true, true);
-
-      // Eave underside — right face (darker)
-      g.fillStyle(darken(roofShad, 0.78), 1);
-      g.fillPoints([
-        wTop.uf, wTop.ur,
-        { x: eR.x, y: eR.y + SHAD_DROP * 0.75 },
-        { x: eF.x, y: eF.y + SHAD_DROP * 0.45 },
-      ], true);
-      g.lineStyle(1.2, roofEdge, 0.65);
-      g.strokePoints([wTop.uf, wTop.ur, { x: eR.x, y: eR.y + SHAD_DROP * 0.75 }, { x: eF.x, y: eF.y + SHAD_DROP * 0.45 }], true, true);
 
       // Eave top surface — back half brighter (sunlit), front half mid-tone
       g.fillStyle(roofMid,   1); g.fillPoints([rB, rR, rF, rL], true);
