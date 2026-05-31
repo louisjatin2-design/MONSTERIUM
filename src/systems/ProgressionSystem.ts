@@ -41,7 +41,8 @@ export function isEvolutionReady(instance: MonsterInstance): boolean {
 export function pickRandomNewAttack(instance: MonsterInstance): string | null {
   const def = MONSTER_DEFS[instance.defId];
   if (!def) return null;
-  const unknown = def.availableMoveIds.filter(id => !instance.knownMoveIds.includes(id));
+  const known = instance.knownMoveIds ?? instance.equippedMoveIds ?? [];
+  const unknown = def.availableMoveIds.filter(id => !known.includes(id));
   if (unknown.length === 0) return null;
   return unknown[Math.floor(Math.random() * unknown.length)];
 }
@@ -50,9 +51,11 @@ export function pickRandomNewAttack(instance: MonsterInstance): string | null {
 export function getTrainableAttacks(instance: MonsterInstance): string[] {
   const def = MONSTER_DEFS[instance.defId];
   if (!def) return [];
+  const known = instance.knownMoveIds ?? instance.equippedMoveIds ?? [];
+  const defElements = def.elements as string[];
   return Object.keys(ATTACKS).filter(id => {
-    if (instance.knownMoveIds.includes(id)) return false;
-    return def.elements.includes(ATTACKS[id].element as typeof def.elements[number]);
+    if (known.includes(id)) return false;
+    return defElements.includes(ATTACKS[id].element);
   });
 }
 

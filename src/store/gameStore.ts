@@ -418,10 +418,10 @@ export const useGameStore = create<GameStore>()(
           if (m.level < EVOLUTION_LEVELS[next]) return;
           m.stage = next;
           m.maxAttackSlots = getMaxAttackSlots(next);
-          // Learn one random new attack and auto-equip it in the newly unlocked slot
+          // Ensure knownMoveIds exists before calling pickRandomNewAttack
+          if (!m.knownMoveIds) m.knownMoveIds = [...m.equippedMoveIds];
           const newAttack = pickRandomNewAttack(m as MonsterInstance);
           if (newAttack) {
-            if (!m.knownMoveIds) m.knownMoveIds = [...m.equippedMoveIds];
             if (!m.knownMoveIds.includes(newAttack)) m.knownMoveIds.push(newAttack);
             if (m.equippedMoveIds.length < m.maxAttackSlots) {
               m.equippedMoveIds.push(newAttack);
@@ -736,16 +736,27 @@ export const useGameStore = create<GameStore>()(
     })),
     {
       name: 'monsterium-save',
-      version: 2,
+      version: 3,
       migrate: (persisted: any, _version: number) => {
         if (persisted && typeof persisted === 'object') {
-          // v1 used a single activeBreeding slot; v2 uses an array.
+          // v1→v2: single activeBreeding slot became an array.
           if (!Array.isArray(persisted.activeBreedings)) {
             persisted.activeBreedings = persisted.activeBreeding
               ? [{ id: 'br_legacy', ...persisted.activeBreeding }]
               : [];
           }
           delete persisted.activeBreeding;
+          // v2→v3: add knownMoveIds and maxAttackSlots to existing monsters.
+          if (persisted.monsters && typeof persisted.monsters === 'object') {
+            for (const m of Object.values(persisted.monsters) as any[]) {
+              if (!Array.isArray(m.knownMoveIds)) {
+                m.knownMoveIds = Array.isArray(m.equippedMoveIds) ? [...m.equippedMoveIds] : [];
+              }
+              if (typeof m.maxAttackSlots !== 'number') {
+                m.maxAttackSlots = 2;
+              }
+            }
+          }
         }
         return persisted;
       },
