@@ -195,35 +195,43 @@ export class Island extends Phaser.Scene {
       .setOrigin(0, 0).setScrollFactor(0).setDepth(9000);
   }
 
-  // Procedurally drawn clouds that drift slowly across the screen.
-  // Some are above the island, some below — which sells the "floating" feel.
+  // Realistic canvas-texture clouds using layered radial gradients.
+  // Three shape variants are baked once and reused at different scales.
   private addClouds(W: number, H: number) {
-    const groups = [
-      // High clouds — above the island mass
-      { sx: W * 0.05, sy: H * 0.10, sc: 1.10, al: 0.72, depth: -870, dur: 82000 },
-      { sx: W * 0.42, sy: H * 0.07, sc: 0.72, al: 0.58, depth: -875, dur: 62000 },
-      { sx: W * 0.78, sy: H * 0.18, sc: 0.90, al: 0.62, depth: -880, dur: 72000 },
-      // Low clouds — below the island, reinforcing that it floats
-      { sx: W * 0.12, sy: H * 0.72, sc: 1.45, al: 0.52, depth: -850, dur: 94000 },
-      { sx: W * 0.52, sy: H * 0.80, sc: 1.10, al: 0.48, depth: -855, dur: 68000 },
-      { sx: W * 0.82, sy: H * 0.68, sc: 0.88, al: 0.56, depth: -858, dur: 78000 },
+    // Bake cloud textures once (guarded by exists check).
+    this.bakeCloudTexture('cld-a', 360, 180, 0); // classic puffy cumulus
+    this.bakeCloudTexture('cld-b', 280, 140, 1); // wide flat cloud bank
+    this.bakeCloudTexture('cld-c', 220, 120, 2); // tall billowing tower
+
+    // Thin high-altitude cirrus streaks (separate horizontal stripes).
+    this.bakeCirrusTexture('cld-ci', 420, 60);
+
+    const groups: { sx: number; sy: number; key: string; sc: number; al: number; depth: number; dur: number }[] = [
+      // High cumulus — above the island
+      { sx: W * 0.04, sy: H * 0.09, key: 'cld-a', sc: 1.05, al: 0.88, depth: -870, dur: 84000 },
+      { sx: W * 0.40, sy: H * 0.06, key: 'cld-c', sc: 0.80, al: 0.75, depth: -876, dur: 61000 },
+      { sx: W * 0.76, sy: H * 0.17, key: 'cld-b', sc: 0.90, al: 0.80, depth: -882, dur: 73000 },
+      // Cirrus high up — very light streaks
+      { sx: W * 0.20, sy: H * 0.04, key: 'cld-ci', sc: 1.30, al: 0.45, depth: -895, dur: 110000 },
+      { sx: W * 0.65, sy: H * 0.02, key: 'cld-ci', sc: 0.90, al: 0.38, depth: -898, dur: 130000 },
+      // Low cumulus — below the island (sells the floating feel)
+      { sx: W * 0.10, sy: H * 0.71, key: 'cld-a', sc: 1.50, al: 0.70, depth: -848, dur: 96000 },
+      { sx: W * 0.50, sy: H * 0.79, key: 'cld-b', sc: 1.20, al: 0.65, depth: -853, dur: 70000 },
+      { sx: W * 0.80, sy: H * 0.67, key: 'cld-c', sc: 0.95, al: 0.72, depth: -857, dur: 80000 },
     ];
 
     for (const d of groups) {
-      const g = this.add.graphics();
-      g.setScrollFactor(0);
-      g.setDepth(d.depth);
-      this.drawCloudShape(g, 0, 0, d.sc, d.al);
-      g.setPosition(d.sx, d.sy);
+      const img = this.add.image(d.sx, d.sy, d.key);
+      img.setScrollFactor(0).setDepth(d.depth).setScale(d.sc).setAlpha(d.al);
 
       const drift = () => {
         this.tweens.add({
-          targets: g,
-          x: g.x + W + 350,
-          duration: d.dur * (0.9 + Math.random() * 0.2),
+          targets: img,
+          x: img.x + W + 500,
+          duration: d.dur * (0.88 + Math.random() * 0.24),
           ease: 'Linear',
           onComplete: () => {
-            g.x = -280 * d.sc;
+            img.x = -img.displayWidth - 30;
             drift();
           },
         });
@@ -232,28 +240,102 @@ export class Island extends Phaser.Scene {
     }
   }
 
-  // A cloud made of overlapping white circles with a soft flat base.
-  private drawCloudShape(
-    g: Phaser.GameObjects.Graphics,
-    cx: number, cy: number,
-    sc: number, alpha: number,
-  ) {
-    g.fillStyle(0xf8fbff, alpha);
-    const blobs = [
-      { x:   0, y:  0, r: 30 },
-      { x:  42, y:  6, r: 24 },
-      { x: -40, y:  9, r: 22 },
-      { x:  22, y: -14, r: 20 },
-      { x: -20, y: -11, r: 18 },
-      { x:  68, y: 14, r: 18 },
-      { x: -64, y: 15, r: 16 },
+  // Bakes a cumulus cloud as a canvas texture using layered radial gradients.
+  // Each variant has a different puff layout; all share the same rendering logic.
+  private bakeCloudTexture(key: string, w: number, h: number, variant: number) {
+    if (this.textures.exists(key)) return;
+    const tex = this.textures.createCanvas(key, w, h);
+    const ctx = tex?.getContext();
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Puff definitions: [cx%, cy%, radius%] — all relative to texture size.
+    const puffSets = [
+      // variant 0 — classic puffy cumulus
+      [
+        [0.50, 0.44, 0.30], [0.30, 0.54, 0.24], [0.70, 0.51, 0.23],
+        [0.16, 0.64, 0.18], [0.84, 0.62, 0.17], [0.42, 0.31, 0.21],
+        [0.60, 0.34, 0.19], [0.06, 0.73, 0.13], [0.94, 0.71, 0.11],
+        [0.50, 0.20, 0.15],
+      ],
+      // variant 1 — wide flat cloud bank
+      [
+        [0.50, 0.55, 0.27], [0.24, 0.58, 0.23], [0.76, 0.55, 0.25],
+        [0.08, 0.65, 0.18], [0.92, 0.63, 0.17], [0.38, 0.44, 0.19],
+        [0.62, 0.46, 0.18], [0.50, 0.36, 0.14],
+      ],
+      // variant 2 — tall billowing tower
+      [
+        [0.50, 0.32, 0.33], [0.34, 0.50, 0.26], [0.66, 0.48, 0.24],
+        [0.20, 0.63, 0.20], [0.80, 0.61, 0.18], [0.50, 0.18, 0.22],
+        [0.38, 0.26, 0.17], [0.62, 0.28, 0.16], [0.50, 0.08, 0.14],
+      ],
     ];
-    for (const b of blobs) {
-      g.fillCircle(cx + b.x * sc, cy + b.y * sc, b.r * sc);
+
+    const puffs = puffSets[Math.min(variant, puffSets.length - 1)];
+    const dim = Math.min(w, h);
+
+    for (const [fpx, fpy, fpr] of puffs) {
+      const px = fpx * w, py = fpy * h, pr = fpr * dim;
+      // Brighter towards the top (sunlit), slightly blue-white.
+      const topness  = 1 - fpy;           // 1 at top, 0 at bottom
+      const bright   = Math.round(215 + topness * 40);   // 215–255
+      const blueShift = Math.round(topness * 12);
+
+      const grad = ctx.createRadialGradient(px, py - pr * 0.15, 0, px, py, pr);
+      grad.addColorStop(0.00, `rgba(${bright},${bright},${Math.min(255, bright + blueShift)}, 0.92)`);
+      grad.addColorStop(0.45, `rgba(${bright - 18},${bright - 18},${Math.min(255, bright - 6)}, 0.62)`);
+      grad.addColorStop(0.80, `rgba(200,215,235, 0.22)`);
+      grad.addColorStop(1.00, `rgba(190,210,230, 0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(px, py, pr, pr * 0.88, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
-    // Soft diffuse underside
-    g.fillStyle(0xe4eefa, alpha * 0.45);
-    g.fillEllipse(cx + 4 * sc, cy + 18 * sc, 132 * sc, 22 * sc);
+
+    // Blue-grey shadow cast on the flat underside.
+    const shadowGrad = ctx.createLinearGradient(0, h * 0.48, 0, h * 0.92);
+    shadowGrad.addColorStop(0.0, 'rgba(110,145,185, 0)');
+    shadowGrad.addColorStop(1.0, 'rgba( 90,125,170, 0.32)');
+    ctx.fillStyle = shadowGrad;
+    ctx.fillRect(0, h * 0.48, w, h * 0.52);
+
+    // Thin bright highlight along the very top.
+    const hiliteGrad = ctx.createLinearGradient(0, 0, 0, h * 0.22);
+    hiliteGrad.addColorStop(0.0, 'rgba(255,255,255, 0.28)');
+    hiliteGrad.addColorStop(1.0, 'rgba(255,255,255, 0)');
+    ctx.fillStyle = hiliteGrad;
+    ctx.fillRect(0, 0, w, h * 0.22);
+
+    tex?.refresh();
+  }
+
+  // Thin wispy cirrus streaks — horizontal gradient bands, very transparent.
+  private bakeCirrusTexture(key: string, w: number, h: number) {
+    if (this.textures.exists(key)) return;
+    const tex = this.textures.createCanvas(key, w, h);
+    const ctx = tex?.getContext();
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Two offset horizontal streaks.
+    const streaks = [
+      { y: 0.30, thickness: 0.28 },
+      { y: 0.68, thickness: 0.18 },
+    ];
+    for (const s of streaks) {
+      const cy = s.y * h, halfH = (s.thickness / 2) * h;
+      const grad = ctx.createRadialGradient(w * 0.5, cy, 0, w * 0.5, cy, w * 0.52);
+      grad.addColorStop(0.0,  'rgba(240,248,255, 0.55)');
+      grad.addColorStop(0.55, 'rgba(230,242,255, 0.25)');
+      grad.addColorStop(1.0,  'rgba(220,238,255, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, cy - halfH, w, halfH * 2);
+    }
+
+    tex?.refresh();
   }
 
   // World post-processing removed — it washed out shapes. We rely on
