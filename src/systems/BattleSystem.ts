@@ -177,5 +177,24 @@ export function buildCombatant(
     equippedMoveIds,
     name,
     ultCharge: 0,
+    moveCooldowns: {},
   };
+}
+
+// How many rounds a move must recharge after use. Strong/OP attacks get a
+// cooldown so they can't be spammed; an explicit MoveDef.cooldown wins.
+export function getMoveCooldown(move: { power: number; cooldown?: number }): number {
+  if (typeof move.cooldown === 'number') return move.cooldown;
+  if (move.power >= 2.4) return 3;
+  if (move.power >= 2.0) return 2;
+  if (move.power >= 1.7) return 1;
+  return 0;
+}
+
+// Tick every cooldown on a combatant down by one round (called once per round).
+export function tickMoveCooldowns(c: BattleCombatant): void {
+  for (const id of Object.keys(c.moveCooldowns)) {
+    c.moveCooldowns[id] = Math.max(0, (c.moveCooldowns[id] ?? 0) - 1);
+    if (c.moveCooldowns[id] === 0) delete c.moveCooldowns[id];
+  }
 }

@@ -11,6 +11,7 @@ import {
   isEvolutionReady, getNextEvolutionStage, getEvolutionStageName,
   EVOLUTION_LEVELS, getTrainableAttacks, getAttackTrainCost,
 } from '@systems/ProgressionSystem';
+import { getMoveCooldown } from '@systems/BattleSystem';
 import type { MonsterInstance } from '@gtypes/game';
 import { EventBus, GameEvents } from '@game/EventBus';
 import '../styles/global.css';
@@ -281,6 +282,9 @@ function AttackSubPanel({ monster, gold, diamonds, onEquip, onUnequip, onTrain }
               <b>{mv.name}</b>
               <span style={{ color: ELEMENT_CSS_COLORS[mv.element] ?? '#aaa', marginLeft: 5 }}>{mv.element}</span>
               <span style={{ color: '#888', marginLeft: 5 }}>{mv.power}×</span>
+              {getMoveCooldown(mv) > 0 && (
+                <span style={{ color: '#cc8844', marginLeft: 5 }}>⏳{getMoveCooldown(mv)}</span>
+              )}
             </span>
             {replaceMode ? (
               <button style={{ fontSize: 10, padding: '1px 6px', background: '#334', color: '#aaa', border: '1px solid #556', borderRadius: 3, cursor: 'pointer' }}
@@ -320,6 +324,9 @@ function AttackSubPanel({ monster, gold, diamonds, onEquip, onUnequip, onTrain }
                   <b>{mv.name}</b>
                   <span style={{ color: ELEMENT_CSS_COLORS[mv.element] ?? '#aaa', marginLeft: 5 }}>{mv.element}</span>
                   <span style={{ color: '#888', marginLeft: 5 }}>{mv.power}×</span>
+                  {getMoveCooldown(mv) > 0 && (
+                    <span style={{ color: '#cc8844', marginLeft: 5 }}>⏳{getMoveCooldown(mv)}</span>
+                  )}
                 </span>
                 {canEquipDirect ? (
                   <button style={{ fontSize: 10, padding: '1px 6px', background: '#003300', color: '#66ff66', border: '1px solid #005500', borderRadius: 3, cursor: 'pointer' }}
@@ -356,6 +363,9 @@ function AttackSubPanel({ monster, gold, diamonds, onEquip, onUnequip, onTrain }
                   <b>{mv.name}</b>
                   <span style={{ color: ELEMENT_CSS_COLORS[mv.element] ?? '#aaa', marginLeft: 5 }}>{mv.element}</span>
                   <span style={{ color: '#888', marginLeft: 5 }}>{mv.power}×</span>
+                  {getMoveCooldown(mv) > 0 && (
+                    <span style={{ color: '#cc8844', marginLeft: 5 }}>⏳{getMoveCooldown(mv)}</span>
+                  )}
                 </span>
                 <button
                   disabled={!affordable}

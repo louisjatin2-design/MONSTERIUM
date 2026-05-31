@@ -81,6 +81,9 @@ export interface MoveDef {
   description: string;
   // 'aoe' hits every enemy; 'single' (default) hits one chosen target.
   targeting?: AttackTargeting;
+  // Rounds this move must recharge after use before it can be picked again.
+  // Optional; if omitted it's derived from power (strong moves get a cooldown).
+  cooldown?: number;
 }
 
 export interface BuildingLevelData {
@@ -161,6 +164,8 @@ export interface BattleCombatant {
   equippedMoveIds: string[];
   name: string;
   ultCharge: number;  // 0–100; fills as this monster deals damage
+  // moveId → rounds remaining before it can be used again (strong moves only).
+  moveCooldowns: Record<string, number>;
 }
 
 export interface BreedOutcome {
