@@ -16,7 +16,8 @@ const RARITY_ORDER: RarityType[] = [
 
 export function Pokedex({ onClose }: PokedexProps) {
   const pokedexSeen = useGameStore(s => s.pokedexSeen);
-  const ownedDefIds = useGameStore(s => new Set(Object.values(s.monsters).map(m => m.defId)));
+  const monsters = useGameStore(s => s.monsters);
+  const ownedDefIds = useMemo(() => new Set(Object.values(monsters).map(m => m.defId)), [monsters]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [rarityFilter, setRarityFilter] = useState<RarityType | 'All'>('All');
