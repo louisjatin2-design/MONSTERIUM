@@ -67,7 +67,7 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
       const ub = { x: b.x, y: b.y - h }, ur = { x: r.x, y: r.y - h };
       const uf = { x: f.x, y: f.y - h }, ul = { x: l.x, y: l.y - h };
       g.fillStyle(lft, 1); g.fillPoints([l, f, uf, ul], true);
-      g.lineStyle(1.5, 0x000000, 0.22); g.strokePoints([l, f, uf, ul], true, true);
+      g.lineStyle(2.5, 0x1a1208, 0.55); g.strokePoints([l, f, uf, ul], true, true);
       g.fillStyle(rgt, 1); g.fillPoints([f, r, ur, uf], true); g.strokePoints([f, r, ur, uf], true, true);
       g.fillStyle(top, 1); g.fillPoints([ub, ur, uf, ul], true); g.strokePoints([ub, ur, uf, ul], true, true);
       return { ub, ur, uf, ul };
@@ -80,14 +80,14 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
       ];
       for (const [p1, p2, col] of faces) {
         g.fillStyle(col, 1); g.fillPoints([p1, p2, apex], true);
-        g.lineStyle(1.5, 0x000000, 0.25); g.strokePoints([p1, p2, apex], true, true);
+        g.lineStyle(2.5, 0x1a1208, 0.6); g.strokePoints([p1, p2, apex], true, true);
       }
       return apex;
     };
 
     // Soft ground shadow.
     const shadow = scene.add.graphics();
-    shadow.fillStyle(0x000000, 0.2);
+    shadow.fillStyle(0x000000, 0.32);
     shadow.fillPoints([
       { x: back.x, y: back.y + 5 }, { x: right.x, y: right.y + 5 },
       { x: front.x, y: front.y + 5 }, { x: left.x, y: left.y + 5 },

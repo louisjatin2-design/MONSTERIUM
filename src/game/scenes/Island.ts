@@ -169,15 +169,16 @@ export class Island extends Phaser.Scene {
   private applyCameraFX() {
     if (!this.isWebGL()) return;
     const cam = this.cameras.main;
-    // Warm, slightly punchier color grade.
+    // Punchy, high-contrast color grade so shapes read clearly.
     const cm = cam.postFX.addColorMatrix();
-    cm.brightness(1.04);
-    cm.saturate(0.18);
-    cm.contrast(1.06);
-    // Soft bloom for highlights and glows.
-    cam.postFX.addBloom(0xfff4d6, 1, 1, 1.05, 0.9, 6);
-    // Gentle vignette for depth.
-    cam.postFX.addVignette(0.5, 0.5, 0.78, 0.36);
+    cm.brightness(1.06);
+    cm.saturate(0.28);
+    cm.contrast(1.22);
+    // Restrained bloom: only the brightest highlights/glows, so it doesn't
+    // wash out building edges.
+    cam.postFX.addBloom(0xffffff, 1, 1, 0.55, 1.4, 4);
+    // Very light vignette so the corners/edges stay readable.
+    cam.postFX.addVignette(0.5, 0.5, 0.92, 0.18);
   }
 
   // ---- Input helpers ----------------------------------------------------
