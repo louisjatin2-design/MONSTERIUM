@@ -50,6 +50,13 @@ export class Battle extends Phaser.Scene {
   private logText!: Phaser.GameObjects.Text;
   private ultScore1 = 0;
 
+  // Target selection & attacker highlight
+  private cardBgs: Map<string, Phaser.GameObjects.Rectangle> = new Map();
+  private selectedTarget: BattleCombatant | null = null;
+  private targetOverlayObjects: Phaser.GameObjects.GameObject[] = [];
+  private attackerArrow: Phaser.GameObjects.Text | null = null;
+  private attackerPulseTween: Phaser.Tweens.Tween | null = null;
+
   constructor() { super('Battle'); }
 
   init(data: BattleData) {
@@ -174,6 +181,7 @@ export class Battle extends Phaser.Scene {
     const bg = this.add.rectangle(x, y, w, h, isPlayer ? 0x1c3a1c : 0x3a1c1c)
       .setStrokeStyle(2, isPlayer ? 0x44ff44 : 0xff4444)
       .setInteractive({ useHandCursor: true });
+    this.cardBgs.set(c.instanceId, bg);
     // Tapping a card opens its detail view (level, stats, attacks).
     bg.on('pointerdown', () => this.showCombatantDetail(c));
     bg.on('pointerover', () => bg.setStrokeStyle(3, 0xffffff));
@@ -400,6 +408,8 @@ export class Battle extends Phaser.Scene {
       return;
     }
 
+    this.highlightAttacker(this.currentAttacker);
+
     // Check if stunned/frozen
     const hasStun = this.currentAttacker.statusEffects.some(
       e => e.effect === 'Stun' || e.effect === 'Freeze'
@@ -477,10 +487,18 @@ export class Battle extends Phaser.Scene {
   private clearAttackButtons() {
     for (const btn of this.attackButtons) btn.destroy();
     this.attackButtons = [];
+    this.clearTargetOverlays();
   }
 
   private onUltSelected(attacker: BattleCombatant) {
     this.clearAttackButtons();
+    this.showTargetSelection((target) => {
+      this.selectedTarget = target;
+      this.launchUltStep1(attacker);
+    });
+  }
+
+  private launchUltStep1(attacker: BattleCombatant) {
     const def = MONSTER_DEFS[attacker.defId];
     const rarityRank = RARITY_RANK[def.rarity];
     const ultRank = Math.min(7, rarityRank + 1);
@@ -499,23 +517,26 @@ export class Battle extends Phaser.Scene {
     const moveDef = ATTACKS[moveId];
     if (!moveDef) { this.turnIndex++; this.nextTurn(); return; }
 
+    this.showTargetSelection((target) => {
+      this.selectedTarget = target;
+      this.launchAttackMinigame(attacker);
+    });
+  }
+
+  private launchAttackMinigame(attacker: BattleCombatant) {
+    const moveDef = ATTACKS[this.selectedMoveId];
+    if (!moveDef) { this.turnIndex++; this.nextTurn(); return; }
+
     const def = MONSTER_DEFS[attacker.defId];
     const rarityRank = RARITY_RANK[def.rarity];
 
     this.state = 'MINIGAME_ACTIVE';
     this.statusText.setText(`Executing ${moveDef.name}...`);
 
-    this.scene.launch(
-      moveDef.minigameType === 'TimingBar' ? 'TimingBarScene' :
-      moveDef.minigameType === 'AimClick' ? 'AimClickScene' :
-      'ButtonSequenceScene',
-      { moveDef, rarityRank }
-    );
-    this.scene.bringToTop(
-      moveDef.minigameType === 'TimingBar' ? 'TimingBarScene' :
-      moveDef.minigameType === 'AimClick' ? 'AimClickScene' :
-      'ButtonSequenceScene'
-    );
+    const sceneName = moveDef.minigameType === 'TimingBar' ? 'TimingBarScene' :
+      moveDef.minigameType === 'AimClick' ? 'AimClickScene' : 'ButtonSequenceScene';
+    this.scene.launch(sceneName, { moveDef, rarityRank });
+    this.scene.bringToTop(sceneName);
     this.scene.pause();
   }
 
@@ -553,9 +574,11 @@ export class Battle extends Phaser.Scene {
     const moveDef = ATTACKS[this.selectedMoveId];
     if (!moveDef) { this.turnIndex++; this.nextTurn(); return; }
 
-    const enemies = this.enemyCombatants.filter(c => c.currentHp > 0);
-    if (enemies.length === 0) { this.endBattle(true); return; }
-    const target = enemies[Math.floor(Math.random() * enemies.length)];
+    // Use the player's chosen target (fall back to first alive enemy if needed)
+    let target = (this.selectedTarget && this.selectedTarget.currentHp > 0)
+      ? this.selectedTarget
+      : this.enemyCombatants.find(c => c.currentHp > 0) ?? null;
+    if (!target) { this.endBattle(true); return; }
 
     this.applyAttack(this.currentAttacker, target, moveDef, data.score);
     this.turnIndex++;
@@ -656,11 +679,17 @@ export class Battle extends Phaser.Scene {
   }
 
   private applyUlt(attacker: BattleCombatant, score1: number, score2: number) {
-    const targets = attacker.isPlayer
-      ? this.enemyCombatants.filter(c => c.currentHp > 0)
-      : this.playerCombatants.filter(c => c.currentHp > 0);
-    if (targets.length === 0) { attacker.isPlayer ? this.endBattle(true) : this.endBattle(false); return; }
-    const target = targets[Math.floor(Math.random() * targets.length)];
+    let target: BattleCombatant | null = null;
+    if (attacker.isPlayer) {
+      // Use the player-chosen target if still alive, else first living enemy
+      target = (this.selectedTarget && this.selectedTarget.currentHp > 0)
+        ? this.selectedTarget
+        : (this.enemyCombatants.find(c => c.currentHp > 0) ?? null);
+    } else {
+      const players = this.playerCombatants.filter(c => c.currentHp > 0);
+      target = players[Math.floor(Math.random() * players.length)] ?? null;
+    }
+    if (!target) { attacker.isPlayer ? this.endBattle(true) : this.endBattle(false); return; }
 
     const def = MONSTER_DEFS[attacker.defId];
     const targetDef = MONSTER_DEFS[target.defId];
@@ -721,6 +750,76 @@ export class Battle extends Phaser.Scene {
       const inst = store.monsters[attacker.instanceId];
       if (inst) store.addXpToMonster(attacker.instanceId, Math.floor(dmg / 10));
     }
+  }
+
+  private highlightAttacker(c: BattleCombatant) {
+    // Reset all card outlines to their default colour
+    for (const [id, bg] of this.cardBgs) {
+      const cmb = [...this.playerCombatants, ...this.enemyCombatants].find(x => x.instanceId === id);
+      if (!cmb) continue;
+      const alive = cmb.currentHp > 0;
+      bg.setStrokeStyle(alive ? 2 : 1, alive ? (cmb.isPlayer ? 0x44ff44 : 0xff4444) : 0x444444);
+    }
+    // Remove previous indicator
+    this.attackerPulseTween?.stop();
+    this.attackerArrow?.destroy();
+    this.attackerArrow = null;
+
+    // Gold border on the active card
+    this.cardBgs.get(c.instanceId)?.setStrokeStyle(4, 0xffd700);
+
+    // Bouncing "AM ZUG" label just above the card
+    const center = this.cardCenters.get(c.instanceId);
+    if (!center) return;
+    const arrowY = center.y - 56;
+    this.attackerArrow = this.add.text(center.x, arrowY, '▼ AM ZUG ▼', {
+      fontSize: '11px', color: '#ffd700', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(60);
+    this.attackerPulseTween = this.tweens.add({
+      targets: this.attackerArrow,
+      y: arrowY + 4,
+      duration: 350,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
+  private showTargetSelection(callback: (target: BattleCombatant) => void) {
+    this.clearTargetOverlays();
+    const targets = this.enemyCombatants.filter(c => c.currentHp > 0);
+    if (targets.length === 0) return;
+    this.statusText.setText('🎯 Wähle ein Ziel!');
+
+    for (const target of targets) {
+      const center = this.cardCenters.get(target.instanceId);
+      if (!center) continue;
+      const cardW = 156, cardH = 84;
+      const overlay = this.add.rectangle(center.x, center.y, cardW, cardH, 0xff2200, 0.3)
+        .setStrokeStyle(3, 0xff6600)
+        .setInteractive({ useHandCursor: true })
+        .setDepth(100);
+      const label = this.add.text(center.x, center.y, '🎯 ANGRIFF', {
+        fontSize: '14px', color: '#ff8800', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(101);
+
+      overlay.on('pointerover', () => overlay.setFillStyle(0xff4400, 0.5));
+      overlay.on('pointerout', () => overlay.setFillStyle(0xff2200, 0.3));
+      overlay.on('pointerdown', () => {
+        this.clearTargetOverlays();
+        callback(target);
+      });
+      this.targetOverlayObjects.push(overlay, label);
+    }
+  }
+
+  private clearTargetOverlays() {
+    for (const obj of this.targetOverlayObjects) {
+      (obj as { destroy(): void }).destroy();
+    }
+    this.targetOverlayObjects = [];
   }
 
   private showDamageText(instanceId: string, dmg: number, color: number) {

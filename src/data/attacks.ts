@@ -192,4 +192,86 @@ export const ATTACKS: Record<string, MoveDef> = {
     statusEffect: { effect: 'Paralyze', threshold: 60 },
     description: 'An unstable digital explosion. Immense power, hard to execute.',
   },
+
+  // ── New element attacks ──────────────────────────────────────────────────
+  thorn_whip: {
+    id: 'thorn_whip', name: 'Thorn Whip', element: 'Plant', power: 1.2,
+    minigameType: 'AimClick', statusEffect: { effect: 'Poison', threshold: 70 },
+    description: 'A lashing vine that may Poison on impact.',
+  },
+  briar_storm: {
+    id: 'briar_storm', name: 'Briar Storm', element: 'Plant', power: 2.0,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'DefDown', threshold: 68 },
+    description: 'A torrent of razor thorns that shreds armor.',
+  },
+  sand_blast: {
+    id: 'sand_blast', name: 'Sand Blast', element: 'Sand', power: 1.3,
+    minigameType: 'TimingBar', statusEffect: { effect: 'Blind', threshold: 70 },
+    description: 'A concentrated jet of sand. May Blind.',
+  },
+  dune_crush: {
+    id: 'dune_crush', name: 'Dune Crush', element: 'Sand', power: 1.9,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'DefDown', threshold: 72 },
+    description: 'Buries the target under tons of shifting sand.',
+  },
+  sonic_boom: {
+    id: 'sonic_boom', name: 'Sonic Boom', element: 'Sound', power: 1.6,
+    minigameType: 'AimClick', statusEffect: { effect: 'Stun', threshold: 80 },
+    description: 'A concussive sound wave. May Stun.',
+  },
+  resonance: {
+    id: 'resonance', name: 'Resonance', element: 'Sound', power: 2.1,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'AtkDown', threshold: 70 },
+    description: 'Vibrations that shatter the foe\'s focus.',
+  },
+  demon_slash: {
+    id: 'demon_slash', name: 'Demon Slash', element: 'Demon', power: 1.4,
+    minigameType: 'AimClick',
+    description: 'A slash imbued with hellfire that ignores defenses.',
+  },
+  hellfire: {
+    id: 'hellfire', name: 'Hellfire', element: 'Demon', power: 2.2,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Burn', threshold: 65 },
+    description: 'Infernal flames that always burn.',
+  },
+  arcane_blast: {
+    id: 'arcane_blast', name: 'Arcane Blast', element: 'Magic', power: 1.5,
+    minigameType: 'AimClick', statusEffect: { effect: 'AtkDown', threshold: 70 },
+    description: 'A magical explosion that may weaken the foe.',
+  },
+  spell_surge: {
+    id: 'spell_surge', name: 'Spell Surge', element: 'Magic', power: 2.0,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Stun', threshold: 78 },
+    description: 'An overwhelming torrent of arcane energy.',
+  },
+  divine_light: {
+    id: 'divine_light', name: 'Divine Light', element: 'Angel', power: 1.6,
+    minigameType: 'TimingBar',
+    description: 'A beam of divine energy that pierces darkness.',
+  },
+  holy_judgment: {
+    id: 'holy_judgment', name: 'Holy Judgment', element: 'Angel', power: 2.2,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'DefDown', threshold: 72 },
+    description: 'The wrath of the heavens made manifest.',
+  },
+  cosmic_ray: {
+    id: 'cosmic_ray', name: 'Cosmic Ray', element: 'Cosmos', power: 1.8,
+    minigameType: 'ButtonSequence',
+    description: 'A ray of condensed cosmic energy.',
+  },
+  star_collapse: {
+    id: 'star_collapse', name: 'Star Collapse', element: 'Cosmos', power: 2.3,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'DefDown', threshold: 68 },
+    description: 'Collapses a star onto the target.',
+  },
+  combat_rush: {
+    id: 'combat_rush', name: 'Combat Rush', element: 'Combat', power: 1.3,
+    minigameType: 'TimingBar', statusEffect: { effect: 'DefDown', threshold: 65 },
+    description: 'A rapid combo strike that may lower defense.',
+  },
+  finishing_blow: {
+    id: 'finishing_blow', name: 'Finishing Blow', element: 'Combat', power: 2.1,
+    minigameType: 'AimClick', statusEffect: { effect: 'Stun', threshold: 80 },
+    description: 'A perfectly aimed strike that may Stun.',
+  },
 };
