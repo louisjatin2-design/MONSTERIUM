@@ -28,6 +28,11 @@ const MINIGAME_SCENE_KEYS: Record<MinigameType, string> = {
 
 type BattleState = 'INTRO' | 'PLAYER_TURN' | 'MINIGAME_ACTIVE' | 'ULT_MINIGAME_1' | 'ULT_MINIGAME_2' | 'AI_TURN' | 'VICTORY' | 'DEFEAT';
 
+// Minigame score the Speed-Up auto-pilot uses when it executes an attack on the
+// player's behalf. High enough to feel "effective" without being a guaranteed
+// perfect hit, so manual play still rewards skill more.
+const AUTO_BATTLE_SCORE = 90;
+
 interface BattleData {
   playerTeam: string[];   // instance IDs
   enemyTeam: string[];    // instance IDs or def IDs for story
@@ -79,6 +84,14 @@ export class Battle extends Phaser.Scene {
   // Tracks enemy moves used during battle for the post-victory learn offer
   private enemyUsedMoveIds: Set<string> = new Set();
 
+  // Speed-Up auto-pilot: when on, the player's turns are resolved automatically
+  // by picking the most effective attack/target. awaitingPlayerInput is true
+  // while the attack buttons are on screen waiting for a tap.
+  private autoBattle = false;
+  private awaitingPlayerInput = false;
+  private speedBtnBg: Phaser.GameObjects.Rectangle | null = null;
+  private speedBtnLabel: Phaser.GameObjects.Text | null = null;
+
   constructor() { super('Battle'); }
 
   init(data: BattleData) {
@@ -104,6 +117,10 @@ export class Battle extends Phaser.Scene {
       fontSize: '24px', color: '#ffd700', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 4,
     }).setOrigin(0.5, 0);
+
+    // Speed-Up toggle (top-right): auto-pilots the player's turns by choosing
+    // the most effective attack and target automatically.
+    this.createSpeedButton(width);
 
     // Build combatants
     const store = useGameStore.getState();
@@ -717,14 +734,19 @@ export class Battle extends Phaser.Scene {
     }
 
     if (this.currentAttacker.isPlayer) {
-      this.showAttackButtons(this.currentAttacker);
+      if (this.autoBattle) {
+        this.time.delayedCall(250, () => this.autoPlayerTurn(this.currentAttacker!));
+      } else {
+        this.showAttackButtons(this.currentAttacker);
+      }
     } else {
-      this.time.delayedCall(600, () => this.doAiTurn(this.currentAttacker!));
+      this.time.delayedCall(this.autoBattle ? 300 : 600, () => this.doAiTurn(this.currentAttacker!));
     }
   }
 
   private showAttackButtons(attacker: BattleCombatant) {
     this.clearAttackButtons();
+    this.awaitingPlayerInput = true;
     const width = DESIGN_W, height = DESIGN_H;
     const def = MONSTER_DEFS[attacker.defId];
     const moves = attacker.equippedMoveIds;
@@ -788,6 +810,7 @@ export class Battle extends Phaser.Scene {
   }
 
   private onUltSelected(attacker: BattleCombatant) {
+    this.awaitingPlayerInput = false;
     this.clearAttackButtons();
     this.showTargetSelection((target) => {
       this.selectedTarget = target;
@@ -809,6 +832,7 @@ export class Battle extends Phaser.Scene {
   }
 
   private onMoveSelected(moveId: string, attacker: BattleCombatant) {
+    this.awaitingPlayerInput = false;
     this.clearAttackButtons();
     this.selectedMoveId = moveId;
     const moveDef = ATTACKS[moveId];
@@ -912,6 +936,153 @@ export class Battle extends Phaser.Scene {
     if (cd > 0) attacker.moveCooldowns[moveId] = cd + 1;
     this.turnIndex++;
     this.time.delayedCall(800, () => this.nextTurn());
+  }
+
+  // ── Speed-Up auto-pilot ─────────────────────────────────────────────────────
+
+  // Builds the top-right Speed-Up toggle and wires its tap handler.
+  private createSpeedButton(width: number) {
+    const x = width - 70, y = 30;
+    const bg = this.add.rectangle(x, y, 116, 30, 0x223355)
+      .setStrokeStyle(2, 0x66aaff)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(200);
+    const label = this.add.text(x, y, '⏩ SPEED-UP', {
+      fontSize: '13px', color: '#cce4ff', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(201);
+    this.speedBtnBg = bg;
+    this.speedBtnLabel = label;
+    bg.on('pointerdown', () => this.toggleAutoBattle());
+    bg.on('pointerover', () => { if (!this.autoBattle) bg.setFillStyle(0x2d4470); });
+    bg.on('pointerout', () => { if (!this.autoBattle) bg.setFillStyle(0x223355); });
+  }
+
+  private toggleAutoBattle() {
+    this.autoBattle = !this.autoBattle;
+    if (this.speedBtnBg && this.speedBtnLabel) {
+      this.speedBtnBg.setFillStyle(this.autoBattle ? 0x227744 : 0x223355);
+      this.speedBtnBg.setStrokeStyle(2, this.autoBattle ? 0x66ff99 : 0x66aaff);
+      this.speedBtnLabel.setText(this.autoBattle ? '⏩ AUTO: AN' : '⏩ SPEED-UP');
+      this.speedBtnLabel.setColor(this.autoBattle ? '#ccffdd' : '#cce4ff');
+    }
+    // If we just switched on while the player is being asked to pick a move,
+    // resolve that pending turn immediately.
+    if (this.autoBattle && this.awaitingPlayerInput && this.currentAttacker?.isPlayer) {
+      this.awaitingPlayerInput = false;
+      this.clearAttackButtons();
+      this.autoPlayerTurn(this.currentAttacker);
+    }
+  }
+
+  // Expected damage of a given element/power against a target at the auto score,
+  // used to rank moves and pick targets for the auto-pilot.
+  private expectedDamage(attacker: BattleCombatant, target: BattleCombatant, element: string, power: number): number {
+    const attackerDef = MONSTER_DEFS[attacker.defId];
+    const targetDef = MONSTER_DEFS[target.defId];
+    if (!attackerDef || !targetDef) return 0;
+    let def = target.defenseStat;
+    if (target.statusEffects.some(e => e.effect === 'DefDown')) def = Math.floor(def * 0.75);
+    return calculateDamage({
+      attackerATK: attacker.attackStat,
+      movePower: power,
+      minigameScore: AUTO_BATTLE_SCORE,
+      attackerElement: element,
+      defenderElements: targetDef.elements as string[],
+      defenderDEF: def,
+      attackerTrait: attacker.trait,
+      attackerStatuses: attacker.statusEffects,
+      attackerCurrentHp: attacker.currentHp,
+      attackerMaxHp: attacker.maxHp,
+      attackerLevel: attacker.level,
+      attackerRarityRank: RARITY_RANK[attackerDef.rarity],
+      campaignDamageMultiplier: this.campaignDamageMultiplierFor(attacker),
+    });
+  }
+
+  // Picks the living enemy that takes the most damage from the given attack;
+  // a target that would be knocked out is always preferred, ties break toward
+  // the lowest-HP enemy so the auto-pilot finishes monsters off.
+  private pickBestTarget(attacker: BattleCombatant, element: string, power: number): BattleCombatant | null {
+    const enemies = this.enemyCombatants.filter(c => c.currentHp > 0);
+    let best: BattleCombatant | null = null;
+    let bestScore = -1;
+    for (const target of enemies) {
+      const dmg = this.expectedDamage(attacker, target, element, power);
+      const lethal = dmg >= target.currentHp ? 1_000_000 : 0;
+      const score = dmg + lethal;
+      if (score > bestScore || (score === bestScore && best && target.currentHp < best.currentHp)) {
+        bestScore = score;
+        best = target;
+      }
+    }
+    return best;
+  }
+
+  // Chooses the most effective ready move plus its best target.
+  private chooseBestMove(attacker: BattleCombatant): { moveId: string; target: BattleCombatant } | null {
+    const enemies = this.enemyCombatants.filter(c => c.currentHp > 0);
+    if (enemies.length === 0) return null;
+    const ready = attacker.equippedMoveIds.filter(id => ATTACKS[id] && (attacker.moveCooldowns[id] ?? 0) === 0);
+    const pool = ready.length > 0 ? ready : attacker.equippedMoveIds.filter(id => ATTACKS[id]);
+    if (pool.length === 0) return null;
+
+    let bestMove: string | null = null;
+    let bestTarget: BattleCombatant | null = null;
+    let bestScore = -1;
+    for (const moveId of pool) {
+      const move = ATTACKS[moveId]!;
+      const target = this.pickBestTarget(attacker, move.element, move.power);
+      if (!target) continue;
+      const dmg = this.expectedDamage(attacker, target, move.element, move.power);
+      const lethal = dmg >= target.currentHp ? 1_000_000 : 0;
+      const score = dmg + lethal;
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = moveId;
+        bestTarget = target;
+      }
+    }
+    if (!bestMove || !bestTarget) return null;
+    return { moveId: bestMove, target: bestTarget };
+  }
+
+  // Resolves one player turn automatically: fire the ULTIMA if it's charged,
+  // otherwise execute the strongest available attack on the best target.
+  private autoPlayerTurn(attacker: BattleCombatant) {
+    this.awaitingPlayerInput = false;
+    this.clearAttackButtons();
+    if (!attacker || attacker.currentHp <= 0) { this.turnIndex++; this.nextTurn(); return; }
+
+    // ULTIMA when fully charged — the single most effective option available.
+    if (attacker.ultCharge >= ultChargeCostFor(attacker.attackStat)) {
+      const def = MONSTER_DEFS[attacker.defId];
+      const target = this.pickBestTarget(attacker, def.elements[0], 2.5)
+        ?? this.enemyCombatants.find(c => c.currentHp > 0) ?? null;
+      if (!target) { this.endBattle(true); return; }
+      this.selectedTarget = target;
+      this.state = 'PLAYER_TURN';
+      this.statusText.setText(`⏩ ${attacker.name} entfesselt die ULTIMA!`);
+      this.applyUlt(attacker, AUTO_BATTLE_SCORE, AUTO_BATTLE_SCORE);
+      this.turnIndex++;
+      this.time.delayedCall(900, () => this.nextTurn());
+      return;
+    }
+
+    const choice = this.chooseBestMove(attacker);
+    if (!choice) { this.turnIndex++; this.nextTurn(); return; }
+
+    const moveDef = ATTACKS[choice.moveId];
+    if (!moveDef) { this.turnIndex++; this.nextTurn(); return; }
+
+    this.selectedMoveId = choice.moveId;
+    this.selectedTarget = choice.target;
+    this.state = 'PLAYER_TURN';
+    this.statusText.setText(`⏩ ${attacker.name} → ${moveDef.name}`);
+    this.applyAttack(attacker, choice.target, moveDef, AUTO_BATTLE_SCORE);
+    const cd = getMoveCooldown(moveDef);
+    if (cd > 0) attacker.moveCooldowns[choice.moveId] = cd + 1;
+    this.turnIndex++;
+    this.time.delayedCall(650, () => this.nextTurn());
   }
 
   // Early-campaign damage boost: only the player's monsters benefit, and only
@@ -1243,53 +1414,185 @@ export class Battle extends Phaser.Scene {
     EventBus.off(GameEvents.MINIGAME_COMPLETE, this.onMinigameResult, this);
 
     const width = DESIGN_W, height = DESIGN_H;
-    const resultColor = victory ? 0x226622 : 0x662222;
-    const resultText = victory ? 'VICTORY!' : 'DEFEAT';
 
-    this.add.rectangle(width / 2, height / 2, 400, 200, resultColor, 0.9)
-      .setStrokeStyle(3, 0xffffff);
-    this.add.text(width / 2, height / 2 - 40, resultText, {
-      fontSize: '40px', color: '#ffffff', fontStyle: 'bold',
-    }).setOrigin(0.5);
-
-    if (victory) {
-      const store = useGameStore.getState();
-      // Better campaign rewards: story victories pay out an uplifted amount,
-      // with an extra top-up during World 1. Arena fights pass no storyIndex
-      // and therefore keep their base rewards (multiplier = 1).
-      const rewardMult = campaignRewardMultiplier(this.data_.storyIndex);
-      const rewardGold = Math.round((this.data_.rewardGold ?? 200) * rewardMult);
-      const rewardXp = Math.round((this.data_.rewardXp ?? 300) * rewardMult);
-      const rewardDiamonds = Math.round((this.data_.rewardDiamonds ?? 0) * rewardMult);
-      store.addGold(rewardGold);
-      store.addPlayerXp(rewardXp);
-      store.addTrophies(20);
-      store.recordBattleWon();
-      if (rewardDiamonds > 0) store.addDiamonds(rewardDiamonds);
-
-      // Advance the story if this was the next uncleared story battle.
-      if (this.data_.storyIndex !== undefined && this.data_.storyIndex === store.storyProgress) {
-        store.advanceStory();
-      }
-
-      const rewardMonsterDefId = this.data_.rewardMonsterDefId;
-      if (rewardMonsterDefId && MONSTER_DEFS[rewardMonsterDefId]) {
-        store.addEgg(rewardMonsterDefId, 30);
-      }
-
-      const rewardLine = `+${rewardGold} 🪙  +${rewardXp} XP`
-        + (rewardDiamonds > 0 ? `  +${rewardDiamonds} 💎` : '');
-      this.add.text(width / 2, height / 2 + 10, rewardLine, {
-        fontSize: '20px', color: '#ffd700',
+    if (!victory) {
+      this.add.rectangle(width / 2, height / 2, 400, 200, 0x662222, 0.9)
+        .setStrokeStyle(3, 0xffffff);
+      this.add.text(width / 2, height / 2 - 40, 'DEFEAT', {
+        fontSize: '40px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
-
-      // ── Post-battle attack learn offer ──────────────────────────────────────
-      this.offerBattleLearn(width, height);
+      this.showContinuePrompt(false);
+      return;
     }
 
-    this.add.text(width / 2, height / 2 + 60, 'Tippe zum Fortfahren', {
-      fontSize: '16px', color: '#aaaaaa',
+    // ── VICTORY ────────────────────────────────────────────────────────────────
+    const store = useGameStore.getState();
+    store.addTrophies(20);
+    store.recordBattleWon();
+
+    // Advance the story if this was the next uncleared story battle.
+    if (this.data_.storyIndex !== undefined && this.data_.storyIndex === store.storyProgress) {
+      store.advanceStory();
+    }
+    const rewardMonsterDefId = this.data_.rewardMonsterDefId;
+    if (rewardMonsterDefId && MONSTER_DEFS[rewardMonsterDefId]) {
+      store.addEgg(rewardMonsterDefId, 30);
+    }
+
+    // Better campaign rewards still scale the *base* values; the wheel then
+    // decides the final payout around that baseline.
+    const rewardMult = campaignRewardMultiplier(this.data_.storyIndex);
+    const baseGold = Math.round((this.data_.rewardGold ?? 200) * rewardMult);
+    const baseXp = Math.round((this.data_.rewardXp ?? 300) * rewardMult);
+    const baseDiamonds = Math.round((this.data_.rewardDiamonds ?? 0) * rewardMult);
+
+    // Victory banner at the top; the wheel takes the centre of the screen.
+    this.add.text(width / 2, 70, '🏆 SIEG! 🏆', {
+      fontSize: '40px', color: '#ffd700', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 5,
     }).setOrigin(0.5);
+
+    this.showRewardWheel(width, height, baseGold, baseXp, baseDiamonds);
+  }
+
+  // ── Reward wheel (Glücksrad) ────────────────────────────────────────────────
+
+  /**
+   * Spinning wheel of fortune shown after a victory. Replaces the old fixed
+   * reward: the player taps DREHEN, the wheel spins and lands on a segment that
+   * decides how the (campaign-scaled) base reward is multiplied / topped up.
+   */
+  private showRewardWheel(width: number, height: number, baseGold: number, baseXp: number, baseDiamonds: number) {
+    // Each segment scales the base gold/xp and may add flat diamonds. Weights
+    // make the big wins rarer than the modest ones.
+    const segments: Array<{ label: string; color: number; gold: number; xp: number; dia: number; weight: number }> = [
+      { label: '🪙 ×1',      color: 0x8a6d3b, gold: 1.0, xp: 1, dia: 0, weight: 18 },
+      { label: '⭐ XP ×2',   color: 0x2e6da4, gold: 1.0, xp: 2, dia: 0, weight: 14 },
+      { label: '🪙 ×2',      color: 0xd4a017, gold: 2.0, xp: 1, dia: 0, weight: 14 },
+      { label: '💎 +5',      color: 0x6f42c1, gold: 1.0, xp: 1, dia: 5, weight: 10 },
+      { label: '🎰 JACKPOT', color: 0xc0392b, gold: 3.0, xp: 3, dia: 10, weight: 4 },
+      { label: '🪙 ×1.5',    color: 0xb8860b, gold: 1.5, xp: 1, dia: 0, weight: 16 },
+      { label: '⭐ XP ×3',   color: 0x1f78b4, gold: 1.0, xp: 3, dia: 2, weight: 8 },
+      { label: '💎 +2',      color: 0x8e44ad, gold: 1.0, xp: 1, dia: 2, weight: 16 },
+    ];
+    const N = segments.length;
+    const segAngle = (Math.PI * 2) / N;
+    const radius = 132;
+    const cx = width / 2, cy = height / 2 + 18;
+
+    // Dim backdrop so the wheel reads as the focus of the screen.
+    this.add.rectangle(cx, height / 2, width * 3, height * 3, 0x000000, 0.55).setDepth(400);
+
+    // Build the wheel face (slices + labels) inside one rotatable container.
+    const g = this.add.graphics();
+    const children: Phaser.GameObjects.GameObject[] = [g];
+    for (let i = 0; i < N; i++) {
+      const a0 = i * segAngle, a1 = (i + 1) * segAngle;
+      g.fillStyle(segments[i].color, 1);
+      g.slice(0, 0, radius, a0, a1, false);
+      g.fillPath();
+      g.lineStyle(3, 0x1a0a3c, 0.8);
+      g.beginPath();
+      g.slice(0, 0, radius, a0, a1, false);
+      g.strokePath();
+
+      const mid = a0 + segAngle / 2;
+      const lr = radius * 0.64;
+      const lbl = this.add.text(Math.cos(mid) * lr, Math.sin(mid) * lr, segments[i].label, {
+        fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 3, align: 'center',
+      }).setOrigin(0.5);
+      lbl.setRotation(mid + Math.PI / 2);
+      children.push(lbl);
+    }
+    const wheel = this.add.container(cx, cy, children).setDepth(500);
+
+    // Outer rim + hub.
+    const rim = this.add.circle(cx, cy, radius + 4, 0x000000, 0).setStrokeStyle(5, 0xffd700).setDepth(501);
+    const hub = this.add.circle(cx, cy, 16, 0x1a0a3c).setStrokeStyle(3, 0xffd700).setDepth(503);
+
+    // Pointer at the top, pointing down into the wheel.
+    const pointer = this.add.triangle(cx, cy - radius - 2, 0, -16, 14, 12, -14, 12, 0xffd700)
+      .setStrokeStyle(2, 0x000000).setDepth(504);
+
+    // Spin button.
+    const btnY = cy + radius + 44;
+    const spinBg = this.add.rectangle(cx, btnY, 200, 46, 0x227744)
+      .setStrokeStyle(3, 0x66ff99).setInteractive({ useHandCursor: true }).setDepth(505);
+    const spinTxt = this.add.text(cx, btnY, '🎡  DREHEN', {
+      fontSize: '20px', color: '#ffffff', fontStyle: 'bold', stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(506);
+    spinBg.on('pointerover', () => spinBg.setFillStyle(0x2e9e5b));
+    spinBg.on('pointerout', () => spinBg.setFillStyle(0x227744));
+
+    const hint = this.add.text(cx, btnY + 36, 'Drehe das Glücksrad für deine Belohnung!', {
+      fontSize: '13px', color: '#cccccc',
+    }).setOrigin(0.5).setDepth(506);
+
+    let spun = false;
+    spinBg.once('pointerdown', () => {
+      if (spun) return;
+      spun = true;
+      spinBg.disableInteractive();
+      spinTxt.setText('…');
+      hint.setText('');
+
+      // Weighted random landing segment.
+      const totalWeight = segments.reduce((s, seg) => s + seg.weight, 0);
+      let roll = Math.random() * totalWeight;
+      let landed = 0;
+      for (let i = 0; i < N; i++) { roll -= segments[i].weight; if (roll <= 0) { landed = i; break; } }
+
+      // Rotate so the landed segment's centre stops under the top pointer
+      // (top = -90° in Phaser's y-down coordinate space), after 5 full turns.
+      const segMid = (landed + 0.5) * segAngle;
+      const target = (Math.PI * 2) * 5 + (-Math.PI / 2 - segMid);
+      this.tweens.add({
+        targets: wheel,
+        rotation: target,
+        duration: 3600,
+        ease: 'Cubic.easeOut',
+        onComplete: () => {
+          const seg = segments[landed];
+          const gold = Math.round(baseGold * seg.gold);
+          const xp = Math.round(baseXp * seg.xp);
+          const dia = baseDiamonds + seg.dia;
+
+          const store = useGameStore.getState();
+          if (gold > 0) store.addGold(gold);
+          if (xp > 0) store.addPlayerXp(xp);
+          if (dia > 0) store.addDiamonds(dia);
+
+          this.cameras.main.flash(220, 255, 215, 0);
+          const rewardLine = `+${gold} 🪙   +${xp} XP`
+            + (dia > 0 ? `   +${dia} 💎` : '');
+          spinTxt.setVisible(false);
+          spinBg.setVisible(false);
+          const banner = this.add.text(cx, btnY - 4, rewardLine, {
+            fontSize: '22px', color: '#ffd700', fontStyle: 'bold', stroke: '#000', strokeThickness: 3,
+          }).setOrigin(0.5).setDepth(506);
+          banner.setScale(0.5);
+          this.tweens.add({ targets: banner, scale: 1, duration: 250, ease: 'Back.out' });
+
+          // Now the player can dismiss the screen + see the learn offer.
+          this.offerBattleLearn(width, height);
+          this.showContinuePrompt(true);
+        },
+      });
+    });
+
+    // Reference the rim/hub/pointer so linters don't flag them as unused.
+    void rim; void hub; void pointer;
+  }
+
+  // Shows the "tap to continue" prompt and wires the single tap that closes the
+  // battle. Wired only once the reward flow is finished so earlier taps (spin
+  // button, learn buttons) don't accidentally end the battle.
+  private showContinuePrompt(victory: boolean) {
+    const width = DESIGN_W, height = DESIGN_H;
+    this.add.text(width / 2, height - 30, 'Tippe zum Fortfahren', {
+      fontSize: '16px', color: '#aaaaaa',
+    }).setOrigin(0.5).setDepth(1200);
 
     this.input.once('pointerdown', () => {
       EventBus.emit(GameEvents.BATTLE_ENDED, { victory });
