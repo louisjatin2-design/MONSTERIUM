@@ -68,62 +68,99 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const nextStage = getNextEvolutionStage(monster.stage);
 
   return (
-    <div className="panel" style={{
-      left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-      width: 560, maxWidth: '94vw', maxHeight: '90vh', padding: 0, overflow: 'hidden',
-      display: 'flex', flexDirection: 'column',
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
-        background: `linear-gradient(160deg, ${accent}44, transparent)`,
-        borderBottom: '2px solid rgba(255,215,0,0.25)',
-      }}>
+    <div className="mdetail">
+      {/* Back to the habitat — this is its own screen, not a popup. */}
+      <button className="mdetail-back" onClick={onClose} title="Zurück">←</button>
+
+      {/* ── LEFT: the monster itself ───────────────────────────────── */}
+      <div className="mdetail-left">
+        {/* Big portrait with elemental glow + a soft pedestal. */}
         <div style={{
-          width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
-          background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 34, boxShadow: `0 0 18px ${accent}aa`,
+          width: 'min(220px, 40vw)', height: 'min(220px, 40vw)', borderRadius: '50%',
+          background: `radial-gradient(circle at 38% 30%, ${accent}, ${accent}66)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 'min(120px, 22vw)',
+          boxShadow: `0 0 50px ${accent}aa, inset 0 6px 20px rgba(0,0,0,0.4)`,
+          border: `4px solid ${accent}`,
         }}>👾</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 22, fontWeight: 900, color: '#fff' }}>
-            {monster.name}
-            <span className="rarity-badge" style={{ background: RARITY_COLORS[def.rarity], color: '#000', marginLeft: 8 }}>
-              {def.rarity}
+
+        <div style={{ fontSize: 26, fontWeight: 900, color: '#fff', textAlign: 'center' }}>
+          {monster.name}
+          <span className="rarity-badge" style={{ background: RARITY_COLORS[def.rarity], color: '#000', marginLeft: 8 }}>
+            {def.rarity}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', gap: 6 }}>
+          {def.elements.map(el => (
+            <span key={el} style={{
+              padding: '3px 10px', borderRadius: 6, fontSize: 12,
+              background: ELEMENT_CSS_COLORS[el] + '33',
+              border: `1px solid ${ELEMENT_CSS_COLORS[el]}`, color: ELEMENT_CSS_COLORS[el],
+            }}>{el}</span>
+          ))}
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <span style={{ fontSize: 34, fontWeight: 900, color: '#ffd700' }}>
+            Lv {monster.level}
+          </span>
+          <span style={{ fontSize: 15, color: '#888' }}> / 100</span>
+          <div style={{ fontSize: 13, color: '#bbb' }}>{monster.stage}</div>
+        </div>
+
+        {/* Level-up: feed progress (4 cycles per level) + Füttern button. */}
+        <div style={{
+          width: '100%', maxWidth: 320,
+          background: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 12,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: '#ccc' }}>
+              {monster.level >= 100 ? 'MAX LEVEL' : `Fortschritt zu Lv ${monster.level + 1}`}
             </span>
+            <span style={{ fontSize: 11, color: '#888' }}>{feedsDone}/4</span>
           </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-            {def.elements.map(el => (
-              <span key={el} style={{
-                padding: '2px 8px', borderRadius: 4, fontSize: 11,
-                background: ELEMENT_CSS_COLORS[el] + '33',
-                border: `1px solid ${ELEMENT_CSS_COLORS[el]}`, color: ELEMENT_CSS_COLORS[el],
-              }}>{el}</span>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} style={{
+                flex: 1, height: 10, borderRadius: 4,
+                background: i < feedsDone ? '#4488ff' : '#333',
+              }} />
             ))}
           </div>
+          <button className="btn btn-primary" style={{ width: '100%' }}
+            disabled={!canFeed}
+            onClick={() => feedMonster(instanceId, feedCost)}>
+            {monster.level >= 100 ? 'Max-Level erreicht' : `🌾 Füttern (${feedCost})`}
+          </button>
+          {nextStage && (
+            evoReady ? (
+              <button className="btn btn-purple" style={{ width: '100%', marginTop: 8 }}
+                onClick={() => evolveMonster(instanceId)}>
+                ✨ Entwickeln zu {getEvolutionStageName(monster.defId, nextStage)}
+              </button>
+            ) : (
+              <div style={{ fontSize: 11, color: '#888', textAlign: 'center', marginTop: 8 }}>
+                Entwicklung ({getEvolutionStageName(monster.defId, nextStage)}) bei Lv {EVOLUTION_LEVELS[nextStage]}
+              </div>
+            )
+          )}
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 12, color: '#aaa' }}>Level</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: '#ffd700' }}>
-            {monster.level}<span style={{ fontSize: 13, color: '#888' }}>/100</span>
+      </div>
+
+      {/* ── RIGHT: info / skills card with tabs ────────────────────── */}
+      <div className="mdetail-right">
+        <div className="mdetail-card">
+          <div className="mdetail-tabs">
+            {(['info', 'skills'] as Tab[]).map(t => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`mdetail-tab ${tab === t ? 'mdetail-tab--on' : ''}`}>
+                {t === 'info' ? 'INFO' : 'SKILLS'}
+              </button>
+            ))}
           </div>
-          <div style={{ fontSize: 11, color: '#bbb' }}>{monster.stage}</div>
-        </div>
-        <button className="close-btn" style={{ position: 'static', marginLeft: 4 }} onClick={onClose}>✕</button>
-      </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        {(['info', 'skills'] as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            flex: 1, padding: '10px', border: 'none', cursor: 'pointer',
-            background: tab === t ? 'rgba(119,68,204,0.4)' : 'transparent',
-            color: tab === t ? '#fff' : '#999', fontWeight: 900, fontSize: 14,
-            borderBottom: tab === t ? '3px solid #ffd700' : '3px solid transparent',
-          }}>{t === 'info' ? 'INFO' : 'SKILLS'}</button>
-        ))}
-      </div>
-
-      <div style={{ padding: 16, overflowY: 'auto' }}>
+          <div className="mdetail-body">
         {tab === 'info' ? (
           <>
             {/* Stats at this level */}
@@ -154,43 +191,8 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
               "{def.lore}"
             </div>
 
-            {/* Feed progress (4 cycles per level) */}
-            <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: '#ccc' }}>Fortschritt zu Level {monster.level + 1}</span>
-                <span style={{ fontSize: 11, color: '#888' }}>{feedsDone}/4 Fütterungen</span>
-              </div>
-              <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-                {[0, 1, 2, 3].map(i => (
-                  <div key={i} style={{
-                    flex: 1, height: 10, borderRadius: 4,
-                    background: i < feedsDone ? '#4488ff' : '#333',
-                  }} />
-                ))}
-              </div>
-              <button className="btn btn-primary" style={{ width: '100%' }}
-                disabled={!canFeed}
-                onClick={() => feedMonster(instanceId, feedCost)}>
-                {monster.level >= 100 ? 'Max-Level' : `🌾 Füttern (${feedCost})`}
-              </button>
-            </div>
-
-            {/* Evolution */}
-            {nextStage && (
-              evoReady ? (
-                <button className="btn btn-purple" style={{ width: '100%', marginTop: 10 }}
-                  onClick={() => evolveMonster(instanceId)}>
-                  ✨ Entwickeln zu {getEvolutionStageName(monster.defId, nextStage)}
-                </button>
-              ) : (
-                <div style={{ fontSize: 11, color: '#888', textAlign: 'center', marginTop: 10 }}>
-                  Nächste Entwicklung ({getEvolutionStageName(monster.defId, nextStage)}) bei Lv {EVOLUTION_LEVELS[nextStage]}
-                </div>
-              )
-            )}
-
             {/* Sell + Remove */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               {monster.habitatId && (
                 <button className="btn btn-danger" style={{ flex: 1 }}
                   onClick={() => { removeFromHabitat(instanceId); }}>
@@ -270,6 +272,8 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
             )}
           </>
         )}
+          </div>
+        </div>
       </div>
     </div>
   );

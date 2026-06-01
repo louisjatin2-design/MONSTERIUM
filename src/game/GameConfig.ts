@@ -21,7 +21,11 @@ export const GameConfig: Phaser.Types.Core.GameConfig = {
   parent: 'game-container',
   scene: [Boot, Preload, MainMenu, Island, Battle, TimingBarScene, AimClickScene, ButtonSequenceScene, MashButtonScene, SwipePathScene],
   scale: {
-    mode: Phaser.Scale.FIT,
+    // RESIZE: the canvas always fills its parent (the full screen) in BOTH
+    // portrait and landscape — no letterbox bars. Scenes lay themselves out
+    // from this.scale.width/height, and the Island camera picks a fit-zoom so
+    // the world frames nicely at any aspect ratio.
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: 1280,
     height: 720,
