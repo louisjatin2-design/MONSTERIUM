@@ -64,6 +64,10 @@ export class Island extends Phaser.Scene {
   // viewport (so portrait phones can still see the whole island + neighbours).
   private MIN_ZOOM = 0.4;
   private readonly MAX_ZOOM = 2.4;
+  // How far a pointer may move and still count as a tap (not a pan). Fingers
+  // wobble several px during a normal tap, so this must be generous on touch —
+  // a too-small value made buildings feel un-tappable on phones.
+  private readonly DRAG_SLOP = 16;
 
   // Debounce handle for viewport resize / orientation-change relayouts.
   private resizeTimer?: Phaser.Time.TimerEvent;
@@ -177,7 +181,7 @@ export class Island extends Phaser.Scene {
         if (this.overlayDragging) {
           const dx = p.x - this.dragStartX;
           const dy = p.y - this.dragStartY;
-          if (Math.abs(dx) + Math.abs(dy) > 6) this.dragMoved = true;
+          if (Math.hypot(dx, dy) > this.DRAG_SLOP) this.dragMoved = true;
           this.overlayPanX = this.camStartX + dx;
           this.overlayPanY = this.camStartY + dy;
           this.applyOverlayTransform();
@@ -189,7 +193,7 @@ export class Island extends Phaser.Scene {
         const z = this.cameras.main.zoom;
         const dx = (p.x - this.dragStartX) / z;
         const dy = (p.y - this.dragStartY) / z;
-        if (Math.abs(p.x - this.dragStartX) + Math.abs(p.y - this.dragStartY) > 6) this.dragMoved = true;
+        if (Math.hypot(p.x - this.dragStartX, p.y - this.dragStartY) > this.DRAG_SLOP) this.dragMoved = true;
         this.cameras.main.scrollX = this.camStartX - dx;
         this.cameras.main.scrollY = this.camStartY - dy;
       } else {
