@@ -7,6 +7,7 @@ import type {
 import { MONSTER_DEFS } from '@data/monsters';
 import { BUILDING_DEFS } from '@data/buildings';
 import { ISLAND_DEFS } from '@data/islands';
+import { OBSTACLE_DEFS } from '@data/obstacles';
 import { RARITY_HATCH_TIME_SEC, RARITY_BREED_TIME_SEC, RARITY_RANK } from '@data/rarities';
 import { calculateXpToLevel, calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
 import {
@@ -61,6 +62,8 @@ interface GameStoreState {
   lastBreedPair: { parent1Id: string; parent2Id: string } | null;
   unlockedIslands: string[];
   islandFragments: Record<string, number>;
+  // Keys ("islandId:tileX,tileY") of terrain obstacles the player has cleared.
+  clearedObstacles: string[];
   storyProgress: number;
   pokedexSeen: string[];
   currentIslandId: string;
@@ -142,6 +145,8 @@ interface GameStoreActions {
   advanceStory: () => void;
   unlockIsland: (islandId: string) => void;
   purchaseIsland: (islandId: string) => boolean;
+  /** Clear a terrain obstacle for gold, granting its one-off reward. */
+  clearObstacle: (islandId: string, tileX: number, tileY: number) => boolean;
   setCurrentIsland: (islandId: string) => void;
   addPokedexEntry: (defId: string) => void;
   setTutorialStep: (step: number) => void;
@@ -252,6 +257,7 @@ const INITIAL_STATE: GameStoreState = {
   lastBreedPair: null,
   unlockedIslands: ['emerald_isle'],
   islandFragments: {},
+  clearedObstacles: [],
   storyProgress: 0,
   pokedexSeen: ['flameling', 'aquapup'],
   currentIslandId: 'emerald_isle',
@@ -878,6 +884,25 @@ export const useGameStore = create<GameStore>()(
         return true;
       },
 
+      clearObstacle: (islandId, tileX, tileY) => {
+        const key = `${islandId}:${tileX},${tileY}`;
+        if (get().clearedObstacles.includes(key)) return false;
+        const placement = ISLAND_DEFS[islandId]?.obstacles?.find(
+          o => o.tileX === tileX && o.tileY === tileY,
+        );
+        if (!placement) return false;
+        const od = OBSTACLE_DEFS[placement.defId];
+        if (!od) return false;
+        if (!get().spendGold(od.clearCost)) return false;
+        set((s) => {
+          s.clearedObstacles.push(key);
+          if (od.clearReward.gold) s.gold += od.clearReward.gold;
+          if (od.clearReward.food) s.food += od.clearReward.food;
+        });
+        if (od.clearReward.xp) get().addPlayerXp(od.clearReward.xp);
+        return true;
+      },
+
       setCurrentIsland: (islandId) => {
         set((s) => { s.currentIslandId = islandId; });
       },
@@ -955,8 +980,14 @@ export const useGameStore = create<GameStore>()(
     })),
     {
       name: 'monsterium-save',
-      version: 7,
-      migrate: (persisted: any, _version: number) => {
+      version: 8,
+      migrate: (persisted: any, version: number) => {
+        // v8: one-time hard reset — wipe every existing save back to a fresh
+        // start (all players reset to 0). Any save below v8 is discarded and
+        // replaced with the initial state.
+        if (version < 8) {
+          return structuredClone(INITIAL_STATE);
+        }
         if (persisted && typeof persisted === 'object') {
           // v1→v2: single activeBreeding slot became an array.
           if (!Array.isArray(persisted.activeBreedings)) {
@@ -983,6 +1014,10 @@ export const useGameStore = create<GameStore>()(
           // Egg storage (Lager). Existing incubating eggs keep running.
           if (!Array.isArray(persisted.storedEggs)) {
             persisted.storedEggs = [];
+          }
+          // Cleared-obstacle tracking.
+          if (!Array.isArray(persisted.clearedObstacles)) {
+            persisted.clearedObstacles = [];
           }
           if (Array.isArray(persisted.eggs)) {
             for (const e of persisted.eggs) {
