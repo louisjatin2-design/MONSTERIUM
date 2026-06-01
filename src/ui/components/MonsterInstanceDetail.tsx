@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useGameStore } from '@store/gameStore';
 import { MONSTER_DEFS } from '@data/monsters';
 import { ATTACKS } from '@data/attacks';
@@ -28,7 +28,6 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const food      = useGameStore(s => s.food);
   const gold      = useGameStore(s => s.gold);
   const diamonds  = useGameStore(s => s.diamonds);
-  const feedMonster = useGameStore(s => s.feedMonster);
   const sellMonster = useGameStore(s => s.sellMonster);
   const evolveMonster = useGameStore(s => s.evolveMonster);
   const removeFromHabitat = useGameStore(s => s.removeFromHabitat);
@@ -37,6 +36,50 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const trainAttack = useGameStore(s => s.trainAttack);
   const [tab, setTab] = useState<Tab>('info');
   const [openMove, setOpenMove] = useState<string | null>(null);
+
+  // Hold-to-feed: keep the button pressed to feed repeatedly, getting
+  // exponentially faster the longer it's held. Each tick reads the latest
+  // store state directly so it always uses the current level/cost/food and
+  // stops the moment food runs out or max level is reached.
+  const FEED_START_DELAY = 360; // ms before the first auto-repeat
+  const FEED_MIN_DELAY   = 40;  // fastest possible repeat
+  const FEED_ACCEL       = 0.82; // each repeat 18% faster (exponential ramp)
+  const holdTimer = useRef<number | null>(null);
+  const holdDelay = useRef(FEED_START_DELAY);
+
+  const stopFeeding = useCallback(() => {
+    if (holdTimer.current !== null) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  }, []);
+
+  // Perform one feed if affordable; returns false when it can't feed anymore.
+  const feedOnce = useCallback(() => {
+    const st = useGameStore.getState();
+    const m = st.monsters[instanceId];
+    if (!m || m.level >= 100) return false;
+    const cost = calculateFeedCost(m.level);
+    if (st.food < cost) return false;
+    st.feedMonster(instanceId, cost);
+    return true;
+  }, [instanceId]);
+
+  const feedTick = useCallback(() => {
+    if (!feedOnce()) { stopFeeding(); return; }
+    holdDelay.current = Math.max(FEED_MIN_DELAY, holdDelay.current * FEED_ACCEL);
+    holdTimer.current = window.setTimeout(feedTick, holdDelay.current);
+  }, [feedOnce, stopFeeding]);
+
+  const startFeeding = useCallback(() => {
+    stopFeeding();
+    if (!feedOnce()) return; // single tap feeds once
+    holdDelay.current = FEED_START_DELAY;
+    holdTimer.current = window.setTimeout(feedTick, holdDelay.current);
+  }, [feedOnce, feedTick, stopFeeding]);
+
+  // Always clean up a running hold timer on unmount.
+  useEffect(() => stopFeeding, [stopFeeding]);
 
   if (!monster) return null;
   const def = MONSTER_DEFS[monster.defId];
@@ -128,10 +171,13 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
               }} />
             ))}
           </div>
-          <button className="btn btn-primary" style={{ width: '100%' }}
+          <button className="btn btn-primary" style={{ width: '100%', touchAction: 'none', userSelect: 'none' }}
             disabled={!canFeed}
-            onClick={() => feedMonster(instanceId, feedCost)}>
-            {monster.level >= 100 ? 'Max-Level erreicht' : `🌾 Füttern (${feedCost})`}
+            onPointerDown={startFeeding}
+            onPointerUp={stopFeeding}
+            onPointerLeave={stopFeeding}
+            onPointerCancel={stopFeeding}>
+            {monster.level >= 100 ? 'Max-Level erreicht' : `🌾 Füttern halten (${feedCost})`}
           </button>
           {nextStage && (
             evoReady ? (
