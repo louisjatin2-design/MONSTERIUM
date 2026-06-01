@@ -144,13 +144,14 @@ export function gainUltCharge(c: BattleCombatant, damageDealt: number): void {
   c.ultCharge = Math.min(100, c.ultCharge + Math.floor(damageDealt * 0.22));
 }
 
-// How much charge an ult needs before it can be used. Weaker ults (less base
-// power) charge faster by requiring less charge; stronger ults need more.
-// Ult power currently spans ~2.6 (weak) to ~5.5 (strong) → cost 45..100.
-export function ultChargeCostFor(power: number): number {
-  const MIN_POWER = 2.6, MAX_POWER = 5.5;
-  const MIN_COST = 45, MAX_COST = 100;
-  const t = Math.max(0, Math.min(1, (power - MIN_POWER) / (MAX_POWER - MIN_POWER)));
+// How much charge a monster's ULTIMA needs before it can fire. The ult's base
+// damage scales with the monster's attack stat, so monsters with a weaker ult
+// (lower attack) charge faster by requiring less charge; hard hitters need
+// closer to a full bar. Attack stat typically spans ~80 (weak) to ~280 (strong).
+export function ultChargeCostFor(attackStat: number): number {
+  const MIN_ATK = 80, MAX_ATK = 280;
+  const MIN_COST = 50, MAX_COST = 100;
+  const t = Math.max(0, Math.min(1, (attackStat - MIN_ATK) / (MAX_ATK - MIN_ATK)));
   return Math.round(MIN_COST + t * (MAX_COST - MIN_COST));
 }
 
@@ -187,5 +188,24 @@ export function buildCombatant(
     equippedMoveIds,
     name,
     ultCharge: 0,
+    moveCooldowns: {},
   };
+}
+
+// How many rounds a move must recharge after use. Strong/OP attacks get a
+// cooldown so they can't be spammed; an explicit MoveDef.cooldown wins.
+export function getMoveCooldown(move: { power: number; cooldown?: number }): number {
+  if (typeof move.cooldown === 'number') return move.cooldown;
+  if (move.power >= 2.4) return 3;
+  if (move.power >= 2.0) return 2;
+  if (move.power >= 1.7) return 1;
+  return 0;
+}
+
+// Tick every cooldown on a combatant down by one round (called once per round).
+export function tickMoveCooldowns(c: BattleCombatant): void {
+  for (const id of Object.keys(c.moveCooldowns)) {
+    c.moveCooldowns[id] = Math.max(0, (c.moveCooldowns[id] ?? 0) - 1);
+    if (c.moveCooldowns[id] === 0) delete c.moveCooldowns[id];
+  }
 }

@@ -10,6 +10,7 @@ interface HatcheryPanelProps { onClose: () => void; }
 
 export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
   const eggs = useGameStore(s => s.eggs);
+  const storedEggCount = useGameStore(s => s.storedEggs.length);
   const speedUpEgg = useGameStore(s => s.speedUpEgg);
   const eggCap = useGameStore(s => s.eggCapacity);
   const gold = useGameStore(s => s.gold);
@@ -32,6 +33,12 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
     <div className="panel panel-modal panel-w-sm" style={{ padding: 20 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🥚 Hatchery</div>
+
+      {/* Egg storage shortcut */}
+      <button className="btn btn-gold" style={{ width: '100%', marginBottom: 12, fontSize: 13 }}
+        onClick={() => EventBus.emit(GameEvents.OPEN_STORAGE, {})}>
+        📦 Ei-Lager öffnen{storedEggCount > 0 ? ` (${storedEggCount})` : ''}
+      </button>
 
       {/* Capacity + upgrade */}
       {hatchery && (
@@ -58,7 +65,9 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
 
       {eggs.length === 0 && (
         <div style={{ color: '#666', fontSize: 14, textAlign: 'center', padding: 20 }}>
-          No eggs yet! Go to the Breeding Station to create some.
+          {storedEggCount > 0
+            ? `📦 ${storedEggCount} Ei${storedEggCount === 1 ? '' : 'er'} im Lager — öffne das Lager, um eines auszubrüten!`
+            : 'Noch keine Eier! Züchte welche an der Brutstation.'}
         </div>
       )}
 

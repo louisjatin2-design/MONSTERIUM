@@ -81,6 +81,9 @@ export interface MoveDef {
   description: string;
   // 'aoe' hits every enemy; 'single' (default) hits one chosen target.
   targeting?: AttackTargeting;
+  // Rounds this move must recharge after use before it can be picked again.
+  // Optional; if omitted it's derived from power (strong moves get a cooldown).
+  cooldown?: number;
 }
 
 export interface BuildingLevelData {
@@ -141,6 +144,9 @@ export interface Egg {
   hatcherySlot: number;
   isUnique: boolean;
   parentIds?: [string, string];
+  // When true the egg sits in the Lager (storage) and is NOT incubating; the
+  // player must move it to the hatchery (which starts the timer) or sell it.
+  inStorage: boolean;
 }
 
 export interface BattleCombatant {
@@ -158,6 +164,8 @@ export interface BattleCombatant {
   equippedMoveIds: string[];
   name: string;
   ultCharge: number;  // 0–100; fills as this monster deals damage
+  // moveId → rounds remaining before it can be used again (strong moves only).
+  moveCooldowns: Record<string, number>;
 }
 
 export interface BreedOutcome {

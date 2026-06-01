@@ -52,7 +52,7 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
 
   const handleBreed = () => {
     if (!parent1 || !parent2 || parent1Id === parent2Id) return;
-    if (eggs.length >= eggCap()) { alert('Die Brutstation (Eier) ist voll! Lass zuerst Eier schlüpfen.'); return; }
+    // Bred eggs go to the (uncapped) Lager, so only the breeding-slot count limits us.
     if (slotsFree <= 0) { alert('Alle Brut-Slots sind belegt! Werte die Brutstation auf.'); return; }
     const ok = startBreeding(parent1Id, parent2Id);
     if (ok) { setParent1Id(''); setParent2Id(''); }

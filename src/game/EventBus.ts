@@ -24,4 +24,8 @@ export const GameEvents = {
   HATCH_EGG_ANIMATE:    'hatch-egg-animate',   // React → Phaser: play hatch anim
   OPEN_MONSTER_DETAIL:  'open-monster-detail', // open a single monster's detail screen
   OPEN_ASSIGN_HABITAT:  'open-assign-habitat', // forced habitat assignment after hatching
+  OPEN_LEVEL_REWARDS:   'open-level-rewards',  // account level-up reward panel
+  OPEN_QUESTS:          'open-quests',         // quest/objectives panel
+  OPEN_EVENTS:          'open-events',         // limited-time briefing events
+  OPEN_STORAGE:         'open-storage',        // egg storage (Lager)
 } as const;

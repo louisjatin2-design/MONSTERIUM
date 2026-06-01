@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type {
-  MonsterInstance, BuildingInstance, Egg, EvolutionStage, ActiveBreeding,
+  MonsterInstance, BuildingInstance, Egg, EvolutionStage, ActiveBreeding, BuildingCategory,
 } from '@gtypes/game';
 import { MONSTER_DEFS } from '@data/monsters';
 import { BUILDING_DEFS } from '@data/buildings';
@@ -15,10 +15,35 @@ import {
   EVOLUTION_LEVELS,
 } from '@systems/ProgressionSystem';
 import { calculateBreedOutcomes, rollBreedOutcome } from '@systems/BreedingSystem';
+import { getLevelReward } from '@data/levelRewards';
+import { QUESTS, isQuestComplete, type QuestProgressSnapshot } from '@data/quests';
 
 // Simple uid generator (no external dependency)
 function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+// Build the snapshot quests measure progress against, from live store state.
+function buildQuestSnapshot(s: GameStoreState): QuestProgressSnapshot {
+  const owned = Object.values(s.monsters);
+  let highestRarity = 0;
+  for (const m of owned) {
+    const def = MONSTER_DEFS[m.defId];
+    if (def) highestRarity = Math.max(highestRarity, RARITY_RANK[def.rarity]);
+  }
+  return {
+    playerLevel: s.playerLevel,
+    storyProgress: s.storyProgress,
+    pokedexSeen: s.pokedexSeen.length,
+    monstersOwned: owned.length,
+    buildingsBuilt: s.stats.buildingsBuilt,
+    feeds: s.stats.feeds,
+    breeds: s.stats.breeds,
+    hatches: s.stats.hatches,
+    collects: s.stats.collects,
+    battlesWon: s.stats.battlesWon,
+    highestRarityOwned: highestRarity,
+  };
 }
 
 interface GameStoreState {
@@ -30,7 +55,8 @@ interface GameStoreState {
   trophies: number;
   monsters: Record<string, MonsterInstance>;
   buildings: Record<string, BuildingInstance>;
-  eggs: Egg[];
+  eggs: Egg[];           // incubating in the hatchery (timer running)
+  storedEggs: Egg[];     // in the Lager (storage) — not incubating
   activeBreedings: ActiveBreeding[];
   lastBreedPair: { parent1Id: string; parent2Id: string } | null;
   unlockedIslands: string[];
@@ -39,6 +65,17 @@ interface GameStoreState {
   pokedexSeen: string[];
   currentIslandId: string;
   tutorialStep: number; // 0 = not started; advances through the onboarding flow
+  pendingLevelRewards: number[]; // account levels reached but not yet claimed
+  // Lifetime counters that drive quests (never reset).
+  stats: {
+    feeds: number;
+    breeds: number;
+    hatches: number;
+    collects: number;
+    battlesWon: number;
+    buildingsBuilt: number;
+  };
+  claimedQuests: string[]; // quest ids already collected
 }
 
 interface GameStoreActions {
@@ -55,6 +92,9 @@ interface GameStoreActions {
   placeBuilding: (defId: string, islandId: string, tileX: number, tileY: number) => string | null;
   upgradeBuilding: (instanceId: string) => void;
   collectGold: (instanceId: string) => void;
+  /** Collect accumulated output from every building (optionally limited to a
+   *  category, e.g. 'Habitat' for gold or 'Farm' for food). Returns totals. */
+  collectAll: (category?: BuildingCategory) => { gold: number; food: number };
 
   // Monsters
   addMonster: (defId: string, isUnique?: boolean, parentIds?: [string, string]) => MonsterInstance;
@@ -79,6 +119,10 @@ interface GameStoreActions {
 
   // Eggs & Breeding
   addEgg: (monsterDefId: string, hatchTimeOverrideSec?: number, isUnique?: boolean, parentIds?: [string, string]) => void;
+  /** Move a stored egg into the hatchery (starts the incubation timer). */
+  moveEggToHatchery: (eggId: string) => boolean;
+  /** Sell a stored egg for gold. Returns the gold gained (0 if not found). */
+  sellEgg: (eggId: string) => number;
   hatchEgg: (eggId: string) => MonsterInstance | null;
   hatchEggToHabitat: (eggId: string, habitatId: string) => MonsterInstance | null;
   eligibleHabitats: (monsterDefId: string) => string[];
@@ -92,6 +136,8 @@ interface GameStoreActions {
 
   // Progression
   addPlayerXp: (amount: number) => void;
+  /** Claim the account-level reward for a level in pendingLevelRewards. */
+  claimLevelReward: (level: number) => void;
   addTrophies: (amount: number) => void;
   advanceStory: () => void;
   unlockIsland: (islandId: string) => void;
@@ -102,6 +148,12 @@ interface GameStoreActions {
 
   // Timer tick (called every second from App.tsx)
   tickTimers: () => void;
+
+  // Quests
+  /** Mark a battle as won (drives combat quests). */
+  recordBattleWon: () => void;
+  /** Claim a completed quest's reward. Returns false if not claimable. */
+  claimQuest: (questId: string) => boolean;
 
   // Cheat codes — returns true if the code was valid.
   redeemCheatCode: (code: string) => boolean;
@@ -195,6 +247,7 @@ const INITIAL_STATE: GameStoreState = {
     },
   },
   eggs: [],
+  storedEggs: [],
   activeBreedings: [],
   lastBreedPair: null,
   unlockedIslands: ['emerald_isle'],
@@ -203,6 +256,9 @@ const INITIAL_STATE: GameStoreState = {
   pokedexSeen: ['flameling', 'aquapup'],
   currentIslandId: 'emerald_isle',
   tutorialStep: 0,
+  pendingLevelRewards: [],
+  stats: { feeds: 0, breeds: 0, hatches: 0, collects: 0, battlesWon: 0, buildingsBuilt: 0 },
+  claimedQuests: [],
 };
 
 export const useGameStore = create<GameStore>()(
@@ -257,6 +313,7 @@ export const useGameStore = create<GameStore>()(
             goldAccumulated: 0,
             lastCollectedMs: Date.now(),
           };
+          s.stats.buildingsBuilt += 1;
         });
         return id;
       },
@@ -289,7 +346,33 @@ export const useGameStore = create<GameStore>()(
           }
           s.buildings[instanceId].goldAccumulated = 0;
           s.buildings[instanceId].lastCollectedMs = Date.now();
+          s.stats.collects += 1;
         });
+      },
+
+      collectAll: (category) => {
+        let goldGained = 0;
+        let foodGained = 0;
+        set((s) => {
+          for (const b of Object.values(s.buildings)) {
+            const def = BUILDING_DEFS[b.defId];
+            if (!def) continue;
+            if (category && def.category !== category) continue;
+            const amount = Math.floor(b.goldAccumulated);
+            if (amount <= 0) continue;
+            if (def.category === 'Farm') {
+              s.food += amount;
+              foodGained += amount;
+            } else {
+              s.gold += amount;
+              goldGained += amount;
+            }
+            b.goldAccumulated = 0;
+            b.lastCollectedMs = Date.now();
+            s.stats.collects += 1;
+          }
+        });
+        return { gold: goldGained, food: foodGained };
       },
 
       addMonster: (defId, isUnique = false, parentIds) => {
@@ -335,6 +418,7 @@ export const useGameStore = create<GameStore>()(
         set((s) => {
           const m = s.monsters[instanceId];
           if (m.level >= 100) return;
+          s.stats.feeds += 1;
           // Each feed grants a quarter of the XP needed for the current level,
           // so a level always takes 4 feed cycles (Monster-Legends style steps).
           m.xp += Math.ceil(calculateXpToLevel(m.level) / 4);
@@ -537,23 +621,62 @@ export const useGameStore = create<GameStore>()(
         if (!def) return;
         const hatchSec = hatchTimeOverrideSec ?? RARITY_HATCH_TIME_SEC[def.rarity];
         const now = Date.now();
+        // New eggs land in the Lager (storage) first — not incubating. We encode
+        // the intended hatch duration in hatchStartMs/hatchEndMs so the timer can
+        // begin when the player moves the egg into the hatchery.
         const egg: Egg = {
           id: 'egg_' + uid(),
           monsterDefId,
           hatchStartMs: now,
           hatchEndMs: now + hatchSec * 1000,
-          hatcherySlot: get().eggs.length,
+          hatcherySlot: 0,
           isUnique,
           parentIds,
+          inStorage: true,
         };
-        set((s) => { s.eggs.push(egg); });
+        set((s) => { s.storedEggs.push(egg); });
+      },
+
+      // Move a stored egg into the hatchery, starting its incubation timer.
+      // Returns false if the hatchery is full.
+      moveEggToHatchery: (eggId) => {
+        const egg = get().storedEggs.find(e => e.id === eggId);
+        if (!egg) return false;
+        if (get().eggs.length >= get().eggCapacity()) return false;
+        const durationMs = Math.max(0, egg.hatchEndMs - egg.hatchStartMs);
+        const now = Date.now();
+        set((s) => {
+          s.storedEggs = s.storedEggs.filter(e => e.id !== eggId);
+          s.eggs.push({
+            ...egg,
+            inStorage: false,
+            hatchStartMs: now,
+            hatchEndMs: now + durationMs,
+            hatcherySlot: s.eggs.length,
+          });
+        });
+        return true;
+      },
+
+      // Sell a stored egg for gold based on its monster's rarity.
+      sellEgg: (eggId) => {
+        const egg = get().storedEggs.find(e => e.id === eggId);
+        if (!egg) return 0;
+        const def = MONSTER_DEFS[egg.monsterDefId];
+        const rank = def ? RARITY_RANK[def.rarity] : 0;
+        const value = Math.floor(120 * Math.pow(2.1, rank)) * (egg.isUnique ? 2 : 1);
+        set((s) => {
+          s.storedEggs = s.storedEggs.filter(e => e.id !== eggId);
+          s.gold += value;
+        });
+        return value;
       },
 
       hatchEgg: (eggId) => {
         const egg = get().eggs.find(e => e.id === eggId);
         if (!egg) return null;
         if (Date.now() < egg.hatchEndMs) return null;
-        set((s) => { s.eggs = s.eggs.filter(e => e.id !== eggId); });
+        set((s) => { s.eggs = s.eggs.filter(e => e.id !== eggId); s.stats.hatches += 1; });
         return get().addMonster(egg.monsterDefId, egg.isUnique, egg.parentIds);
       },
 
@@ -583,7 +706,7 @@ export const useGameStore = create<GameStore>()(
         if (!egg) return null;
         if (Date.now() < egg.hatchEndMs) return null;
         if (!get().eligibleHabitats(egg.monsterDefId).includes(habitatId)) return null;
-        set((s) => { s.eggs = s.eggs.filter(e => e.id !== eggId); });
+        set((s) => { s.eggs = s.eggs.filter(e => e.id !== eggId); s.stats.hatches += 1; });
         const monster = get().addMonster(egg.monsterDefId, egg.isUnique, egg.parentIds);
         get().assignToHabitat(monster.instanceId, habitatId);
         return monster;
@@ -643,6 +766,7 @@ export const useGameStore = create<GameStore>()(
             resultIsUnique,
           });
           s.lastBreedPair = { parent1Id, parent2Id };
+          s.stats.breeds += 1;
         });
         // Breeding together deepens the bond between the two parents.
         get().updateRelationship(parent1Id, parent2Id, 50);
@@ -653,7 +777,8 @@ export const useGameStore = create<GameStore>()(
         const ab = get().activeBreedings.find(b => b.id === id);
         if (!ab) return;
         if (Date.now() < ab.endMs) return;
-        if (get().eggs.length >= get().eggCapacity()) return;
+        // Collected eggs go to the Lager (storage), which is uncapped — the
+        // hatchery capacity only limits how many can incubate at once.
         get().addEgg(ab.resultDefId, undefined, ab.resultIsUnique, [ab.parent1Id, ab.parent2Id]);
         set((s) => { s.activeBreedings = s.activeBreedings.filter(b => b.id !== id); });
       },
@@ -681,9 +806,48 @@ export const useGameStore = create<GameStore>()(
           while (s.playerXp >= xpNeeded) {
             s.playerXp -= xpNeeded;
             s.playerLevel++;
+            // Queue a claimable account-level reward for the new level.
+            if (!s.pendingLevelRewards.includes(s.playerLevel)) {
+              s.pendingLevelRewards.push(s.playerLevel);
+            }
             xpNeeded = calculateXpToLevel(s.playerLevel);
           }
         });
+      },
+
+      claimLevelReward: (level) => {
+        if (!get().pendingLevelRewards.includes(level)) return;
+        const reward = getLevelReward(level);
+        set((s) => {
+          s.gold += reward.gold;
+          s.diamonds += reward.diamonds;
+          s.food += reward.food;
+          s.pendingLevelRewards = s.pendingLevelRewards.filter(l => l !== level);
+        });
+        // Milestone egg goes to the storage/hatchery flow via addEgg.
+        if (reward.eggDefId) {
+          get().addEgg(reward.eggDefId, undefined, false);
+        }
+      },
+
+      recordBattleWon: () => {
+        set((s) => { s.stats.battlesWon += 1; });
+      },
+
+      claimQuest: (questId) => {
+        const quest = QUESTS.find(q => q.id === questId);
+        if (!quest) return false;
+        if (get().claimedQuests.includes(questId)) return false;
+        const snap = buildQuestSnapshot(get());
+        if (!isQuestComplete(quest, snap)) return false;
+        set((s) => {
+          if (quest.reward.gold) s.gold += quest.reward.gold;
+          if (quest.reward.diamonds) s.diamonds += quest.reward.diamonds;
+          if (quest.reward.food) s.food += quest.reward.food;
+          s.claimedQuests.push(questId);
+        });
+        if (quest.reward.eggDefId) get().addEgg(quest.reward.eggDefId, undefined, false);
+        return true;
       },
 
       addTrophies: (amount) => {
@@ -791,7 +955,7 @@ export const useGameStore = create<GameStore>()(
     })),
     {
       name: 'monsterium-save',
-      version: 4,
+      version: 7,
       migrate: (persisted: any, _version: number) => {
         if (persisted && typeof persisted === 'object') {
           // v1→v2: single activeBreeding slot became an array.
@@ -804,6 +968,26 @@ export const useGameStore = create<GameStore>()(
           // Add the tutorial flag; existing players skip onboarding.
           if (typeof persisted.tutorialStep !== 'number') {
             persisted.tutorialStep = 99;
+          }
+          // Account level-up reward queue (existing players start empty).
+          if (!Array.isArray(persisted.pendingLevelRewards)) {
+            persisted.pendingLevelRewards = [];
+          }
+          // Quest stat counters + claimed-quest list.
+          if (!persisted.stats || typeof persisted.stats !== 'object') {
+            persisted.stats = { feeds: 0, breeds: 0, hatches: 0, collects: 0, battlesWon: 0, buildingsBuilt: 0 };
+          }
+          if (!Array.isArray(persisted.claimedQuests)) {
+            persisted.claimedQuests = [];
+          }
+          // Egg storage (Lager). Existing incubating eggs keep running.
+          if (!Array.isArray(persisted.storedEggs)) {
+            persisted.storedEggs = [];
+          }
+          if (Array.isArray(persisted.eggs)) {
+            for (const e of persisted.eggs) {
+              if (typeof e.inStorage !== 'boolean') e.inStorage = false;
+            }
           }
           // Add knownMoveIds and maxAttackSlots to existing monsters.
           if (persisted.monsters && typeof persisted.monsters === 'object') {

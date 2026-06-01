@@ -11,6 +11,7 @@ import {
   isEvolutionReady, getNextEvolutionStage, getEvolutionStageName,
   EVOLUTION_LEVELS, getTrainableAttacks, getAttackTrainCost,
 } from '@systems/ProgressionSystem';
+import { getMoveCooldown } from '@systems/BattleSystem';
 import type { MonsterInstance } from '@gtypes/game';
 import { EventBus, GameEvents } from '@game/EventBus';
 import '../styles/global.css';
@@ -29,6 +30,8 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   const gold            = useGameStore(s => s.gold);
   const diamonds        = useGameStore(s => s.diamonds);
   const collectGold     = useGameStore(s => s.collectGold);
+  const collectAll      = useGameStore(s => s.collectAll);
+  const buildings       = useGameStore(s => s.buildings);
   const feedMonster     = useGameStore(s => s.feedMonster);
   const sellMonster     = useGameStore(s => s.sellMonster);
   const assignToHabitat = useGameStore(s => s.assignToHabitat);
@@ -65,11 +68,27 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
       </div>
 
       {building.goldAccumulated > 0 && (
-        <button className="btn btn-gold" style={{ width: '100%', marginBottom: 10 }}
+        <button className="btn btn-gold" style={{ width: '100%', marginBottom: 6 }}
           onClick={() => collectGold(instanceId)}>
           Sammeln 🪙 {Math.floor(building.goldAccumulated)}
         </button>
       )}
+
+      {/* Collect-all across every habitat */}
+      {(() => {
+        const totalHabitatGold = Math.floor(
+          Object.values(buildings)
+            .filter(b => BUILDING_DEFS[b.defId]?.category === 'Habitat')
+            .reduce((sum, b) => sum + b.goldAccumulated, 0),
+        );
+        if (totalHabitatGold <= 0) return null;
+        return (
+          <button className="btn btn-info" style={{ width: '100%', marginBottom: 10, fontSize: 12 }}
+            onClick={() => collectAll('Habitat')}>
+            🪙 Alle Habitate einsammeln (+{totalHabitatGold})
+          </button>
+        );
+      })()}
 
       {!building.constructionEndMs && (
         <div style={{ marginBottom: 10 }}>
@@ -178,6 +197,9 @@ function AttackSubPanel({ monster, gold, diamonds, onEquip, onUnequip, onTrain }
               <b>{mv.name}</b>
               <span style={{ color: ELEMENT_CSS_COLORS[mv.element] ?? '#aaa', marginLeft: 5 }}>{mv.element}</span>
               <span style={{ color: '#888', marginLeft: 5 }}>{mv.power}×</span>
+              {getMoveCooldown(mv) > 0 && (
+                <span style={{ color: '#cc8844', marginLeft: 5 }}>⏳{getMoveCooldown(mv)}</span>
+              )}
             </span>
             {replaceMode ? (
               <button style={{ fontSize: 10, padding: '1px 6px', background: '#334', color: '#aaa', border: '1px solid #556', borderRadius: 3, cursor: 'pointer' }}
@@ -217,6 +239,9 @@ function AttackSubPanel({ monster, gold, diamonds, onEquip, onUnequip, onTrain }
                   <b>{mv.name}</b>
                   <span style={{ color: ELEMENT_CSS_COLORS[mv.element] ?? '#aaa', marginLeft: 5 }}>{mv.element}</span>
                   <span style={{ color: '#888', marginLeft: 5 }}>{mv.power}×</span>
+                  {getMoveCooldown(mv) > 0 && (
+                    <span style={{ color: '#cc8844', marginLeft: 5 }}>⏳{getMoveCooldown(mv)}</span>
+                  )}
                 </span>
                 {canEquipDirect ? (
                   <button style={{ fontSize: 10, padding: '1px 6px', background: '#003300', color: '#66ff66', border: '1px solid #005500', borderRadius: 3, cursor: 'pointer' }}
@@ -253,6 +278,9 @@ function AttackSubPanel({ monster, gold, diamonds, onEquip, onUnequip, onTrain }
                   <b>{mv.name}</b>
                   <span style={{ color: ELEMENT_CSS_COLORS[mv.element] ?? '#aaa', marginLeft: 5 }}>{mv.element}</span>
                   <span style={{ color: '#888', marginLeft: 5 }}>{mv.power}×</span>
+                  {getMoveCooldown(mv) > 0 && (
+                    <span style={{ color: '#cc8844', marginLeft: 5 }}>⏳{getMoveCooldown(mv)}</span>
+                  )}
                 </span>
                 <button
                   disabled={!affordable}

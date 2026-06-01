@@ -8,7 +8,8 @@ import { ELEMENT_CSS_COLORS, ELEMENT_COLORS } from '@data/elements';
 import { TRAITS } from '@data/traits';
 import {
   buildTurnQueue, calculateDamage, generateAiAttack,
-  processStatusTick, buildCombatant, gainUltCharge,
+  processStatusTick, buildCombatant, gainUltCharge, ultChargeCostFor,
+  getMoveCooldown, tickMoveCooldowns,
 } from '@systems/BattleSystem';
 import type { BattleCombatant, MoveDef, MinigameType } from '@gtypes/game';
 
@@ -362,7 +363,8 @@ export class Battle extends Phaser.Scene {
   private updateUltBar(c: BattleCombatant) {
     const ub = this.ultBars.get(c.instanceId);
     if (!ub) return;
-    const ratio = Math.min(1, c.ultCharge / 100);
+    const cost = ultChargeCostFor(c.attackStat);
+    const ratio = Math.min(1, c.ultCharge / cost);
     ub.bar.width = ub.bg.width * ratio;
     const ready = ratio >= 1;
     ub.bar.setFillStyle(ready ? 0xffffff : 0xffd700);
@@ -414,6 +416,8 @@ export class Battle extends Phaser.Scene {
           this.updateHpBar(c);
           this.showDamageText(c.instanceId, dot, 0xff8800);
         }
+        // Recharge strong moves by one round.
+        tickMoveCooldowns(c);
         this.updateStatusDisplay(c);
       }
       if (checkVictory()) return;
@@ -461,7 +465,7 @@ export class Battle extends Phaser.Scene {
     this.statusText.setText(`${attacker.name}'s turn — choose an attack:`);
 
     // ── ULTIMA button (only when fully charged) ──────────────────────────────
-    if (attacker.ultCharge >= 100) {
+    if (attacker.ultCharge >= ultChargeCostFor(attacker.attackStat)) {
       const ux = width / 2, uy = height - 116;
       const ubtn = this.add.rectangle(ux, uy, 280, 36, 0x664400)
         .setStrokeStyle(3, 0xffd700)
@@ -484,23 +488,29 @@ export class Battle extends Phaser.Scene {
       const x = width / 2 - 180 + i * 120;
       const y = height - 70;
 
-      const btn = this.add.rectangle(x, y, 100, 44, 0x334477)
-        .setStrokeStyle(2, 0xaabbff)
-        .setInteractive({ useHandCursor: true });
+      const cdLeft = attacker.moveCooldowns[moveId] ?? 0;
+      const onCooldown = cdLeft > 0;
+      const maxCd = getMoveCooldown(moveDef);
+
+      const btn = this.add.rectangle(x, y, 100, 44, onCooldown ? 0x2a2a33 : 0x334477)
+        .setStrokeStyle(2, onCooldown ? 0x555566 : 0xaabbff);
+      if (!onCooldown) btn.setInteractive({ useHandCursor: true });
 
       const txt = this.add.text(x, y - 8, moveDef.name, {
-        fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
+        fontSize: '11px', color: onCooldown ? '#777788' : '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
-      const powerTxt = this.add.text(x, y + 8, `⚡${moveDef.power}x`, {
-        fontSize: '10px', color: '#aaccff',
-      }).setOrigin(0.5);
+      const powerTxt = this.add.text(x, y + 8,
+        onCooldown ? `⏳ ${cdLeft} Runde${cdLeft > 1 ? 'n' : ''}` : `⚡${moveDef.power}x${maxCd > 0 ? ` · CD ${maxCd}` : ''}`,
+        { fontSize: '10px', color: onCooldown ? '#cc8844' : '#aaccff' }).setOrigin(0.5);
 
       const container = this.add.container(0, 0, [btn, txt, powerTxt]);
       this.attackButtons.push(container);
 
-      btn.on('pointerdown', () => this.onMoveSelected(moveId, attacker));
-      btn.on('pointerover', () => btn.setFillStyle(0x4455aa));
-      btn.on('pointerout', () => btn.setFillStyle(0x334477));
+      if (!onCooldown) {
+        btn.on('pointerdown', () => this.onMoveSelected(moveId, attacker));
+        btn.on('pointerover', () => btn.setFillStyle(0x4455aa));
+        btn.on('pointerout', () => btn.setFillStyle(0x334477));
+      }
     });
   }
 
@@ -600,13 +610,16 @@ export class Battle extends Phaser.Scene {
     if (!target) { this.endBattle(true); return; }
 
     this.applyAttack(this.currentAttacker, target, moveDef, data.score);
+    // Put strong moves on cooldown so they can't be used every turn.
+    const cd = getMoveCooldown(moveDef);
+    if (cd > 0) this.currentAttacker.moveCooldowns[this.selectedMoveId] = cd + 1;
     this.turnIndex++;
     this.time.delayedCall(800, () => this.nextTurn());
   };
 
   private doAiTurn(attacker: BattleCombatant) {
     // AI uses ult when charged (70% chance so it's not always predictable)
-    if (attacker.ultCharge >= 100 && Math.random() < 0.7) {
+    if (attacker.ultCharge >= ultChargeCostFor(attacker.attackStat) && Math.random() < 0.7) {
       const aiScore1 = 50 + Math.random() * 40;
       const aiScore2 = 50 + Math.random() * 40;
       this.applyUlt(attacker, aiScore1, aiScore2);
@@ -615,7 +628,10 @@ export class Battle extends Phaser.Scene {
       return;
     }
 
-    const { moveId, accuracy } = generateAiAttack(attacker.equippedMoveIds);
+    // The AI only picks from moves that aren't recharging.
+    const readyMoves = attacker.equippedMoveIds.filter(id => (attacker.moveCooldowns[id] ?? 0) === 0);
+    const pool = readyMoves.length > 0 ? readyMoves : attacker.equippedMoveIds;
+    const { moveId, accuracy } = generateAiAttack(pool);
     const moveDef = ATTACKS[moveId];
     if (!moveDef) { this.turnIndex++; this.nextTurn(); return; }
     this.enemyUsedMoveIds.add(moveId); // track for post-battle learn
@@ -625,6 +641,8 @@ export class Battle extends Phaser.Scene {
     const target = players[Math.floor(Math.random() * players.length)];
 
     this.applyAttack(attacker, target, moveDef, accuracy);
+    const cd = getMoveCooldown(moveDef);
+    if (cd > 0) attacker.moveCooldowns[moveId] = cd + 1;
     this.turnIndex++;
     this.time.delayedCall(800, () => this.nextTurn());
   }
@@ -904,6 +922,7 @@ export class Battle extends Phaser.Scene {
       store.addGold(rewardGold);
       store.addPlayerXp(rewardXp);
       store.addTrophies(20);
+      store.recordBattleWon();
       if (rewardDiamonds > 0) store.addDiamonds(rewardDiamonds);
 
       // Advance the story if this was the next uncleared story battle.

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useGameStore } from '@store/gameStore';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { QUESTS, isQuestComplete, type QuestProgressSnapshot } from '@data/quests';
 import '../styles/global.css';
 
 interface HUDProps {
@@ -17,6 +18,23 @@ export function HUD(_props: HUDProps) {
   const trophies    = useGameStore(s => s.trophies);
   const playerLevel = useGameStore(s => s.playerLevel);
   const playerXp    = useGameStore(s => s.playerXp);
+  const pendingRewards = useGameStore(s => s.pendingLevelRewards.length);
+  const claimableQuests = useGameStore(s => {
+    const snap: QuestProgressSnapshot = {
+      playerLevel: s.playerLevel,
+      storyProgress: s.storyProgress,
+      pokedexSeen: s.pokedexSeen.length,
+      monstersOwned: Object.keys(s.monsters).length,
+      buildingsBuilt: s.stats.buildingsBuilt,
+      feeds: s.stats.feeds,
+      breeds: s.stats.breeds,
+      hatches: s.stats.hatches,
+      collects: s.stats.collects,
+      battlesWon: s.stats.battlesWon,
+      highestRarityOwned: 0,
+    };
+    return QUESTS.filter(q => !s.claimedQuests.includes(q.id) && isQuestComplete(q, snap)).length;
+  });
 
   const redeemCheatCode = useGameStore(s => s.redeemCheatCode);
 
@@ -36,26 +54,32 @@ export function HUD(_props: HUDProps) {
     <div style={{
       position: 'absolute', top: 0, left: 0, right: 0,
       height: 60,
-      background: 'linear-gradient(180deg, #1e0a3c 0%, #120521 100%)',
-      borderBottom: '2px solid #7744cc',
+      background: 'linear-gradient(180deg, #2a1450 0%, #1a0a32 55%, #120521 100%)',
+      borderBottom: '2px solid #8a5cd8',
       display: 'flex',
       alignItems: 'center',
       padding: '0 10px',
       gap: 6,
       pointerEvents: 'auto',
       zIndex: 200,
-      boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+      boxShadow: '0 4px 18px rgba(0,0,0,0.7), inset 0 -2px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12)',
     }}>
-      {/* Player avatar + level badge */}
-      <div style={{ position: 'relative', flexShrink: 0 }}>
+      {/* Player avatar + level badge — opens account rewards */}
+      <button
+        onClick={() => EventBus.emit(GameEvents.OPEN_LEVEL_REWARDS, {})}
+        title="Account-Belohnungen"
+        style={{
+          position: 'relative', flexShrink: 0,
+          background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+        }}>
         <div style={{
           width: 44, height: 44,
           borderRadius: '50%',
           background: 'linear-gradient(135deg, #7744cc, #4422aa)',
-          border: '2px solid #bb88ff',
+          border: pendingRewards > 0 ? '2px solid #ffd700' : '2px solid #bb88ff',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 22,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+          boxShadow: pendingRewards > 0 ? '0 0 12px #ffd700' : '0 2px 8px rgba(0,0,0,0.5)',
         }}>⭐</div>
         {/* Level badge */}
         <div style={{
@@ -67,7 +91,19 @@ export function HUD(_props: HUDProps) {
           whiteSpace: 'nowrap',
           boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
         }}>{playerLevel}</div>
-      </div>
+        {/* Pending-reward gift badge */}
+        {pendingRewards > 0 && (
+          <div style={{
+            position: 'absolute', top: -5, right: -5,
+            background: '#ff3355', color: '#fff',
+            borderRadius: '50%', width: 18, height: 18,
+            fontSize: 11, fontWeight: 900,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid #fff',
+            boxShadow: '0 0 6px #ff3355',
+          }}>🎁</div>
+        )}
+      </button>
 
       {/* XP bar */}
       <div className="hud-xp" style={{ width: 48, flexShrink: 0 }}>
@@ -97,6 +133,45 @@ export function HUD(_props: HUDProps) {
         <span style={{ fontSize: 16 }}>🏆</span>
         <span style={{ color: '#ffd700', fontWeight: 900, fontSize: 13 }}>{trophies}</span>
       </div>
+
+      {/* Quests */}
+      <button
+        onClick={() => EventBus.emit(GameEvents.OPEN_QUESTS, {})}
+        title="Aufträge"
+        style={{
+          position: 'relative',
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          borderRadius: 8, color: '#fff', width: 34, height: 34,
+          cursor: 'pointer', fontSize: 18, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+        📋
+        {claimableQuests > 0 && (
+          <span style={{
+            position: 'absolute', top: -5, right: -5,
+            background: '#44dd66', color: '#04210f',
+            borderRadius: '50%', minWidth: 16, height: 16, padding: '0 3px',
+            fontSize: 10, fontWeight: 900,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid #fff',
+          }}>{claimableQuests}</span>
+        )}
+      </button>
+
+      {/* Events */}
+      <button
+        onClick={() => EventBus.emit(GameEvents.OPEN_EVENTS, {})}
+        title="Events"
+        style={{
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          borderRadius: 8, color: '#fff', width: 34, height: 34,
+          cursor: 'pointer', fontSize: 18, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>🎪</button>
 
       {/* Islands */}
       <button
