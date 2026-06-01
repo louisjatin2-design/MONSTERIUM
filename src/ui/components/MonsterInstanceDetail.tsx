@@ -7,7 +7,10 @@ import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { TRAITS } from '@data/traits';
 import { instanceStats } from '@systems/StatSystem';
 import { calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
-import { getUnlockedMoves } from '@systems/ProgressionSystem';
+import {
+  isEvolutionReady, getNextEvolutionStage, getEvolutionStageName,
+  EVOLUTION_LEVELS, getTrainableAttacks, getAttackTrainCost,
+} from '@systems/ProgressionSystem';
 import type { MoveDef } from '@gtypes/game';
 import '../styles/global.css';
 
@@ -22,8 +25,15 @@ type Tab = 'info' | 'skills';
 export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const monster   = useGameStore(s => s.monsters[instanceId]);
   const food      = useGameStore(s => s.food);
+  const gold      = useGameStore(s => s.gold);
+  const diamonds  = useGameStore(s => s.diamonds);
   const feedMonster = useGameStore(s => s.feedMonster);
   const sellMonster = useGameStore(s => s.sellMonster);
+  const evolveMonster = useGameStore(s => s.evolveMonster);
+  const removeFromHabitat = useGameStore(s => s.removeFromHabitat);
+  const equipAttack = useGameStore(s => s.equipAttack);
+  const unequipAttack = useGameStore(s => s.unequipAttack);
+  const trainAttack = useGameStore(s => s.trainAttack);
   const [tab, setTab] = useState<Tab>('info');
   const [openMove, setOpenMove] = useState<string | null>(null);
 
@@ -43,7 +53,18 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const feedsDone = Math.min(4, Math.round(monster.xp / perFeed));
 
   const equipped = monster.equippedMoveIds.map(id => ATTACKS[id]).filter(Boolean) as MoveDef[];
-  const unlockedIds = getUnlockedMoves(monster.defId, monster.level);
+  // Known but not currently equipped.
+  const benched = monster.knownMoveIds
+    .filter(id => !monster.equippedMoveIds.includes(id))
+    .map(id => ATTACKS[id]).filter(Boolean) as MoveDef[];
+  const slotsFree = monster.equippedMoveIds.length < monster.maxAttackSlots;
+  // Attacks this monster could still learn (element-matched, not yet known).
+  const trainable = getTrainableAttacks(monster)
+    .map(id => ATTACKS[id]).filter(Boolean) as MoveDef[];
+
+  // Evolution state.
+  const evoReady = isEvolutionReady(monster);
+  const nextStage = getNextEvolutionStage(monster.stage);
 
   return (
     <div className="panel" style={{
@@ -153,44 +174,99 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
               </button>
             </div>
 
-            {/* Sell */}
-            <button className="btn btn-gold" style={{ width: '100%', marginTop: 10 }}
-              onClick={() => {
-                if (confirm(`${monster.name} (Lv ${monster.level}) für 🪙 ${sellValue} verkaufen?`)) {
-                  sellMonster(instanceId);
-                  onClose();
-                }
-              }}>
-              Verkaufen 🪙 {sellValue}
-            </button>
+            {/* Evolution */}
+            {nextStage && (
+              evoReady ? (
+                <button className="btn btn-purple" style={{ width: '100%', marginTop: 10 }}
+                  onClick={() => evolveMonster(instanceId)}>
+                  ✨ Entwickeln zu {getEvolutionStageName(monster.defId, nextStage)}
+                </button>
+              ) : (
+                <div style={{ fontSize: 11, color: '#888', textAlign: 'center', marginTop: 10 }}>
+                  Nächste Entwicklung ({getEvolutionStageName(monster.defId, nextStage)}) bei Lv {EVOLUTION_LEVELS[nextStage]}
+                </div>
+              )
+            )}
+
+            {/* Sell + Remove */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              {monster.habitatId && (
+                <button className="btn btn-danger" style={{ flex: 1 }}
+                  onClick={() => { removeFromHabitat(instanceId); }}>
+                  Aus Lebensraum
+                </button>
+              )}
+              <button className="btn btn-gold" style={{ flex: 1 }}
+                onClick={() => {
+                  if (confirm(`${monster.name} (Lv ${monster.level}) für 🪙 ${sellValue} verkaufen?`)) {
+                    sellMonster(instanceId);
+                    onClose();
+                  }
+                }}>
+                Verkaufen 🪙 {sellValue}
+              </button>
+            </div>
           </>
         ) : (
           <>
-            {/* Skills: equipped + unlockable, click for full detail */}
+            {/* Equipped attacks — with unequip */}
             <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 900, marginBottom: 8 }}>
-              AUSGERÜSTETE ATTACKEN
+              AUSGERÜSTET ({monster.equippedMoveIds.length}/{monster.maxAttackSlots})
             </div>
-            {equipped.length === 0 && <div style={{ color: '#777', fontSize: 13 }}>Noch keine Attacken.</div>}
+            {equipped.length === 0 && <div style={{ color: '#777', fontSize: 13 }}>Noch keine Attacken ausgerüstet.</div>}
             {equipped.map(move => (
               <MoveRow key={move.id} move={move} open={openMove === move.id}
-                onToggle={() => setOpenMove(openMove === move.id ? null : move.id)} />
+                onToggle={() => setOpenMove(openMove === move.id ? null : move.id)}
+                action={equipped.length > 1 ? {
+                  label: 'Ablegen', cls: 'btn-danger',
+                  onClick: () => unequipAttack(instanceId, move.id),
+                } : undefined} />
             ))}
 
-            <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 900, margin: '14px 0 8px' }}>
-              MOVE-POOL
-            </div>
-            {def.availableMoveIds.map((id, i) => {
-              const move = ATTACKS[id];
-              if (!move) return null;
-              const unlocked = unlockedIds.includes(id);
-              return (
-                <div key={id} style={{ opacity: unlocked ? 1 : 0.5 }}>
-                  <MoveRow move={move} open={openMove === 'pool_' + id}
-                    lockedLabel={unlocked ? undefined : `Schaltet auf Lv ${i * 5} frei`}
-                    onToggle={() => setOpenMove(openMove === 'pool_' + id ? null : 'pool_' + id)} />
+            {/* Known but benched — with equip (if a slot is free) */}
+            {benched.length > 0 && (
+              <>
+                <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 900, margin: '14px 0 8px' }}>
+                  GELERNT (auf der Bank)
                 </div>
-              );
-            })}
+                {benched.map(move => (
+                  <MoveRow key={move.id} move={move} open={openMove === 'b_' + move.id}
+                    onToggle={() => setOpenMove(openMove === 'b_' + move.id ? null : 'b_' + move.id)}
+                    action={slotsFree ? {
+                      label: 'Ausrüsten', cls: 'btn-primary',
+                      onClick: () => equipAttack(instanceId, move.id),
+                    } : undefined} />
+                ))}
+              </>
+            )}
+
+            {/* Learn new attacks (element-matched), each priced individually */}
+            {trainable.length > 0 && (
+              <>
+                <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 900, margin: '14px 0 8px' }}>
+                  LERNBARE ATTACKEN
+                </div>
+                {trainable.map(move => {
+                  const cost = getAttackTrainCost(move.id);
+                  const afford = gold >= cost.gold && diamonds >= cost.diamonds;
+                  const costLabel = cost.diamonds > 0 ? `💎 ${cost.diamonds}` : `🪙 ${cost.gold}`;
+                  return (
+                    <MoveRow key={move.id} move={move} open={openMove === 't_' + move.id}
+                      onToggle={() => setOpenMove(openMove === 't_' + move.id ? null : 't_' + move.id)}
+                      action={{
+                        label: `Lernen ${costLabel}`, cls: afford ? 'btn-info' : 'btn-info',
+                        disabled: !afford,
+                        onClick: () => trainAttack(instanceId, move.id),
+                      }} />
+                  );
+                })}
+              </>
+            )}
+            {!slotsFree && (
+              <div style={{ fontSize: 11, color: '#888', textAlign: 'center', marginTop: 8 }}>
+                Alle Slots belegt — entwickle das Monster für mehr Attacken-Slots.
+              </div>
+            )}
           </>
         )}
       </div>
@@ -213,8 +289,9 @@ function StatPill({ icon, label, value, color }: { icon: string; label: string; 
   );
 }
 
-function MoveRow({ move, open, onToggle, lockedLabel }: {
+function MoveRow({ move, open, onToggle, lockedLabel, action }: {
   move: MoveDef; open: boolean; onToggle: () => void; lockedLabel?: string;
+  action?: { label: string; cls: string; onClick: () => void; disabled?: boolean };
 }) {
   const color = ELEMENT_CSS_COLORS[move.element];
   const isAoe = move.targeting === 'aoe';
@@ -236,7 +313,16 @@ function MoveRow({ move, open, onToggle, lockedLabel }: {
           }}>{isAoe ? 'ALLE' : 'EINZEL'}</span>
           {lockedLabel && <span style={{ fontSize: 10, color: '#888', marginLeft: 6 }}>🔒 {lockedLabel}</span>}
         </div>
-        <span style={{ fontSize: 11, color }}>{move.element} · {move.power}×</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color }}>{move.element} · {move.power}×</span>
+          {action && (
+            <button className={`btn ${action.cls}`} style={{ padding: '2px 8px', fontSize: 10 }}
+              disabled={action.disabled}
+              onClick={e => { e.stopPropagation(); action.onClick(); }}>
+              {action.label}
+            </button>
+          )}
+        </div>
       </div>
       {open && (
         <div style={{ padding: '0 10px 10px', fontSize: 12, color: '#bbb', lineHeight: 1.5 }}>

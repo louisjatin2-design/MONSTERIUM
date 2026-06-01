@@ -144,6 +144,17 @@ export function gainUltCharge(c: BattleCombatant, damageDealt: number): void {
   c.ultCharge = Math.min(100, c.ultCharge + Math.floor(damageDealt * 0.22));
 }
 
+// How much charge a monster's ULTIMA needs before it can fire. The ult's base
+// damage scales with the monster's attack stat, so monsters with a weaker ult
+// (lower attack) charge faster by requiring less charge; hard hitters need
+// closer to a full bar. Attack stat typically spans ~80 (weak) to ~280 (strong).
+export function ultChargeCostFor(attackStat: number): number {
+  const MIN_ATK = 80, MAX_ATK = 280;
+  const MIN_COST = 50, MAX_COST = 100;
+  const t = Math.max(0, Math.min(1, (attackStat - MIN_ATK) / (MAX_ATK - MIN_ATK)));
+  return Math.round(MIN_COST + t * (MAX_COST - MIN_COST));
+}
+
 export function generateAiAttack(
   equippedMoves: string[]
 ): { moveId: string; accuracy: number } {
