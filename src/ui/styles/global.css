@@ -132,8 +132,56 @@
    RESPONSIVE LAYOUT — cross-device support
    ═══════════════════════════════════════════════════════ */
 
-/* Smooth iOS momentum scroll */
-.panel { -webkit-overflow-scrolling: touch; }
+/* Smooth iOS momentum scroll + keep panel scroll from chaining to the page */
+.panel {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* Re-enable text selection inside panels would hurt the game feel, but make
+     sure taps register instantly (no 300ms delay) on the controls within. */
+  touch-action: pan-y;
+}
+
+/* Touch targets should never trigger the grey iOS flash or a callout menu. */
+button, .btn, .monster-card, .close-btn {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+/* ── Floating side rails (ActionRail / SideRail) ──────────────────────
+   Positioned via CSS so media queries can shrink them on short (landscape
+   phone) viewports, and so they clear the iOS notch via safe-area insets. */
+.floating-rail {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  z-index: 140;
+  pointer-events: none;
+}
+.floating-rail--left {
+  left: calc(8px + env(safe-area-inset-left, 0px));
+  gap: 9px;
+  transform: translateY(-50%);
+  transform-origin: left center;
+}
+.floating-rail--right {
+  right: calc(8px + env(safe-area-inset-right, 0px));
+  gap: 10px;
+  transform: translateY(-50%);
+  transform-origin: right center;
+}
+
+/* Short viewports: scale the whole rail down so all buttons stay on-screen
+   and reachable instead of overflowing past the top/bottom edges. */
+@media (max-height: 560px) {
+  .floating-rail--left  { transform: translateY(-50%) scale(0.84); }
+  .floating-rail--right { transform: translateY(-50%) scale(0.84); }
+}
+@media (max-height: 440px) {
+  .floating-rail--left  { transform: translateY(-50%) scale(0.72); }
+  .floating-rail--right { transform: translateY(-50%) scale(0.72); }
+}
 
 /* ── Floating side panel: right-anchored, collapses to full-width on mobile.
    The full-width top/bottom bars are gone — the world fills the whole screen
@@ -208,10 +256,22 @@
   /* Modal panels: stretch toward the screen edges instead of centring in a
      tall portrait viewport, leaving small top/bottom margins.            */
   .panel.panel-modal {
-    top:       16px  !important;
-    bottom:    16px  !important;
+    top:       calc(16px + env(safe-area-inset-top, 0px))    !important;
+    bottom:    calc(16px + env(safe-area-inset-bottom, 0px)) !important;
     transform: translateX(-50%) !important;
     max-height: none !important;
     overflow-y: auto;
+  }
+}
+
+/* Landscape phones: side panels must clear the notch and stay short enough
+   to scroll within the (short) viewport instead of running off the edges. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .panel-side,
+  .panel-side-narrow,
+  .panel-side-xs {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    right: calc(8px + env(safe-area-inset-right, 0px));
+    max-height: calc(var(--vh, 1vh) * 100 - 16px);
   }
 }

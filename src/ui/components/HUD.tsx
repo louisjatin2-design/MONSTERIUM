@@ -42,7 +42,8 @@ export function HUD(_props: HUDProps) {
       position: 'absolute', top: 0, left: 0, right: 0,
       display: 'flex',
       alignItems: 'flex-start',
-      padding: '8px 10px',
+      // Pad past the iOS notch / status bar and rounded corners.
+      padding: 'calc(8px + env(safe-area-inset-top, 0px)) calc(10px + env(safe-area-inset-right, 0px)) 8px calc(10px + env(safe-area-inset-left, 0px))',
       gap: 8,
       pointerEvents: 'none',
       zIndex: 140,

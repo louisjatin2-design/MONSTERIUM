@@ -2,20 +2,51 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the game draw under iOS notches/home-bar (we pad
+         the UI back in with env(safe-area-inset-*)); locking the scale stops the
+         browser's pinch / double-tap page-zoom from fighting the in-game camera. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#3f8db8" />
     <title>MONSTERIUM</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { background: linear-gradient(180deg, #7cc8ea 0%, #5ab4e0 55%, #3f8db8 100%); overflow: hidden; width: 100%; height: 100%; }
+      html, body {
+        background: linear-gradient(180deg, #7cc8ea 0%, #5ab4e0 55%, #3f8db8 100%);
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        /* Kill the mobile-browser gestures that make a fullscreen game feel
+           broken: double-tap zoom, pull-to-refresh / rubber-band overscroll,
+           long-press text selection and the grey tap-highlight flash. */
+        touch-action: manipulation;
+        overscroll-behavior: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+        position: fixed;
+        overscroll-behavior-y: none;
+      }
       #root { position: fixed; top: 0; right: 0; bottom: 0; left: 0; }
+      /* The Phaser surface owns every touch inside it (drag-pan, pinch-zoom),
+         so block the browser from interpreting those gestures itself. */
+      #game-container, #game-container canvas { touch-action: none; }
     </style>
     <script>
-      // Fix iOS Safari 100vh bug — set CSS variable to real viewport height
+      // Fix iOS Safari 100vh bug — set CSS variable to real viewport height.
+      // Prefer visualViewport (tracks the address bar shrinking/growing) and
+      // also refresh on orientation changes so portrait/landscape stay correct.
       function setVH() {
-        document.documentElement.style.setProperty('--vh', window.innerHeight * 0.01 + 'px');
+        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        document.documentElement.style.setProperty('--vh', h * 0.01 + 'px');
       }
       setVH();
       window.addEventListener('resize', setVH);
+      window.addEventListener('orientationchange', function () { setTimeout(setVH, 200); });
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', setVH);
     </script>
   </head>
   <body>
