@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { PhaserGame } from '@ui/PhaserGame';
 import { HUD } from '@ui/components/HUD';
 import { BottomBar } from '@ui/components/BottomBar';
+import { SideRail } from '@ui/components/SideRail';
 import { BuildMenu } from '@ui/components/BuildMenu';
 import { HabitatPanel } from '@ui/components/HabitatPanel';
 import { BreedingPanel } from '@ui/components/BreedingPanel';
@@ -153,6 +154,7 @@ export default function App() {
       {!isBattleActive && (
         <>
           <HUD />
+          <SideRail />
           <BottomBar
             onAttack={() => setActivePanel({ type: 'story' })}
             onPokedex={() => setActivePanel({ type: 'pokedex' })}

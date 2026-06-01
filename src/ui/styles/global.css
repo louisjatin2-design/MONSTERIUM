@@ -116,6 +116,12 @@
   50%      { transform: translate(-50%, -50%) scale(1.12); }
 }
 
+/* Primary bottom-bar button gentle attention glow */
+@keyframes primaryPulse {
+  0%, 100% { box-shadow: 0 5px 14px rgba(255,90,60,0.45), inset 0 1px 0 rgba(255,255,255,0.3); }
+  50%      { box-shadow: 0 5px 20px rgba(255,140,60,0.8),  inset 0 1px 0 rgba(255,255,255,0.35); }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
@@ -133,10 +139,10 @@
 .panel-side {
   box-sizing: border-box;
   right: 16px;
-  top: 62px;
+  top: 70px;
   width: min(420px, calc(100vw - 32px));
   /* Use --vh to avoid iOS Safari address-bar bug */
-  max-height: calc(var(--vh, 1vh) * 100 - 152px);
+  max-height: calc(var(--vh, 1vh) * 100 - 170px);
   padding: 16px;
   overflow-y: auto;
 }
@@ -150,7 +156,7 @@
     right: 8px;
     left: 8px;
     width: auto;
-    max-height: calc(var(--vh, 1vh) * 100 - 155px);
+    max-height: calc(var(--vh, 1vh) * 100 - 172px);
   }
 }
 
@@ -195,7 +201,7 @@
   /* 1 ── Phaser canvas: override CENTER_BOTH, pin it just below the HUD */
   #game-container canvas {
     /* Phaser writes margin-top to vertically center; we move canvas to top */
-    margin-top: 62px !important;
+    margin-top: 64px !important;
   }
 
   /* 2 ── Side panels: open below the canvas, not covering it
@@ -204,16 +210,16 @@
   .panel-side,
   .panel-side-narrow,
   .panel-side-xs {
-    top: calc(66px + 56.25vw) !important;
-    max-height: calc(var(--vh, 1vh) * 100 - 56.25vw - 158px) !important;
-    /* 158 = 62 HUD + 84 BottomBar + 12 safety                         */
+    top: calc(68px + 56.25vw) !important;
+    max-height: calc(var(--vh, 1vh) * 100 - 56.25vw - 166px) !important;
+    /* 166 = 64 HUD + 90 BottomBar + 12 safety                         */
   }
 
   /* 3 ── Modal panels: stretch from just below HUD to just above BottomBar
           instead of centering in a mostly-empty portrait viewport       */
   .panel.panel-modal {
-    top:       62px  !important;
-    bottom:    84px  !important;
+    top:       64px  !important;
+    bottom:    90px  !important;
     /* Keep the left: 50% + translateX(-50%) horizontal centering
        but remove the vertical translate so top/bottom anchors work     */
     transform: translateX(-50%) !important;
