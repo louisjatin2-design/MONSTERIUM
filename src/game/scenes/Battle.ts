@@ -11,6 +11,7 @@ import {
   buildTurnQueue, calculateDamage, generateAiAttack,
   processStatusTick, buildCombatant, gainUltCharge, ultChargeCostFor,
   getMoveCooldown, tickMoveCooldowns, addStatusEffect,
+  earlyCampaignDamageBonus, campaignRewardMultiplier,
 } from '@systems/BattleSystem';
 import type { BattleCombatant, MoveDef, MinigameType } from '@gtypes/game';
 
@@ -691,6 +692,13 @@ export class Battle extends Phaser.Scene {
     this.time.delayedCall(800, () => this.nextTurn());
   }
 
+  // Early-campaign damage boost: only the player's monsters benefit, and only
+  // during the first 12 story battles (World 1). Arena fights and enemies get 1.
+  private campaignDamageMultiplierFor(attacker: BattleCombatant): number {
+    if (!attacker.isPlayer) return 1;
+    return earlyCampaignDamageBonus(this.data_.storyIndex);
+  }
+
   private applyAttack(attacker: BattleCombatant, target: BattleCombatant, move: MoveDef, score: number) {
     // Check blind
     if (attacker.statusEffects.some(e => e.effect === 'Blind') && Math.random() < 0.3) {
@@ -715,6 +723,9 @@ export class Battle extends Phaser.Scene {
       attackerStatuses: attacker.statusEffects,
       attackerCurrentHp: attacker.currentHp,
       attackerMaxHp: attacker.maxHp,
+      attackerLevel: attacker.level,
+      attackerRarityRank: RARITY_RANK[attackerDef.rarity],
+      campaignDamageMultiplier: this.campaignDamageMultiplierFor(attacker),
     });
 
     // Echo trait: hit twice at 60%
@@ -794,6 +805,9 @@ export class Battle extends Phaser.Scene {
       attackerStatuses: attacker.statusEffects,
       attackerCurrentHp: attacker.currentHp,
       attackerMaxHp: attacker.maxHp,
+      attackerLevel: attacker.level,
+      attackerRarityRank: RARITY_RANK[def.rarity],
+      campaignDamageMultiplier: this.campaignDamageMultiplierFor(attacker),
     });
 
     // Screen flash
@@ -964,9 +978,13 @@ export class Battle extends Phaser.Scene {
 
     if (victory) {
       const store = useGameStore.getState();
-      const rewardGold = this.data_.rewardGold ?? 200;
-      const rewardXp = this.data_.rewardXp ?? 300;
-      const rewardDiamonds = this.data_.rewardDiamonds ?? 0;
+      // Better campaign rewards: story victories pay out an uplifted amount,
+      // with an extra top-up during World 1. Arena fights pass no storyIndex
+      // and therefore keep their base rewards (multiplier = 1).
+      const rewardMult = campaignRewardMultiplier(this.data_.storyIndex);
+      const rewardGold = Math.round((this.data_.rewardGold ?? 200) * rewardMult);
+      const rewardXp = Math.round((this.data_.rewardXp ?? 300) * rewardMult);
+      const rewardDiamonds = Math.round((this.data_.rewardDiamonds ?? 0) * rewardMult);
       store.addGold(rewardGold);
       store.addPlayerXp(rewardXp);
       store.addTrophies(20);

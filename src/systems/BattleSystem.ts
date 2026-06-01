@@ -83,12 +83,19 @@ export function calculateDamage(params: {
   attackerStatuses: ActiveStatusEffect[];
   attackerCurrentHp: number;
   attackerMaxHp: number;
+  // Scaling inputs — default to neutral so older callers keep their behaviour.
+  attackerLevel?: number;        // monster level (attacks scale with it)
+  attackerRarityRank?: number;   // RARITY_RANK of the attacker's species
+  campaignDamageMultiplier?: number; // early-campaign boost for the player
 }): number {
   const {
     attackerATK, movePower, minigameScore,
     attackerElement, defenderElements, defenderDEF,
     attackerTrait, attackerStatuses,
     attackerCurrentHp, attackerMaxHp,
+    attackerLevel = 1,
+    attackerRarityRank = 0,
+    campaignDamageMultiplier = 1,
   } = params;
 
   let atk = attackerATK;
@@ -106,10 +113,65 @@ export function calculateDamage(params: {
     defenderElements as Parameters<typeof getElementBonus>[1]
   );
 
+  // Attacks land harder the higher the monster's level and the rarer its
+  // species — on top of the raw stat scaling the combatant already carries.
+  const scale = levelRarityDamageScale(attackerLevel, attackerRarityRank);
+
   const damage = Math.floor(
     (atk * movePower * (minigameScore / 100) * (1 + elementBonus)) / defenderDEF * 10
+    * scale * Math.max(0, campaignDamageMultiplier)
   );
   return Math.max(0, damage);
+}
+
+// ── Campaign balance & scaling ──────────────────────────────────────────────
+
+// How many story battles count as the "early campaign" (all of World 1).
+export const EARLY_CAMPAIGN_BATTLES = 12;
+
+/**
+ * Player monsters hit harder during the first 12 campaign battles so new
+ * Hüter:innen can find their footing. The boost is strongest at the very first
+ * fight (+60% damage) and tapers smoothly to nothing once World 1 is cleared.
+ * Returns a neutral 1 for arena fights or any battle past the early campaign.
+ */
+export function earlyCampaignDamageBonus(storyIndex: number | undefined): number {
+  if (storyIndex === undefined || storyIndex < 0) return 1;
+  if (storyIndex >= EARLY_CAMPAIGN_BATTLES) return 1;
+  const t = storyIndex / EARLY_CAMPAIGN_BATTLES; // 0 → 1 across World 1
+  return 1 + 0.6 * (1 - t);
+}
+
+/**
+ * Attacks scale proportionally to the attacker's level and species rarity:
+ *   • +1.2% damage per level   (Lv 1 → +0%, Lv 100 → +~119%)
+ *   • +6%  damage per rarity rank (Common +0% … Transcendent +42%)
+ * Applies to every combatant so stronger, rarer monsters feel meaningfully
+ * more powerful than their raw stats alone would suggest.
+ */
+export function levelRarityDamageScale(level: number, rarityRank: number): number {
+  const levelScale  = 1 + Math.max(0, level - 1) * 0.012;
+  const rarityScale = 1 + Math.max(0, rarityRank) * 0.06;
+  return levelScale * rarityScale;
+}
+
+// Baseline uplift applied to every campaign victory reward (gold/XP/diamonds).
+export const CAMPAIGN_REWARD_MULTIPLIER = 1.5;
+
+/**
+ * Better campaign rewards: every story victory pays out 1.5× by default, with
+ * an extra top-up during World 1 (up to +50% more at the very first fight) so
+ * early progression feels generous. Non-campaign fights pass `undefined` and
+ * get no uplift.
+ */
+export function campaignRewardMultiplier(storyIndex: number | undefined): number {
+  if (storyIndex === undefined || storyIndex < 0) return 1;
+  let mult = CAMPAIGN_REWARD_MULTIPLIER;
+  if (storyIndex < EARLY_CAMPAIGN_BATTLES) {
+    const t = storyIndex / EARLY_CAMPAIGN_BATTLES; // 0 → 1 across World 1
+    mult += 0.5 * (1 - t);
+  }
+  return mult;
 }
 
 export function applyStatusEffect(
