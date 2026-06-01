@@ -35,10 +35,7 @@ export function AssignHabitatPanel({ eggId, onClose }: Props) {
   };
 
   return (
-    <div className="panel" style={{
-      left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-      width: 420, maxWidth: '94vw', padding: 20,
-    }}>
+    <div className="panel panel-modal panel-w-sm" style={{ padding: 20 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🐣 {def.name} schlüpft!</div>
 
