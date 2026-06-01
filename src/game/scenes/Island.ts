@@ -1479,10 +1479,10 @@ export class Island extends Phaser.Scene {
       .setOrigin(0.5);
     root.add(title);
     const hintText = moving
-      ? 'Ziehen = Karte bewegen · Mausrad / Pinch = Zoom · Grün = freies Feld · ESC = Abbrechen'
+      ? 'Ziehen = Karte bewegen · Pinch = Zoom · Grün = freies Feld · ✕ Fertig / ESC = Abbrechen'
       : browsing
-        ? 'Ziehen = Karte bewegen · Mausrad / Pinch = Zoom · Grün = freies Feld · ESC = Abbrechen'
-        : 'Ziehen = Karte bewegen · Mausrad / Pinch = Zoom · Grün = baubar · ESC = Abbrechen';
+        ? 'Ziehen = Karte bewegen · Pinch = Zoom · Grün = freies Feld · ✕ Fertig / ESC = Abbrechen'
+        : 'Ziehen = Karte bewegen · Pinch = Zoom · Grün = baubar · ✕ Fertig / ESC = Abbrechen';
     const hint = this.add.text(width / 2, height - 20, hintText,
       { fontSize: '12px', color: '#aabbcc' }).setOrigin(0.5);
     root.add(hint);
