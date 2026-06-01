@@ -1,0 +1,93 @@
+import type { StatusEffect } from '@gtypes/game';
+
+// How a status effect behaves at a glance — used for grouping and colouring.
+export type StatusCategory = 'dot' | 'control' | 'debuff';
+
+export interface StatusEffectDef {
+  id: StatusEffect;
+  /** German display name shown to the player. */
+  name: string;
+  icon: string;
+  /** Hex colour string, used for both CSS and Phaser badges. */
+  color: string;
+  category: StatusCategory;
+  /** Short German explanation of what the effect does. */
+  description: string;
+}
+
+// Single source of truth for how every status effect is presented and
+// described. Both the Phaser battle scene and the React UI read from here so
+// icons, colours and wording never drift apart.
+export const STATUS_EFFECTS: Record<StatusEffect, StatusEffectDef> = {
+  Burn: {
+    id: 'Burn',
+    name: 'Verbrennung',
+    icon: '🔥',
+    color: '#ff6b35',
+    category: 'dot',
+    description: 'Verliert 5% der maximalen HP pro Runde.',
+  },
+  Poison: {
+    id: 'Poison',
+    name: 'Vergiftung',
+    icon: '☠️',
+    color: '#9b59b6',
+    category: 'dot',
+    description: 'Verliert 7% der maximalen HP pro Runde.',
+  },
+  Freeze: {
+    id: 'Freeze',
+    name: 'Einfrieren',
+    icon: '🧊',
+    color: '#5dade2',
+    category: 'control',
+    description: 'Kann in der nächsten Runde nicht handeln.',
+  },
+  Stun: {
+    id: 'Stun',
+    name: 'Betäubung',
+    icon: '💫',
+    color: '#f1c40f',
+    category: 'control',
+    description: 'Kann in der nächsten Runde nicht handeln.',
+  },
+  Paralyze: {
+    id: 'Paralyze',
+    name: 'Lähmung',
+    icon: '⚡',
+    color: '#f39c12',
+    category: 'debuff',
+    description: 'Geschwindigkeit ist um 50% reduziert.',
+  },
+  Blind: {
+    id: 'Blind',
+    name: 'Blindheit',
+    icon: '🌫️',
+    color: '#95a5a6',
+    category: 'debuff',
+    description: '30% Chance, Angriffe zu verfehlen.',
+  },
+  DefDown: {
+    id: 'DefDown',
+    name: 'Verteidigung ↓',
+    icon: '🛡️',
+    color: '#e74c3c',
+    category: 'debuff',
+    description: 'Verteidigung ist um 25% gesenkt.',
+  },
+  AtkDown: {
+    id: 'AtkDown',
+    name: 'Angriff ↓',
+    icon: '⚔️',
+    color: '#c0392b',
+    category: 'debuff',
+    description: 'Angriff ist um 25% gesenkt.',
+  },
+};
+
+// Default number of rounds a freshly applied status effect lasts.
+export const STATUS_DEFAULT_ROUNDS = 3;
+
+export function getStatusDef(effect: StatusEffect): StatusEffectDef {
+  return STATUS_EFFECTS[effect];
+}
