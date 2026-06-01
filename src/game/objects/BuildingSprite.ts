@@ -137,21 +137,18 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     const HITH = def.category === 'Temple' ? 46 : def.category === 'Farm' ? 32
       : def.category === 'Habitat' ? 18 : 28 + Math.min(W, H) * 8;
 
-    // Construction overlay (darkened footprint + floating build-time countdown).
+    // Construction overlay (darkened footprint). The floating countdown label
+    // above is driven each tick by the scene (build AND upgrade timers).
     this.constructionOverlay = scene.add.graphics();
     this.constructionOverlay.fillStyle(0x000022, 0.55);
     this.constructionOverlay.fillPoints(ground, true);
-    this.clockText = scene.add.text(0, -(HITH + 18), '🏗️', {
+    this.clockText = scene.add.text(0, -(HITH + 18), '', {
       fontSize: '12px', color: '#ffe27a', fontStyle: 'bold',
       stroke: '#1a0a30', strokeThickness: 3, align: 'center',
       backgroundColor: '#000000aa', padding: { x: 5, y: 2 },
     }).setOrigin(0.5, 1);
-    const underConstruction = building.constructionEndMs !== null;
-    this.constructionOverlay.setVisible(underConstruction);
-    this.clockText.setVisible(underConstruction);
-    if (underConstruction && building.constructionEndMs !== null) {
-      this.updateConstructionTimer(building.constructionEndMs - Date.now());
-    }
+    this.constructionOverlay.setVisible(building.constructionEndMs !== null);
+    this.clockText.setVisible(false);
 
     this.add([shadow, g, ...extras, nameText, this.constructionOverlay, this.clockText]);
     scene.add.existing(this);
@@ -644,15 +641,21 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     extras.push(icon);
   }
 
+  // Only toggles the darkened footprint shown during initial construction.
   setUnderConstruction(isUnder: boolean) {
     this.constructionOverlay.setVisible(isUnder);
-    this.clockText.setVisible(isUnder);
   }
 
-  // Refresh the floating countdown shown above a building while it is built.
-  updateConstructionTimer(remainingMs: number) {
+  // Show the floating countdown above the building (used for both the initial
+  // build and later upgrades). `prefix` is an emoji distinguishing the two.
+  showBuildTimer(prefix: string, remainingMs: number) {
     const secs = Math.max(0, Math.ceil(remainingMs / 1000));
-    this.clockText.setText('🏗️ ' + formatBuildTime(secs));
+    this.clockText.setText(`${prefix} ${formatBuildTime(secs)}`);
+    this.clockText.setVisible(true);
+  }
+
+  hideBuildTimer() {
+    this.clockText.setVisible(false);
   }
 }
 

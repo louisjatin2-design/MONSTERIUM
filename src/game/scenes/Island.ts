@@ -15,6 +15,12 @@ import {
 } from '@game/iso';
 import type { BuildingInstance } from '@gtypes/game';
 
+// One island block in the 2D build overlay, in the inner world-container's
+// local coordinate space (top-left at ox/oy), used for manual hit-testing.
+interface OverlayIsland {
+  id: string; ox: number; oy: number; isActive: boolean; locked: boolean; cost: number;
+}
+
 // Per-island colour theme so each landmass in the world reads distinctly
 // (Monster-Legends style: lush, volcanic, oceanic, …).
 interface IslandTheme {
@@ -102,6 +108,10 @@ export class Island extends Phaser.Scene {
   private buildOverlayCells: Phaser.GameObjects.Rectangle[][] = [];
   private readonly BUILD_CELL = 24; // px per grid cell in the flat 2D view
   private suppressTapUntil = 0;     // ignore iso taps briefly after a 2D placement
+  // Layout of the 2D overlay in the inner "world" container's local space, so
+  // taps/hover can be hit-tested directly from the screen pointer (avoiding
+  // Phaser's offset input transform on a screen-fixed, zoomed-camera overlay).
+  private overlayLayout?: { cell: number; W2: number; H2: number; islands: OverlayIsland[] };
 
   constructor() { super('Island'); }
 
@@ -195,6 +205,10 @@ export class Island extends Phaser.Scene {
           this.overlayPanX = this.camStartX + dx;
           this.overlayPanY = this.camStartY + dy;
           this.applyOverlayTransform();
+        } else if (this.placementDefId !== '') {
+          // Live footprint preview under the cursor (matches our own hit-test).
+          const hit = this.overlayCellAt(p.x, p.y);
+          if (hit?.isActive) this.previewBuildAt(hit.col, hit.row);
         }
         return;
       }
@@ -233,10 +247,12 @@ export class Island extends Phaser.Scene {
       this.isDragging = false;
       this.overlayDragging = false;
       if (this.dragMoved) return; // it was a pan, not a tap
-      // While the 2D build overlay is up (or just handled a placement), the
-      // overlay's own rectangles own all clicks — ignore the iso-layer tap so
-      // we don't double-place or select a building underneath.
-      if (this.placementMode || Date.now() < this.suppressTapUntil) return;
+      // While the 2D build overlay is up we hit-test it ourselves from the raw
+      // screen point — the overlay is screen-fixed (scrollFactor 0) so Phaser's
+      // per-object input transform is thrown off by the zoomed/scrolled camera,
+      // which made overlay clicks register offset from where they happened.
+      if (this.placementMode) { this.handleOverlayTap(p); return; }
+      if (Date.now() < this.suppressTapUntil) return;
       this.handleTap(p);
     });
 
@@ -276,11 +292,14 @@ export class Island extends Phaser.Scene {
 
   update() {
     const now = Date.now();
-    // Live build countdowns floating above any building under construction.
+    // Live countdowns floating above any building that is being built OR upgraded.
     const buildings = useGameStore.getState().buildings;
     for (const [id, sprite] of this.buildingSprites) {
       const b = buildings[id];
-      if (b?.constructionEndMs) sprite.updateConstructionTimer(b.constructionEndMs - now);
+      if (!b) continue;
+      if (b.constructionEndMs) sprite.showBuildTimer('🏗️', b.constructionEndMs - now);
+      else if (b.upgradeEndMs) sprite.showBuildTimer('⬆️', b.upgradeEndMs - now);
+      else sprite.hideBuildTimer();
     }
     if (this.eggSprites.size === 0) return;
     const eggs = useGameStore.getState().eggs;
@@ -1352,6 +1371,10 @@ export class Island extends Phaser.Scene {
       dir ? { x: dir.dx * ringX - W2 / 2, y: dir.dy * ringY - H2 / 2 }
           : { x: -W2 / 2, y: -H2 / 2 };
 
+    // Accumulate block layout (in world-container local space) for manual
+    // screen-pointer hit-testing in handleOverlayTap / overlayCellAt.
+    const layoutIslands: OverlayIsland[] = [];
+
     // Draw every OTHER island as a non-buildable mini-map (tap to switch/unlock).
     const others = Object.values(ISLAND_DEFS).filter(d => d.id !== currentId);
     others.forEach((isl, i) => {
@@ -1375,14 +1398,8 @@ export class Island extends Phaser.Scene {
         }
       }
 
-      // A transparent whole-island tap target (switch / unlock).
-      const hit = this.add.rectangle(o.x + W2 / 2, o.y + H2 / 2, W2, H2, 0xffffff, 0.001)
-        .setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => {
-        if (this.dragMoved) return; // it was a pan
-        this.switchOrUnlockIsland(isl.id, locked, cost);
-      });
-      world.add(hit);
+      // Record this neighbour block for whole-island tap (switch / unlock).
+      layoutIslands.push({ id: isl.id, ox: o.x, oy: o.y, isActive: false, locked, cost });
 
       const label = this.add.text(o.x + W2 / 2, o.y - 16, `${theme.emoji} ${isl.name}`, {
         fontSize: '14px', color: locked ? '#cccccc' : '#ffffff', fontStyle: 'bold',
@@ -1397,8 +1414,12 @@ export class Island extends Phaser.Scene {
       }
     });
 
-    // Draw the ACTIVE island as the interactive build grid.
+    // Draw the ACTIVE island as the build grid. Cells are NOT made interactive;
+    // taps/hover are hit-tested from the raw screen pointer (see handleOverlayTap)
+    // because the screen-fixed overlay over a zoomed camera throws off Phaser's
+    // per-object input transform.
     const o0 = originOf(null);
+    layoutIslands.push({ id: currentId, ox: o0.x, oy: o0.y, isActive: true, locked: false, cost: 0 });
     this.buildOverlayCells = [];
     for (let row = 0; row < GRID_ROWS; row++) {
       this.buildOverlayCells[row] = [];
@@ -1408,21 +1429,6 @@ export class Island extends Phaser.Scene {
           o0.x + col * cell + cell / 2, o0.y + row * cell + cell / 2,
           cell - 2, cell - 2, isLand ? 0x2e7d32 : 0x16273a, isLand ? 0.95 : 0.5)
           .setStrokeStyle(1, 0x0c1622);
-        if (isLand) rect.setInteractive({ useHandCursor: true });
-        rect.on('pointerover', () => this.previewBuildAt(col, row));
-        rect.on('pointerup', () => {
-          if (this.dragMoved) return; // it was a pan, not a placement tap
-          // Guard the trailing iso-layer pointerup from this same click.
-          this.suppressTapUntil = Date.now() + 350;
-          // Browse mode (no building chosen yet): tapping a tile opens the
-          // build menu for that spot; picking a building then re-enters the
-          // overlay in placement mode. Otherwise place the selected building.
-          if (this.placementDefId === '') {
-            EventBus.emit(GameEvents.OPEN_BUILD_MENU, { tileX: col, tileY: row });
-          } else {
-            this.tryPlaceBuilding(col, row);
-          }
-        });
         world.add(rect);
         this.buildOverlayCells[row][col] = rect;
       }
@@ -1446,7 +1452,7 @@ export class Island extends Phaser.Scene {
       for (let r = b.tileY; r < b.tileY + bd.tilesH; r++) {
         for (let c = b.tileX; c < b.tileX + bd.tilesW; c++) {
           const rect = this.buildOverlayCells[r]?.[c];
-          if (rect) { rect.setFillStyle(0x553333, 0.95); rect.disableInteractive(); }
+          if (rect) rect.setFillStyle(0x553333, 0.95);
         }
       }
     }
@@ -1454,7 +1460,7 @@ export class Island extends Phaser.Scene {
       for (let c = 0; c < GRID_COLS; c++) {
         if (!this.tileHasObstacle(c, r, currentId)) continue;
         const rect = this.buildOverlayCells[r]?.[c];
-        if (rect) { rect.setFillStyle(0x6a4a2a, 0.95); rect.disableInteractive(); }
+        if (rect) rect.setFillStyle(0x6a4a2a, 0.95);
       }
     }
 
@@ -1482,7 +1488,56 @@ export class Island extends Phaser.Scene {
     root.add(hint);
 
     this.buildOverlay = root;
+    this.overlayLayout = { cell, W2, H2, islands: layoutIslands };
     this.applyOverlayTransform();
+  }
+
+  // Map a raw screen pointer to an overlay island block + (for the active
+  // island) the grid cell under it. Returns null when outside every block.
+  private overlayCellAt(px: number, py: number):
+    { id: string; isActive: boolean; locked: boolean; cost: number; col: number; row: number } | null {
+    const layout = this.overlayLayout;
+    if (!layout) return null;
+    const { width, height } = this.scale;
+    // Convert the screen pointer into the world-container's local space. The
+    // overlay is screen-fixed (scrollFactor 0) but the camera still applies its
+    // ZOOM to it, so we invert the camera with getWorldPoint, undo the scroll
+    // (which scrollFactor 0 ignores), then undo our own overlay pan/zoom.
+    const cam = this.cameras.main;
+    const w = cam.getWorldPoint(px, py);
+    const cx = w.x - cam.scrollX;
+    const cy = w.y - cam.scrollY;
+    const localX = (cx - (width / 2 + this.overlayPanX)) / this.overlayZoom;
+    const localY = (cy - (height / 2 + this.overlayPanY)) / this.overlayZoom;
+    for (const isl of layout.islands) {
+      if (localX < isl.ox || localX > isl.ox + layout.W2) continue;
+      if (localY < isl.oy || localY > isl.oy + layout.H2) continue;
+      const col = Math.floor((localX - isl.ox) / layout.cell);
+      const row = Math.floor((localY - isl.oy) / layout.cell);
+      return { id: isl.id, isActive: isl.isActive, locked: isl.locked, cost: isl.cost, col, row };
+    }
+    return null;
+  }
+
+  // Handle a tap on the 2D overlay, hit-tested from the raw screen pointer.
+  private handleOverlayTap(p: Phaser.Input.Pointer) {
+    const hit = this.overlayCellAt(p.x, p.y);
+    if (!hit) return;
+    if (!hit.isActive) {
+      // Tapped a neighbour mini-map → switch to / unlock that island.
+      this.switchOrUnlockIsland(hit.id, hit.locked, hit.cost);
+      return;
+    }
+    if (!this.inBounds(hit.col, hit.row)) return;
+    // Guard the trailing iso-layer pointerup from this same click.
+    this.suppressTapUntil = Date.now() + 350;
+    // Browse mode (no building chosen): open the build menu for that tile.
+    // Otherwise place / relocate the selected building.
+    if (this.placementDefId === '') {
+      EventBus.emit(GameEvents.OPEN_BUILD_MENU, { tileX: hit.col, tileY: hit.row });
+    } else {
+      this.tryPlaceBuilding(hit.col, hit.row);
+    }
   }
 
   // Tint the hovered footprint green (valid) or red (blocked).
@@ -1530,6 +1585,7 @@ export class Island extends Phaser.Scene {
     this.buildOverlay = undefined;
     this.overlayWorld = undefined;
     this.buildOverlayCells = [];
+    this.overlayLayout = undefined;
     this.overlayDragging = false;
     this.overlayPinchDist = 0;
   }
