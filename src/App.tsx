@@ -179,7 +179,8 @@ export default function App() {
             onShop={() => setActivePanel({ type: 'shop' })}
             onBreed={() => setActivePanel({ type: 'breeding' })}
             onHatch={() => setActivePanel({ type: 'hatchery' })}
-            onBuild={() => EventBus.emit(GameEvents.OPEN_BUILD_OVERLAY, {})}
+            onBuild={() => setActivePanel({ type: 'build' })}
+            onBuild2D={() => EventBus.emit(GameEvents.OPEN_BUILD_OVERLAY, {})}
           />
         </>
       )}
