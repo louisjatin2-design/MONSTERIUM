@@ -405,12 +405,14 @@ export class Island extends Phaser.Scene {
       const tex = this.textures.createCanvas(skyKey, 8, H);
       const ctx = tex?.getContext();
       if (ctx) {
+        // Bright, friendly daytime sky — no dark navy band at the top. Goes
+        // from a clear sky-blue overhead down to a pale, hazy horizon.
         const grd = ctx.createLinearGradient(0, 0, 0, H);
-        grd.addColorStop(0.00, '#0d2a5e');
-        grd.addColorStop(0.22, '#1e5aa0');
-        grd.addColorStop(0.50, '#4a9fd8');
-        grd.addColorStop(0.80, '#90cce8');
-        grd.addColorStop(1.00, '#c8e8f8');
+        grd.addColorStop(0.00, '#3f8fce');
+        grd.addColorStop(0.22, '#57a6dd');
+        grd.addColorStop(0.50, '#79c0ea');
+        grd.addColorStop(0.80, '#a6d9f3');
+        grd.addColorStop(1.00, '#d6effb');
         ctx.fillStyle = grd;
         ctx.fillRect(0, 0, 8, H);
         tex?.refresh();
@@ -460,9 +462,8 @@ export class Island extends Phaser.Scene {
       .setOrigin(0, 0).setScrollFactor(0).setDepth(-960)
       .setDisplaySize(W, H * 0.38);
 
-    // Subtle overall darkness overlay (no shaders needed).
-    this.add.rectangle(0, 0, W, H, 0x0a0a18, 0.22)
-      .setOrigin(0, 0).setScrollFactor(0).setDepth(9000);
+    // (No darkening overlay — the world reads bright and clear on phones,
+    // including outdoors / in sunlight, so every tap target stays legible.)
   }
 
   // Realistic canvas-texture clouds using layered radial gradients.
