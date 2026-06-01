@@ -1215,6 +1215,9 @@ export class Island extends Phaser.Scene {
   private onStartBattle = (data: { playerTeam: string[]; enemyTeam: string[] }) => {
     this.scene.launch('Battle', data);
     this.scene.pause();
+    // Tell React the fight is on so it hides the normal HUD / rails and shows
+    // only the battle screen (BATTLE_ENDED restores the chrome afterwards).
+    EventBus.emit(GameEvents.BATTLE_STARTED, {});
   };
 
   // Rebuild the whole island view when the player switches islands.
