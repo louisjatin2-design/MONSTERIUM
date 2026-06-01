@@ -132,21 +132,31 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
       wordWrap: { width: W * TILE_W }, backgroundColor: '#00000055', padding: { x: 3, y: 1 },
     }).setOrigin(0.5, 0);
 
-    // Construction overlay (darkened footprint + clock).
+    // Approximate visible height of this building, so the build countdown
+    // floats clearly ABOVE the structure rather than inside its footprint.
+    const HITH = def.category === 'Temple' ? 46 : def.category === 'Farm' ? 32
+      : def.category === 'Habitat' ? 18 : 28 + Math.min(W, H) * 8;
+
+    // Construction overlay (darkened footprint + floating build-time countdown).
     this.constructionOverlay = scene.add.graphics();
     this.constructionOverlay.fillStyle(0x000022, 0.55);
     this.constructionOverlay.fillPoints(ground, true);
-    this.clockText = scene.add.text(0, -24, '⏳', { fontSize: '22px' }).setOrigin(0.5);
+    this.clockText = scene.add.text(0, -(HITH + 18), '🏗️', {
+      fontSize: '12px', color: '#ffe27a', fontStyle: 'bold',
+      stroke: '#1a0a30', strokeThickness: 3, align: 'center',
+      backgroundColor: '#000000aa', padding: { x: 5, y: 2 },
+    }).setOrigin(0.5, 1);
     const underConstruction = building.constructionEndMs !== null;
     this.constructionOverlay.setVisible(underConstruction);
     this.clockText.setVisible(underConstruction);
+    if (underConstruction && building.constructionEndMs !== null) {
+      this.updateConstructionTimer(building.constructionEndMs - Date.now());
+    }
 
     this.add([shadow, g, ...extras, nameText, this.constructionOverlay, this.clockText]);
     scene.add.existing(this);
 
-    // Hit-test silhouette (footprint raised by a category-appropriate height).
-    const HITH = def.category === 'Temple' ? 46 : def.category === 'Farm' ? 32
-      : def.category === 'Habitat' ? 18 : 28 + Math.min(W, H) * 8;
+    // Hit-test silhouette (footprint raised by the same height as above).
     const upW = (p: Pt): Pt => ({ x: p.x, y: p.y - HITH });
     this.silhouette = [
       upW(corners.back), upW(corners.right), corners.right,
@@ -638,4 +648,16 @@ export class BuildingSprite extends Phaser.GameObjects.Container {
     this.constructionOverlay.setVisible(isUnder);
     this.clockText.setVisible(isUnder);
   }
+
+  // Refresh the floating countdown shown above a building while it is built.
+  updateConstructionTimer(remainingMs: number) {
+    const secs = Math.max(0, Math.ceil(remainingMs / 1000));
+    this.clockText.setText('🏗️ ' + formatBuildTime(secs));
+  }
+}
+
+function formatBuildTime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 }

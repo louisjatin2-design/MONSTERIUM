@@ -18,6 +18,7 @@ export const GameEvents = {
   PANEL_CLOSED:         'panel-closed',
   OPEN_BUILD_OVERLAY:   'open-build-overlay',   // BAUEN tab → 2D top-down island view (browse)
   ENTER_PLACEMENT_MODE: 'enter-placement-mode',
+  ENTER_MOVE_MODE:      'enter-move-mode',       // relocate an existing building to a new tile
   ISLAND_CHANGED:       'island-changed',
   START_BATTLE:         'start-battle',
   OPEN_TEAM_SELECT:     'open-team-select',   // → shows monster picker before battle

@@ -37,6 +37,7 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   const assignToHabitat = useGameStore(s => s.assignToHabitat);
   const removeFromHabitat = useGameStore(s => s.removeFromHabitat);
   const upgradeBuilding = useGameStore(s => s.upgradeBuilding);
+  const demolishBuilding = useGameStore(s => s.demolishBuilding);
   const evolveMonster   = useGameStore(s => s.evolveMonster);
   const equipAttack     = useGameStore(s => s.equipAttack);
   const unequipAttack   = useGameStore(s => s.unequipAttack);
@@ -50,6 +51,19 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   const def = BUILDING_DEFS[building.defId];
   const levelData = def.levels[building.level - 1];
   const nextLevel = def.levels[building.level];
+  const canDemolish = def.category === 'Habitat';
+  const refund = Math.floor(def.goldCost * 0.5);
+
+  const handleMove = () => {
+    onClose();
+    EventBus.emit(GameEvents.ENTER_MOVE_MODE, { instanceId });
+  };
+  const handleDemolish = () => {
+    const msg = monsters.length > 0
+      ? `${def.name} abbauen? Du erhältst 🪙 ${refund} zurück und die ${monsters.length} Bewohner werden freigesetzt.`
+      : `${def.name} abbauen? Du erhältst 🪙 ${refund} zurück.`;
+    if (confirm(msg)) { demolishBuilding(instanceId); onClose(); }
+  };
 
   const unassigned = Object.values(allMonsters).filter(m => {
     if (m.habitatId) return false;
@@ -153,6 +167,18 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
           </div>
         </div>
       )}
+
+      {/* ── Move / demolish ── */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10 }}>
+        <button className="btn btn-info" style={{ flex: 1, fontSize: 12 }} onClick={handleMove}>
+          ↔️ Verschieben
+        </button>
+        {canDemolish && (
+          <button className="btn btn-danger" style={{ flex: 1, fontSize: 12 }} onClick={handleDemolish}>
+            🧨 Abbauen (+🪙{refund})
+          </button>
+        )}
+      </div>
     </div>
   );
 }

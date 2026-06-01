@@ -94,6 +94,11 @@ interface GameStoreActions {
 
   // Buildings
   placeBuilding: (defId: string, islandId: string, tileX: number, tileY: number) => string | null;
+  /** Relocate a building to a new tile on its current island. Returns false if not found. */
+  moveBuilding: (instanceId: string, tileX: number, tileY: number) => boolean;
+  /** Tear down a Habitat or Farm, refunding half its build cost and releasing
+   *  any resident monsters back to "unassigned". Returns the gold refunded. */
+  demolishBuilding: (instanceId: string) => number;
   upgradeBuilding: (instanceId: string) => void;
   collectGold: (instanceId: string) => void;
   /** Collect accumulated output from every building (optionally limited to a
@@ -324,6 +329,36 @@ export const useGameStore = create<GameStore>()(
           s.stats.buildingsBuilt += 1;
         });
         return id;
+      },
+
+      moveBuilding: (instanceId, tileX, tileY) => {
+        const b = get().buildings[instanceId];
+        if (!b) return false;
+        set((s) => {
+          const bb = s.buildings[instanceId];
+          if (bb) { bb.tileX = tileX; bb.tileY = tileY; }
+        });
+        return true;
+      },
+
+      demolishBuilding: (instanceId) => {
+        const b = get().buildings[instanceId];
+        if (!b) return 0;
+        const def = BUILDING_DEFS[b.defId];
+        if (!def) return 0;
+        // Only Habitats and Farms can be torn down.
+        if (def.category !== 'Habitat' && def.category !== 'Farm') return 0;
+        const refund = Math.floor(def.goldCost * 0.5);
+        set((s) => {
+          // Release any residents back to the unassigned pool.
+          for (const mId of b.monsterIds) {
+            const m = s.monsters[mId];
+            if (m) m.habitatId = null;
+          }
+          delete s.buildings[instanceId];
+          s.gold += refund;
+        });
+        return refund;
       },
 
       upgradeBuilding: (instanceId) => {

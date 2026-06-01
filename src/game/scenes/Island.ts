@@ -88,6 +88,12 @@ export class Island extends Phaser.Scene {
 
   private placementMode = false;
   private placementDefId = '';
+  // When set, placement mode is relocating this existing building instead of
+  // building a brand-new one.
+  private moveInstanceId: string | null = null;
+  // Last-known grid position of each spawned building ("tileX,tileY"), so the
+  // reconcile pass can detect a move and respawn the sprite at its new spot.
+  private buildingPos: Map<string, string> = new Map();
   private hoverCol = -1;
   private hoverRow = -1;
 
@@ -255,6 +261,7 @@ export class Island extends Phaser.Scene {
     // EventBus wiring.
     EventBus.on(GameEvents.OPEN_BUILD_OVERLAY, this.onOpenBuildOverlay, this);
     EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
+    EventBus.on(GameEvents.ENTER_MOVE_MODE, this.onEnterMoveMode, this);
     EventBus.on(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.on(GameEvents.START_BATTLE, this.onStartBattle, this);
     EventBus.on(GameEvents.ISLAND_CHANGED, this.onIslandChanged, this);
@@ -268,8 +275,14 @@ export class Island extends Phaser.Scene {
   }
 
   update() {
-    if (this.eggSprites.size === 0) return;
     const now = Date.now();
+    // Live build countdowns floating above any building under construction.
+    const buildings = useGameStore.getState().buildings;
+    for (const [id, sprite] of this.buildingSprites) {
+      const b = buildings[id];
+      if (b?.constructionEndMs) sprite.updateConstructionTimer(b.constructionEndMs - now);
+    }
+    if (this.eggSprites.size === 0) return;
     const eggs = useGameStore.getState().eggs;
     for (const egg of eggs) {
       const spr = this.eggSprites.get(egg.id);
@@ -1087,6 +1100,7 @@ export class Island extends Phaser.Scene {
     const sprite = new BuildingSprite(this, b, TILE_W);
     sprite.setDepth(100 + b.tileX + b.tileY + def.tilesW + def.tilesH);
     this.buildingSprites.set(b.instanceId, sprite);
+    this.buildingPos.set(b.instanceId, `${b.tileX},${b.tileY}`);
     this.refreshResidents(b);
   }
 
@@ -1178,9 +1192,31 @@ export class Island extends Phaser.Scene {
   // Reconcile Phaser visuals with store changes (new buildings, construction, residents).
   private reconcile(s: ReturnType<typeof useGameStore.getState>) {
     const islandId = s.currentIslandId;
+
+    // Drop sprites for buildings that were demolished or moved off this island.
+    for (const [id, sprite] of this.buildingSprites) {
+      const b = s.buildings[id];
+      if (!b || b.islandId !== islandId) {
+        sprite.destroy();
+        this.buildingSprites.delete(id);
+        this.buildingPos.delete(id);
+        for (const m of this.residentSprites.get(id) ?? []) m.destroy();
+        this.residentSprites.delete(id);
+        this.residentSignature.delete(id);
+      }
+    }
+
     for (const b of Object.values(s.buildings)) {
       if (b.islandId !== islandId) continue;
       if (!this.buildingSprites.has(b.instanceId)) {
+        this.spawnBuilding(b);
+      } else if (this.buildingPos.get(b.instanceId) !== `${b.tileX},${b.tileY}`) {
+        // The building was relocated — respawn it cleanly at the new tile.
+        this.buildingSprites.get(b.instanceId)!.destroy();
+        this.buildingSprites.delete(b.instanceId);
+        for (const m of this.residentSprites.get(b.instanceId) ?? []) m.destroy();
+        this.residentSprites.delete(b.instanceId);
+        this.residentSignature.delete(b.instanceId);
         this.spawnBuilding(b);
       } else {
         const sprite = this.buildingSprites.get(b.instanceId)!;
@@ -1234,6 +1270,18 @@ export class Island extends Phaser.Scene {
     this.showBuildOverlay();
   };
 
+  // Relocate an existing building: reuse the 2D build overlay, but on a tap we
+  // move the chosen instance instead of creating a new one.
+  private onEnterMoveMode = (data: { instanceId: string }) => {
+    const b = useGameStore.getState().buildings[data.instanceId];
+    if (!b) return;
+    this.placementMode = true;
+    this.moveInstanceId = data.instanceId;
+    this.placementDefId = b.defId;
+    this.input.keyboard?.once('keydown-ESC', () => this.exitPlacementMode());
+    this.showBuildOverlay();
+  };
+
   private onPanelClosed = () => {
     if (this.placementMode) this.exitPlacementMode();
   };
@@ -1255,6 +1303,7 @@ export class Island extends Phaser.Scene {
     if (!this.placementMode) return; // guard against re-entry from PANEL_CLOSED
     this.placementMode = false;
     this.placementDefId = '';
+    this.moveInstanceId = null;
     this.placementHighlight?.destroy();
     this.placementHighlight = undefined;
     this.hideBuildOverlay();
@@ -1387,8 +1436,11 @@ export class Island extends Phaser.Scene {
     world.add(curLabel);
 
     // Mark already-occupied footprints + obstacle tiles on the active island.
+    // While relocating, the moving building's own tiles stay free (you can drop
+    // it back onto its current spot or any other open ground).
     for (const b of Object.values(state.buildings)) {
       if (b.islandId !== currentId) continue;
+      if (b.instanceId === this.moveInstanceId) continue;
       const bd = BUILDING_DEFS[b.defId];
       if (!bd) continue;
       for (let r = b.tileY; r < b.tileY + bd.tilesH; r++) {
@@ -1409,17 +1461,22 @@ export class Island extends Phaser.Scene {
     // Fixed UI: title + hint (added last so they stay on top, screen-fixed).
     // Browse mode (no building chosen) shows a "pick a tile" prompt instead.
     const browsing = this.placementDefId === '';
+    const moving = this.moveInstanceId !== null;
     const def = BUILDING_DEFS[this.placementDefId];
-    const titleText = browsing
-      ? '🏗️ 2D-Baumodus — Feld zum Bauen antippen'
-      : `🏗️ 2D-Baumodus — ${def?.name ?? ''}  (${def?.tilesW ?? 1}×${def?.tilesH ?? 1})`;
+    const titleText = moving
+      ? `↔️ Verschieben — ${def?.name ?? ''} (neues Feld antippen)`
+      : browsing
+        ? '🏗️ 2D-Baumodus — Feld zum Bauen antippen'
+        : `🏗️ 2D-Baumodus — ${def?.name ?? ''}  (${def?.tilesW ?? 1}×${def?.tilesH ?? 1})`;
     const title = this.add.text(width / 2, 26, titleText,
       { fontSize: '16px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 })
       .setOrigin(0.5);
     root.add(title);
-    const hintText = browsing
+    const hintText = moving
       ? 'Ziehen = Karte bewegen · Mausrad / Pinch = Zoom · Grün = freies Feld · ESC = Abbrechen'
-      : 'Ziehen = Karte bewegen · Mausrad / Pinch = Zoom · Grün = baubar · ESC = Abbrechen';
+      : browsing
+        ? 'Ziehen = Karte bewegen · Mausrad / Pinch = Zoom · Grün = freies Feld · ESC = Abbrechen'
+        : 'Ziehen = Karte bewegen · Mausrad / Pinch = Zoom · Grün = baubar · ESC = Abbrechen';
     const hint = this.add.text(width / 2, height - 20, hintText,
       { fontSize: '12px', color: '#aabbcc' }).setOrigin(0.5);
     root.add(hint);
@@ -1435,13 +1492,14 @@ export class Island extends Phaser.Scene {
     if (!def) return;
     const islandId = useGameStore.getState().currentIslandId;
     const islandDef = ISLAND_DEFS[islandId];
-    const valid = this.canPlace(col, row, def.tilesW, def.tilesH, islandDef, islandId);
+    const valid = this.canPlace(col, row, def.tilesW, def.tilesH, islandDef, islandId, this.moveInstanceId);
 
     // Repaint base colours first.
     const state = useGameStore.getState();
     const occupied = new Set<string>();
     for (const b of Object.values(state.buildings)) {
       if (b.islandId !== islandId) continue;
+      if (b.instanceId === this.moveInstanceId) continue;
       const bd = BUILDING_DEFS[b.defId];
       if (!bd) continue;
       for (let r = b.tileY; r < b.tileY + bd.tilesH; r++)
@@ -1482,16 +1540,21 @@ export class Island extends Phaser.Scene {
     const islandId = useGameStore.getState().currentIslandId;
     const islandDef = ISLAND_DEFS[islandId];
 
-    const valid = this.canPlace(col, row, def.tilesW, def.tilesH, islandDef, islandId);
+    const valid = this.canPlace(col, row, def.tilesW, def.tilesH, islandDef, islandId, this.moveInstanceId);
     if (!valid) { this.flashPlacement(col, row, def.tilesW, def.tilesH, 0xff3333); return; }
 
-    useGameStore.getState().placeBuilding(this.placementDefId, islandId, col, row);
+    if (this.moveInstanceId) {
+      useGameStore.getState().moveBuilding(this.moveInstanceId, col, row);
+    } else {
+      useGameStore.getState().placeBuilding(this.placementDefId, islandId, col, row);
+    }
     this.exitPlacementMode(); // emits PANEL_CLOSED → React restores the chrome
   }
 
   private canPlace(
     col: number, row: number, w: number, h: number,
     islandDef: { tileMask: boolean[][] }, islandId: string,
+    ignoreId: string | null = null,
   ): boolean {
     for (let r = row; r < row + h; r++) {
       for (let c = col; c < col + w; c++) {
@@ -1502,6 +1565,7 @@ export class Island extends Phaser.Scene {
     }
     for (const b of Object.values(useGameStore.getState().buildings)) {
       if (b.islandId !== islandId) continue;
+      if (ignoreId && b.instanceId === ignoreId) continue;
       const bd = BUILDING_DEFS[b.defId];
       if (!bd) continue;
       if (col < b.tileX + bd.tilesW && col + w > b.tileX &&
@@ -1534,11 +1598,13 @@ export class Island extends Phaser.Scene {
     this.scale.off('resize', this.onResize, this);
     EventBus.off(GameEvents.OPEN_BUILD_OVERLAY, this.onOpenBuildOverlay, this);
     EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
+    EventBus.off(GameEvents.ENTER_MOVE_MODE, this.onEnterMoveMode, this);
     EventBus.off(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.off(GameEvents.START_BATTLE, this.onStartBattle, this);
     EventBus.off(GameEvents.ISLAND_CHANGED, this.onIslandChanged, this);
     EventBus.off(GameEvents.HATCH_EGG_ANIMATE, this.onHatchAnimate, this);
     this.buildingSprites.clear();
+    this.buildingPos.clear();
     this.residentSprites.clear();
     this.residentSignature.clear();
     this.eggSprites.clear();
