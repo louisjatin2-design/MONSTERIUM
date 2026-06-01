@@ -3,10 +3,12 @@ import { useGameStore } from '@store/gameStore';
 import { ISLAND_DEFS } from '@data/islands';
 import { BUILDING_DEFS } from '@data/buildings';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { OBSTACLE_DEFS } from '@data/obstacles';
 import { GridTile } from '@game/objects/GridTile';
 import { BuildingSprite } from '@game/objects/BuildingSprite';
 import { MonsterSprite } from '@game/objects/MonsterSprite';
 import { EggSprite } from '@game/objects/EggSprite';
+import { ObstacleSprite } from '@game/objects/ObstacleSprite';
 import {
   project, worldToGrid, pointInPolygon, footprintCorners,
   GRID_COLS, GRID_ROWS, CONTENT_W, CONTENT_H, ISLAND_CENTER, TILE_W, TILE_H, LAND_THICK,
@@ -35,6 +37,8 @@ export class Island extends Phaser.Scene {
   private residentSignature: Map<string, string> = new Map();
   private eggSprites: Map<string, EggSprite> = new Map();
   private eggSignature = '';
+  // Terrain obstacles on the current island, keyed by "tileX,tileY".
+  private obstacleSprites: Map<string, ObstacleSprite> = new Map();
   private placementHighlight?: Phaser.GameObjects.Graphics;
   private unsubscribe?: () => void;
 
@@ -98,6 +102,9 @@ export class Island extends Phaser.Scene {
     for (const b of Object.values(state.buildings)) {
       if (b.islandId === state.currentIslandId) this.spawnBuilding(b);
     }
+
+    // Scatter the island's terrain obstacles (those not yet cleared).
+    this.spawnObstacles(state);
 
     // Pointer handling: drag-to-pan + tap detection.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -701,6 +708,9 @@ export class Island extends Phaser.Scene {
       }
     }
 
+    // Tapping a terrain obstacle offers to clear it for gold.
+    if (this.handleObstacleTap(w.x, w.y)) return;
+
     // Otherwise an empty land tile → build menu.
     const { col, row } = worldToGrid(w.x, w.y);
     if (this.inBounds(col, row) && this.tiles[row][col].isLand) {
@@ -710,6 +720,78 @@ export class Island extends Phaser.Scene {
 
   private inBounds(col: number, row: number): boolean {
     return col >= 0 && col < GRID_COLS && row >= 0 && row < GRID_ROWS;
+  }
+
+  // ---- Terrain obstacles ------------------------------------------------
+
+  private obstacleKey(islandId: string, tileX: number, tileY: number): string {
+    return `${islandId}:${tileX},${tileY}`;
+  }
+
+  // Spawn every uncleared obstacle defined on the active island.
+  private spawnObstacles(s: ReturnType<typeof useGameStore.getState>) {
+    const islandDef = ISLAND_DEFS[s.currentIslandId];
+    for (const o of islandDef?.obstacles ?? []) {
+      if (s.clearedObstacles.includes(this.obstacleKey(s.currentIslandId, o.tileX, o.tileY))) continue;
+      const spr = new ObstacleSprite(this, o);
+      this.obstacleSprites.set(`${o.tileX},${o.tileY}`, spr);
+    }
+  }
+
+  // True if an uncleared obstacle covers the given tile on the active island.
+  private tileHasObstacle(col: number, row: number, islandId: string): boolean {
+    const islandDef = ISLAND_DEFS[islandId];
+    const cleared = useGameStore.getState().clearedObstacles;
+    for (const o of islandDef?.obstacles ?? []) {
+      if (cleared.includes(this.obstacleKey(islandId, o.tileX, o.tileY))) continue;
+      const od = OBSTACLE_DEFS[o.defId];
+      const w = od?.tilesW ?? 1, h = od?.tilesH ?? 1;
+      if (col >= o.tileX && col < o.tileX + w && row >= o.tileY && row < o.tileY + h) return true;
+    }
+    return false;
+  }
+
+  // Player tapped an obstacle → offer to clear it for gold (returns reward).
+  private handleObstacleTap(wx: number, wy: number): boolean {
+    for (const [key, spr] of this.obstacleSprites) {
+      if (!pointInPolygon(wx, wy, spr.silhouette)) continue;
+      const def = OBSTACLE_DEFS[spr.defId];
+      if (!def) return true;
+      const store = useGameStore.getState();
+      if (store.gold < def.clearCost) {
+        this.floatText(spr.x, spr.y - 30, `🪙 ${def.clearCost} nötig`, '#ff8a8a');
+        return true;
+      }
+      const reward = def.clearReward;
+      const parts = [
+        reward.gold ? `🪙 ${reward.gold}` : '',
+        reward.food ? `🍖 ${reward.food}` : '',
+        reward.xp ? `⭐ ${reward.xp}` : '',
+      ].filter(Boolean).join('  ');
+      const msg = `${def.name} für 🪙 ${def.clearCost} entfernen?` +
+        (parts ? `\nBelohnung: ${parts}` : '');
+      if (confirm(msg)) {
+        if (store.clearObstacle(store.currentIslandId, spr.tileX, spr.tileY)) {
+          this.floatText(spr.x, spr.y - 20, parts ? `+${parts}` : 'Entfernt!', '#bdf5a0');
+          spr.destroy();
+          this.obstacleSprites.delete(key);
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // A small reward/info text that floats up and fades out.
+  private floatText(x: number, y: number, text: string, color: string) {
+    const t = this.add.text(x, y, text, {
+      fontSize: '15px', color, fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 4, align: 'center',
+    }).setOrigin(0.5).setDepth(9500);
+    this.tweens.add({
+      targets: t, y: y - 36, alpha: 0, duration: 1200, ease: 'Cubic.easeOut',
+      onComplete: () => t.destroy(),
+    });
   }
 
   // ---- Buildings & residents -------------------------------------------
@@ -844,6 +926,14 @@ export class Island extends Phaser.Scene {
       }
     }
     this.refreshEggs(s);
+
+    // Drop any obstacle sprites that have since been cleared.
+    for (const [key, spr] of this.obstacleSprites) {
+      if (s.clearedObstacles.includes(this.obstacleKey(islandId, spr.tileX, spr.tileY))) {
+        spr.destroy();
+        this.obstacleSprites.delete(key);
+      }
+    }
   }
 
   // React asked us to play the hatch animation for an egg, then commit it.
@@ -964,6 +1054,15 @@ export class Island extends Phaser.Scene {
       }
     }
 
+    // Mark tiles blocked by uncleared obstacles (brown) — clear them first.
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        if (!this.tileHasObstacle(c, r, state.currentIslandId)) continue;
+        const rect = this.buildOverlayCells[r]?.[c];
+        if (rect) { rect.setFillStyle(0x6a4a2a, 0.9); rect.disableInteractive(); }
+      }
+    }
+
     this.buildOverlay = container;
   }
 
@@ -992,6 +1091,7 @@ export class Island extends Phaser.Scene {
         if (!rect) continue;
         const isLand = islandDef.tileMask[r]?.[c];
         if (occupied.has(`${c},${r}`)) rect.setFillStyle(0x553333, 0.9);
+        else if (this.tileHasObstacle(c, r, islandId)) rect.setFillStyle(0x6a4a2a, 0.9);
         else rect.setFillStyle(isLand ? 0x2e7d32 : 0x16273a, isLand ? 0.9 : 0.5);
       }
     }
@@ -1033,6 +1133,7 @@ export class Island extends Phaser.Scene {
       for (let c = col; c < col + w; c++) {
         if (!this.inBounds(c, r)) return false;
         if (!islandDef.tileMask[r][c]) return false;
+        if (this.tileHasObstacle(c, r, islandId)) return false;
       }
     }
     for (const b of Object.values(useGameStore.getState().buildings)) {
@@ -1074,5 +1175,6 @@ export class Island extends Phaser.Scene {
     this.residentSprites.clear();
     this.residentSignature.clear();
     this.eggSprites.clear();
+    this.obstacleSprites.clear();
   }
 }

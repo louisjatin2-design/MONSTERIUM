@@ -135,7 +135,8 @@ export default function App() {
     <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' }}>
       <PhaserGame ref={phaserRef} />
 
-      {/* Backdrop: dims Phaser when a panel is open */}
+      {/* Backdrop: dims Phaser (and the floating rails) when a panel is open,
+          and closes the panel when the empty area is tapped. */}
       {hasPanelOpen && (
         <div
           style={{
@@ -149,8 +150,8 @@ export default function App() {
         />
       )}
 
-      {/* Top HUD + bottom action bar — hidden during battle so only the
-          fight screen shows (no shop/resource access mid-fight). */}
+      {/* Floating top HUD + side action rails — hidden during battle so only
+          the fight screen shows (no shop/resource access mid-fight). */}
       {!isBattleActive && (
         <>
           <HUD />

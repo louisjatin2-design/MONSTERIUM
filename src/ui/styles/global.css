@@ -135,14 +135,16 @@
 /* Smooth iOS momentum scroll */
 .panel { -webkit-overflow-scrolling: touch; }
 
-/* ── Side panel: right-anchored, collapses to full-width on mobile ── */
+/* ── Floating side panel: right-anchored, collapses to full-width on mobile.
+   The full-width top/bottom bars are gone — the world fills the whole screen
+   and panels float as overlays (dimmed by the backdrop) over the habitat.  */
 .panel-side {
   box-sizing: border-box;
   right: 16px;
   top: 64px;
   width: min(420px, calc(100vw - 32px));
-  /* Use --vh to avoid iOS Safari address-bar bug. No solid bars any more,
-     so panels may use almost the full height (just top offset + margin). */
+  /* Use --vh to avoid iOS Safari address-bar bug. No solid bars reserve
+     space any more, so panels may use almost the full height.             */
   max-height: calc(var(--vh, 1vh) * 100 - 88px);
   padding: 16px;
   overflow-y: auto;
@@ -166,7 +168,7 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  max-height: min(calc(var(--vh, 1vh) * 88), calc(var(--vh, 1vh) * 100 - 150px));
+  max-height: min(calc(var(--vh, 1vh) * 88), calc(var(--vh, 1vh) * 100 - 110px));
   overflow-y: auto;
 }
 

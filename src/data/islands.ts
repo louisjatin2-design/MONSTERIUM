@@ -27,6 +27,18 @@ export const ISLAND_DEFS: Record<string, IslandDef> = {
       row(0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0),
       row(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
     ],
+    // Scattered terrain — kept clear of the pre-placed starter buildings.
+    obstacles: [
+      { defId: 'rock_small',      tileX: 10, tileY: 2 },
+      { defId: 'ancient_tree',    tileX: 7,  tileY: 3 },
+      { defId: 'ancient_tree',    tileX: 12, tileY: 3 },
+      { defId: 'thorn_bush',      tileX: 13, tileY: 4 },
+      { defId: 'rock_small',      tileX: 3,  tileY: 5 },
+      { defId: 'crystal_cluster', tileX: 15, tileY: 6 },
+      { defId: 'ancient_tree',    tileX: 4,  tileY: 9 },
+      { defId: 'thorn_bush',      tileX: 11, tileY: 10 },
+      { defId: 'glow_mushroom',   tileX: 8,  tileY: 11 },
+    ],
   },
   volcanic_peak: {
     id: 'volcanic_peak',
@@ -53,6 +65,13 @@ export const ISLAND_DEFS: Record<string, IslandDef> = {
       row(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
       row(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
     ],
+    obstacles: [
+      { defId: 'rock_small',      tileX: 8,  tileY: 3 },
+      { defId: 'bone_pile',       tileX: 12, tileY: 5 },
+      { defId: 'crystal_cluster', tileX: 4,  tileY: 7 },
+      { defId: 'rock_small',      tileX: 10, tileY: 9 },
+      { defId: 'bone_pile',       tileX: 7,  tileY: 6 },
+    ],
   },
   ocean_depths: {
     id: 'ocean_depths',
@@ -78,6 +97,13 @@ export const ISLAND_DEFS: Record<string, IslandDef> = {
       row(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
       row(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
       row(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+    ],
+    obstacles: [
+      { defId: 'crystal_cluster', tileX: 6,  tileY: 3 },
+      { defId: 'rock_small',      tileX: 13, tileY: 4 },
+      { defId: 'thorn_bush',      tileX: 3,  tileY: 6 },
+      { defId: 'crystal_cluster', tileX: 10, tileY: 8 },
+      { defId: 'rock_small',      tileX: 8,  tileY: 5 },
     ],
   },
 };
