@@ -1,6 +1,7 @@
 import React from 'react';
 import { useGameStore } from '@store/gameStore';
 import { BUILDING_DEFS } from '@data/buildings';
+import { EventBus, GameEvents } from '@game/EventBus';
 import '../styles/global.css';
 
 interface FarmPanelProps {
@@ -17,6 +18,7 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
   const collectGold = useGameStore(s => s.collectGold);
   const collectAll  = useGameStore(s => s.collectAll);
   const upgradeBuilding   = useGameStore(s => s.upgradeBuilding);
+  const demolishBuilding  = useGameStore(s => s.demolishBuilding);
   const convertGoldToFood = useGameStore(s => s.convertGoldToFood);
 
   if (!building) return null;
@@ -24,6 +26,18 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
   const levelData = def.levels[building.level - 1];
   const nextLevel = def.levels[building.level];
   const accumulated = Math.floor(building.goldAccumulated);
+  const refund = Math.floor(def.goldCost * 0.5);
+
+  const handleMove = () => {
+    onClose();
+    EventBus.emit(GameEvents.ENTER_MOVE_MODE, { instanceId });
+  };
+  const handleDemolish = () => {
+    if (confirm(`${def.name} abbauen? Du erhältst 🪙 ${refund} zurück.`)) {
+      demolishBuilding(instanceId);
+      onClose();
+    }
+  };
 
   // Total food waiting across every farm (for the collect-all button).
   const totalFarmFood = Math.floor(
@@ -96,6 +110,16 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
             );
           })}
         </div>
+      </div>
+
+      {/* Move / demolish */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10 }}>
+        <button className="btn btn-info" style={{ flex: 1, fontSize: 12 }} onClick={handleMove}>
+          ↔️ Verschieben
+        </button>
+        <button className="btn btn-danger" style={{ flex: 1, fontSize: 12 }} onClick={handleDemolish}>
+          🧨 Abbauen (+🪙{refund})
+        </button>
       </div>
     </div>
   );

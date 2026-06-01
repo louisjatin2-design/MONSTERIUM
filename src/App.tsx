@@ -92,6 +92,7 @@ export default function App() {
 
     EventBus.on(GameEvents.OPEN_BUILD_OVERLAY,   onEnterPlacement);
     EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
+    EventBus.on(GameEvents.ENTER_MOVE_MODE,      onEnterPlacement);
     EventBus.on(GameEvents.PANEL_CLOSED,         onPlacementDone);
     EventBus.on(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
     EventBus.on(GameEvents.OPEN_FARM_PANEL,    onOpenFarm);
@@ -115,6 +116,7 @@ export default function App() {
     return () => {
       EventBus.off(GameEvents.OPEN_BUILD_OVERLAY,   onEnterPlacement);
       EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
+      EventBus.off(GameEvents.ENTER_MOVE_MODE,      onEnterPlacement);
       EventBus.off(GameEvents.PANEL_CLOSED,         onPlacementDone);
       EventBus.off(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
       EventBus.off(GameEvents.OPEN_FARM_PANEL,    onOpenFarm);

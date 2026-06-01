@@ -5,6 +5,7 @@ import { BUILDING_DEFS } from '@data/buildings';
 import { RARITY_COLORS } from '@data/rarities';
 import { calculateBreedOutcomes, getRelationScore } from '@systems/BreedingSystem';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
+import { EventBus, GameEvents } from '@game/EventBus';
 import type { ActiveBreeding } from '@gtypes/game';
 import '../styles/global.css';
 
@@ -84,6 +85,14 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
             <span style={{ color: '#66ff88', fontSize: 12 }}>Max-Level</span>
           )}
         </div>
+      )}
+
+      {/* Relocate the station on the island */}
+      {station && (
+        <button className="btn btn-info" style={{ width: '100%', marginBottom: 12, fontSize: 12 }}
+          onClick={() => { onClose(); EventBus.emit(GameEvents.ENTER_MOVE_MODE, { instanceId: station.instanceId }); }}>
+          ↔️ Verschieben
+        </button>
       )}
 
       {/* Active breedings */}

@@ -63,6 +63,14 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
         </div>
       )}
 
+      {/* Relocate the hatchery on the island */}
+      {hatchery && (
+        <button className="btn btn-info" style={{ width: '100%', marginBottom: 12, fontSize: 12 }}
+          onClick={() => { onClose(); EventBus.emit(GameEvents.ENTER_MOVE_MODE, { instanceId: hatchery.instanceId }); }}>
+          ↔️ Verschieben
+        </button>
+      )}
+
       {eggs.length === 0 && (
         <div style={{ color: '#666', fontSize: 14, textAlign: 'center', padding: 20 }}>
           {storedEggCount > 0
