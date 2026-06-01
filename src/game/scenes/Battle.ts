@@ -4,7 +4,8 @@ import { useGameStore } from '@store/gameStore';
 import { MONSTER_DEFS } from '@data/monsters';
 import { ATTACKS } from '@data/attacks';
 import { RARITY_RANK, RARITY_HATCH_TIME_SEC } from '@data/rarities';
-import { ELEMENT_CSS_COLORS, ELEMENT_COLORS } from '@data/elements';
+import { ELEMENT_CSS_COLORS, ELEMENT_COLORS, getElementBonus } from '@data/elements';
+import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { TRAITS } from '@data/traits';
 import { STATUS_EFFECTS } from '@data/statusEffects';
 import {
@@ -56,6 +57,10 @@ export class Battle extends Phaser.Scene {
   // One container per combatant holding the coloured status-effect badges.
   private statusContainers: Map<string, Phaser.GameObjects.Container> = new Map();
   private cardCenters: Map<string, { x: number; y: number }> = new Map();
+  // Per-combatant avatar container (glow + emoji) so we can animate lunges,
+  // idle bobbing, hit recoil and faint effects.
+  private avatars: Map<string, Phaser.GameObjects.Container> = new Map();
+  private avatarHomes: Map<string, { x: number; y: number }> = new Map();
   private attackButtons: Phaser.GameObjects.Container[] = [];
   private detailOverlay: Phaser.GameObjects.Container | null = null;
   private statusText!: Phaser.GameObjects.Text;
@@ -124,8 +129,37 @@ export class Battle extends Phaser.Scene {
     // Listen for minigame result
     EventBus.on(GameEvents.MINIGAME_COMPLETE, this.onMinigameResult, this);
 
-    // Start after intro delay
-    this.time.delayedCall(800, () => this.startRound());
+    // Cinematic intro, then begin the first round.
+    this.playIntro();
+    this.time.delayedCall(1100, () => this.startRound());
+  }
+
+  // A short "VS" splash that slides in from both sides before combat begins.
+  private playIntro() {
+    const { width, height } = this.scale;
+    const cy = height / 2;
+
+    const left = this.add.text(-200, cy, 'DEIN TEAM', {
+      fontSize: '30px', color: '#66ff88', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(1200);
+    const right = this.add.text(width + 200, cy, 'GEGNER', {
+      fontSize: '30px', color: '#ff7777', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(1200);
+    const vs = this.add.text(width / 2, cy, 'VS', {
+      fontSize: '54px', color: '#ffd700', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 7,
+    }).setOrigin(0.5).setDepth(1201).setScale(0);
+
+    this.tweens.add({ targets: left, x: width / 2 - 110, duration: 400, ease: 'Back.out' });
+    this.tweens.add({ targets: right, x: width / 2 + 110, duration: 400, ease: 'Back.out' });
+    this.tweens.add({ targets: vs, scale: 1, duration: 350, delay: 250, ease: 'Back.out' });
+
+    this.tweens.add({
+      targets: [left, right, vs], alpha: 0, duration: 300, delay: 850, ease: 'Quad.in',
+      onComplete: () => { left.destroy(); right.destroy(); vs.destroy(); },
+    });
   }
 
   private drawBackground() {
@@ -149,6 +183,16 @@ export class Battle extends Phaser.Scene {
     g.lineStyle(2, 0xffffff, 0.06);
     g.lineBetween(width / 2, 70, width / 2, height - 90);
 
+    // Twin arena spotlights fanning up from the floor for depth.
+    g.fillStyle(0x8855ff, 0.06);
+    g.fillTriangle(width * 0.25, floorY, width * 0.05, 70, width * 0.45, 70);
+    g.fillStyle(0xff5588, 0.06);
+    g.fillTriangle(width * 0.75, floorY, width * 0.55, 70, width * 0.95, 70);
+
+    // Reflective sheen on the arena floor.
+    g.fillStyle(0xffffff, 0.04);
+    g.fillEllipse(width / 2, floorY + (height - floorY) * 0.35, width * 0.85, (height - floorY) * 0.5);
+
     // Scatter a few stars in the sky for atmosphere.
     g.fillStyle(0xffffff, 0.5);
     for (let i = 0; i < 40; i++) {
@@ -157,6 +201,41 @@ export class Battle extends Phaser.Scene {
       g.fillCircle(sx, sy, Phaser.Math.Between(1, 2));
     }
     g.setDepth(-10);
+
+    // Slowly drifting glowing orbs add motion to an otherwise static backdrop.
+    for (let i = 0; i < 7; i++) {
+      const ox = Phaser.Math.Between(40, width - 40);
+      const oy = Phaser.Math.Between(60, floorY - 20);
+      const r = Phaser.Math.Between(20, 46);
+      const tint = Phaser.Math.RND.pick([0x7744cc, 0xcc4488, 0x4466cc]);
+      const orb = this.add.circle(ox, oy, r, tint, 0.12).setDepth(-9);
+      this.tweens.add({
+        targets: orb,
+        y: oy - Phaser.Math.Between(20, 50),
+        alpha: { from: 0.12, to: 0.04 },
+        duration: Phaser.Math.Between(3000, 6000),
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+        delay: i * 300,
+      });
+    }
+
+    // Twinkling on a handful of the brighter stars.
+    for (let i = 0; i < 14; i++) {
+      const sx = Phaser.Math.Between(0, width);
+      const sy = Phaser.Math.Between(0, floorY - 20);
+      const star = this.add.circle(sx, sy, Phaser.Math.Between(1, 2), 0xffffff, 0.9).setDepth(-9);
+      this.tweens.add({
+        targets: star,
+        alpha: { from: 0.9, to: 0.15 },
+        duration: Phaser.Math.Between(900, 2200),
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+        delay: Phaser.Math.Between(0, 1500),
+      });
+    }
   }
 
   private drawMonsterCards() {
@@ -202,12 +281,39 @@ export class Battle extends Phaser.Scene {
     bg.on('pointerover', () => bg.setStrokeStyle(3, 0xffffff));
     bg.on('pointerout', () => bg.setStrokeStyle(2, isPlayer ? 0x44ff44 : 0xff4444));
 
-    // Monster avatar — a coloured disc (element colour) with a creature glyph.
+    // Monster avatar — a glowing element-coloured disc with the creature's emoji,
+    // wrapped in a container so it can lunge, recoil and bob during combat.
     const avX = x - w / 2 + 24;
     const avY = y - 6;
     const elColor = ELEMENT_COLORS[def.elements[0]] ?? 0x888888;
-    this.add.circle(avX, avY, 20, elColor).setStrokeStyle(2, 0xffffff);
-    this.add.text(avX, avY, '👾', { fontSize: '22px' }).setOrigin(0.5);
+    const emoji = MONSTER_EMOJI[c.defId] ?? '👾';
+
+    const glow = this.add.circle(0, 0, 26, elColor, 0.35);
+    const disc = this.add.circle(0, 0, 20, elColor).setStrokeStyle(2, 0xffffff);
+    const glyph = this.add.text(0, 0, emoji, { fontSize: '24px' }).setOrigin(0.5);
+    const avatar = this.add.container(avX, avY, [glow, disc, glyph]).setDepth(50);
+    this.avatars.set(c.instanceId, avatar);
+    this.avatarHomes.set(c.instanceId, { x: avX, y: avY });
+
+    // Pulsing aura so each fighter feels alive even while idle.
+    this.tweens.add({
+      targets: glow,
+      scale: { from: 0.85, to: 1.18 },
+      alpha: { from: 0.4, to: 0.15 },
+      duration: 1100,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    // Gentle breathing/bob on the emoji itself.
+    this.tweens.add({
+      targets: glyph,
+      y: -3,
+      duration: 900 + Math.random() * 400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
 
     const textLeft = x - w / 2 + 48;
 
@@ -397,11 +503,117 @@ export class Battle extends Phaser.Scene {
     if (!bars) return;
     const ratio = Math.max(0, c.currentHp / c.maxHp);
     const barBg = bars.bg;
-    bars.bar.width = (barBg.width) * ratio;
+    const targetWidth = barBg.width * ratio;
     const color = ratio > 0.5 ? 0x44ff44 : ratio > 0.25 ? 0xffaa00 : 0xff2200;
     bars.bar.setFillStyle(color);
+    // Animate the drain so the player can read how much damage just landed.
+    this.tweens.add({
+      targets: bars.bar,
+      width: targetWidth,
+      duration: 350,
+      ease: 'Quad.out',
+    });
     const hpLabel = this.hpLabels.get(c.instanceId);
     if (hpLabel) hpLabel.setText(`${Math.max(0, c.currentHp)}/${c.maxHp}`);
+
+    // Faint the avatar once a combatant is knocked out.
+    if (c.currentHp <= 0) this.playFaint(c.instanceId);
+  }
+
+  // ── Combat juice helpers ───────────────────────────────────────────────────
+
+  // Quick lunge of the attacker's avatar toward its target, then snap back.
+  private playLunge(attackerId: string, toward: 'right' | 'left') {
+    const avatar = this.avatars.get(attackerId);
+    const home = this.avatarHomes.get(attackerId);
+    if (!avatar || !home) return;
+    const dx = toward === 'right' ? 22 : -22;
+    this.tweens.add({
+      targets: avatar,
+      x: home.x + dx,
+      duration: 130,
+      yoyo: true,
+      ease: 'Quad.out',
+    });
+  }
+
+  // Shake + white flash on a card that just took a hit.
+  private playHitReaction(targetId: string) {
+    const avatar = this.avatars.get(targetId);
+    const home = this.avatarHomes.get(targetId);
+    if (avatar && home) {
+      this.tweens.add({
+        targets: avatar,
+        x: { from: home.x - 5, to: home.x + 5 },
+        duration: 45,
+        yoyo: true,
+        repeat: 4,
+        ease: 'Sine.easeInOut',
+        onComplete: () => { avatar.x = home.x; },
+      });
+    }
+    const bg = this.cardBgs.get(targetId);
+    if (bg) {
+      const flash = this.add.rectangle(bg.x, bg.y, bg.width, bg.height, 0xffffff, 0.6).setDepth(80);
+      this.tweens.add({ targets: flash, alpha: 0, duration: 220, onComplete: () => flash.destroy() });
+    }
+  }
+
+  // An element-coloured burst of shards at the point of impact.
+  private spawnImpactBurst(x: number, y: number, color: number) {
+    const ring = this.add.circle(x, y, 6, color, 0.8).setDepth(850);
+    this.tweens.add({
+      targets: ring,
+      scale: 4,
+      alpha: 0,
+      duration: 380,
+      ease: 'Quad.out',
+      onComplete: () => ring.destroy(),
+    });
+    for (let i = 0; i < 8; i++) {
+      const ang = (Math.PI * 2 * i) / 8 + Math.random() * 0.4;
+      const dist = 26 + Math.random() * 18;
+      const shard = this.add.circle(x, y, 3 + Math.random() * 2, color, 1).setDepth(851);
+      this.tweens.add({
+        targets: shard,
+        x: x + Math.cos(ang) * dist,
+        y: y + Math.sin(ang) * dist,
+        alpha: 0,
+        scale: 0.2,
+        duration: 320 + Math.random() * 160,
+        ease: 'Quad.out',
+        onComplete: () => shard.destroy(),
+      });
+    }
+  }
+
+  // A small element-coloured projectile travelling attacker → target.
+  private spawnProjectile(from: { x: number; y: number }, to: { x: number; y: number }, color: number, onArrive: () => void) {
+    const orb = this.add.circle(from.x, from.y, 8, color, 1).setDepth(840).setStrokeStyle(2, 0xffffff, 0.8);
+    const glow = this.add.circle(from.x, from.y, 14, color, 0.35).setDepth(839);
+    this.tweens.add({
+      targets: [orb, glow],
+      x: to.x,
+      y: to.y,
+      duration: 260,
+      ease: 'Quad.in',
+      onComplete: () => { orb.destroy(); glow.destroy(); onArrive(); },
+    });
+  }
+
+  // Fade + spin-out for a defeated combatant's avatar.
+  private playFaint(instanceId: string) {
+    const avatar = this.avatars.get(instanceId);
+    if (!avatar || avatar.getData('fainted')) return;
+    avatar.setData('fainted', true);
+    this.tweens.add({
+      targets: avatar,
+      alpha: 0.25,
+      scale: 0.7,
+      angle: 25,
+      duration: 500,
+      ease: 'Quad.in',
+    });
   }
 
   private updateUltBar(c: BattleCombatant) {
@@ -724,8 +936,37 @@ export class Battle extends Phaser.Scene {
     }
 
     target.currentHp = Math.max(0, target.currentHp - totalDmg);
-    this.updateHpBar(target);
-    this.showDamageText(target.instanceId, totalDmg, attacker.isPlayer ? 0xffffff : 0xff4444);
+
+    // ── Visual attack sequence ────────────────────────────────────────────────
+    const moveColor = ELEMENT_COLORS[move.element as keyof typeof ELEMENT_COLORS] ?? 0xffffff;
+    const elementBonus = getElementBonus(
+      move.element as Parameters<typeof getElementBonus>[0],
+      targetDef.elements as Parameters<typeof getElementBonus>[1],
+    );
+    const superEffective = elementBonus > 0;
+    const fromPos = this.avatarHomes.get(attacker.instanceId) ?? this.cardCenters.get(attacker.instanceId);
+    const toPos = this.avatarHomes.get(target.instanceId) ?? this.cardCenters.get(target.instanceId);
+
+    // Attacker lunges toward the target's side of the field.
+    this.playLunge(attacker.instanceId, attacker.isPlayer ? 'right' : 'left');
+
+    const onImpact = () => {
+      if (toPos) this.spawnImpactBurst(toPos.x, toPos.y, moveColor);
+      this.playHitReaction(target.instanceId);
+      this.updateHpBar(target);
+      this.showDamageText(target.instanceId, totalDmg, attacker.isPlayer ? 0xffffff : 0xff4444);
+      // Bigger hits rock the whole arena.
+      const shake = Math.min(0.012, 0.004 + totalDmg / 9000);
+      if (superEffective || totalDmg >= 40) this.cameras.main.shake(180, shake);
+      if (superEffective && toPos) this.showEffectivenessText(toPos.x, toPos.y - 30, 'SUPER EFFEKTIV!', '#ffdd33');
+      else if (elementBonus < 0 && toPos) this.showEffectivenessText(toPos.x, toPos.y - 30, 'nicht sehr effektiv…', '#99aabb');
+    };
+
+    if (fromPos && toPos) {
+      this.spawnProjectile(fromPos, toPos, moveColor, onImpact);
+    } else {
+      onImpact();
+    }
 
     // Apply status effect
     if (move.statusEffect && score > move.statusEffect.threshold) {
@@ -796,12 +1037,15 @@ export class Battle extends Phaser.Scene {
       attackerMaxHp: attacker.maxHp,
     });
 
-    // Screen flash
+    // Screen flash + a hefty shake to sell the ultimate.
     const { width, height } = this.scale;
     const flash = this.add.rectangle(width / 2, height / 2, width, height, 0xffd700, 0.55).setDepth(500);
     this.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
+    this.cameras.main.shake(320, 0.014);
 
-    // Big ULTIMA announcement over the attacker's card
+    const ultColor = ELEMENT_COLORS[def.elements[0]] ?? 0xffd700;
+
+    // Big ULTIMA announcement over the attacker's card + dramatic lunge.
     const src = this.cardCenters.get(attacker.instanceId);
     if (src) {
       const ultTxt = this.add.text(src.x, src.y - 20, '⚡ ULTIMA ⚡', {
@@ -810,9 +1054,18 @@ export class Battle extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(901);
       this.tweens.add({ targets: ultTxt, y: src.y - 60, alpha: 0, duration: 1400, ease: 'Quad.in', onComplete: () => ultTxt.destroy() });
     }
+    this.playLunge(attacker.instanceId, attacker.isPlayer ? 'right' : 'left');
 
     target.currentHp = Math.max(0, target.currentHp - dmg);
     this.updateHpBar(target);
+    this.playHitReaction(target.instanceId);
+    // A big multi-ring elemental burst on the victim.
+    const ctr0 = this.cardCenters.get(target.instanceId);
+    if (ctr0) {
+      this.spawnImpactBurst(ctr0.x, ctr0.y, ultColor);
+      this.time.delayedCall(90, () => this.spawnImpactBurst(ctr0.x, ctr0.y, 0xffd700));
+      this.time.delayedCall(180, () => this.spawnImpactBurst(ctr0.x, ctr0.y, ultColor));
+    }
     // Gold damage number (larger than normal)
     const ctr = this.cardCenters.get(target.instanceId);
     if (ctr) {
@@ -935,6 +1188,19 @@ export class Battle extends Phaser.Scene {
       alpha: 0,
       duration: 1000,
       ease: 'Quad.in',
+      onComplete: () => txt.destroy(),
+    });
+  }
+
+  // Floating "SUPER EFFEKTIV!" / "nicht sehr effektiv" banner above a target.
+  private showEffectivenessText(x: number, y: number, label: string, color: string) {
+    const txt = this.add.text(x, y, label, {
+      fontSize: '14px', color, fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(905).setScale(0.5);
+    this.tweens.add({ targets: txt, scale: 1, duration: 160, ease: 'Back.out' });
+    this.tweens.add({
+      targets: txt, y: y - 26, alpha: 0, duration: 1100, delay: 250, ease: 'Quad.in',
       onComplete: () => txt.destroy(),
     });
   }
