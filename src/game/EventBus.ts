@@ -16,6 +16,7 @@ export const GameEvents = {
   MINIGAME_START:       'minigame-start',
   MINIGAME_COMPLETE:    'minigame-complete',
   PANEL_CLOSED:         'panel-closed',
+  OPEN_BUILD_OVERLAY:   'open-build-overlay',   // BAUEN tab → 2D top-down island view (browse)
   ENTER_PLACEMENT_MODE: 'enter-placement-mode',
   ISLAND_CHANGED:       'island-changed',
   START_BATTLE:         'start-battle',

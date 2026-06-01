@@ -85,9 +85,12 @@ export default function App() {
     const onBattleStart    = () => setActivePanel({ type: 'battle' });
     const onBattleEnd    = () => setActivePanel(null);
     // Build-overlay (2D placement) lifecycle → toggle the chrome on/off.
+    // Both the browse-mode overlay (BAUEN tab) and per-building placement hide
+    // the floating HUD/rails; PANEL_CLOSED restores them.
     const onEnterPlacement = () => setPlacementActive(true);
     const onPlacementDone  = () => setPlacementActive(false);
 
+    EventBus.on(GameEvents.OPEN_BUILD_OVERLAY,   onEnterPlacement);
     EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
     EventBus.on(GameEvents.PANEL_CLOSED,         onPlacementDone);
     EventBus.on(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
@@ -110,6 +113,7 @@ export default function App() {
     EventBus.on(GameEvents.BATTLE_ENDED,       onBattleEnd);
 
     return () => {
+      EventBus.off(GameEvents.OPEN_BUILD_OVERLAY,   onEnterPlacement);
       EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
       EventBus.off(GameEvents.PANEL_CLOSED,         onPlacementDone);
       EventBus.off(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
@@ -175,7 +179,7 @@ export default function App() {
             onShop={() => setActivePanel({ type: 'shop' })}
             onBreed={() => setActivePanel({ type: 'breeding' })}
             onHatch={() => setActivePanel({ type: 'hatchery' })}
-            onBuild={() => setActivePanel({ type: 'build' })}
+            onBuild={() => EventBus.emit(GameEvents.OPEN_BUILD_OVERLAY, {})}
           />
         </>
       )}
