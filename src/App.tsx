@@ -168,6 +168,30 @@ export default function App() {
         />
       )}
 
+      {/* Build-mode exit button — the 2D placement overlay lives entirely in
+          Phaser and was previously only cancelable via the ESC key, which phones
+          don't have. This floating touch button emits PANEL_CLOSED, which the
+          Island scene listens for to leave placement mode (and which restores the
+          chrome here). Shown only while the build overlay is up. */}
+      {placementActive && !isBattleActive && (
+        <button
+          onClick={() => EventBus.emit(GameEvents.PANEL_CLOSED, {})}
+          title="Baumodus verlassen"
+          style={{
+            position: 'absolute', zIndex: 5000,
+            top: 'calc(10px + env(safe-area-inset-top, 0px))',
+            right: 'calc(10px + env(safe-area-inset-right, 0px))',
+            minWidth: 44, height: 44, padding: '0 14px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            background: 'linear-gradient(160deg, #ff6b5a, #c41f1f)',
+            border: '2px solid #ffb070', borderRadius: 14,
+            color: '#fff', fontWeight: 900, fontSize: 15, cursor: 'pointer',
+            touchAction: 'manipulation', pointerEvents: 'auto',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3)',
+          }}
+        >✕ Fertig</button>
+      )}
+
       {/* Floating top HUD + side action rails — hidden during battle (so only
           the fight screen shows) and during 2D build placement (clean build tab). */}
       {!hideChrome && (

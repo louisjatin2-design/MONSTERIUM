@@ -99,6 +99,12 @@ export class Battle extends Phaser.Scene {
   private awaitingPlayerInput = false;
   private speedBtnBg: Phaser.GameObjects.Rectangle | null = null;
   private speedBtnLabel: Phaser.GameObjects.Text | null = null;
+  // On-screen flee button (touch devices have no ESC key). Requires a second
+  // tap to confirm so a stray touch can't drop the player out of a fight.
+  private fleeBtnBg: Phaser.GameObjects.Rectangle | null = null;
+  private fleeBtnLabel: Phaser.GameObjects.Text | null = null;
+  private fleeArmed = false;
+  private fleeResetTimer?: Phaser.Time.TimerEvent;
 
   constructor() { super('Battle'); }
 
@@ -158,8 +164,9 @@ export class Battle extends Phaser.Scene {
       fontSize: '12px', color: '#aaaaaa',
     });
 
-    // ESC to flee
+    // ESC to flee (desktop) — plus an on-screen button for touch devices.
     this.input.keyboard?.on('keydown-ESC', () => this.endBattle(false));
+    this.createFleeButton();
 
     // Listen for minigame result
     EventBus.on(GameEvents.MINIGAME_COMPLETE, this.onMinigameResult, this);
@@ -1059,6 +1066,43 @@ export class Battle extends Phaser.Scene {
     bg.on('pointerout', () => { if (!this.autoBattle) bg.setFillStyle(0x223355); });
   }
 
+  // Top-left flee button, mirroring the Speed-Up button on the right. Phones
+  // have no ESC key, so without this a player can only leave a fight by winning
+  // or losing. A first tap arms it ("Sicher?"), a second within 3s flees.
+  private createFleeButton() {
+    const x = 70, y = 30;
+    const bg = this.add.rectangle(x, y, 116, 30, 0x55222d)
+      .setStrokeStyle(2, 0xff6677)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(200);
+    const label = this.add.text(x, y, '🏳️ FLIEHEN', {
+      fontSize: '13px', color: '#ffccd2', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(201);
+    this.fleeBtnBg = bg;
+    this.fleeBtnLabel = label;
+    bg.on('pointerdown', () => this.onFleePressed());
+    bg.on('pointerover', () => { if (!this.fleeArmed) bg.setFillStyle(0x702d3a); });
+    bg.on('pointerout',  () => { if (!this.fleeArmed) bg.setFillStyle(0x55222d); });
+  }
+
+  private onFleePressed() {
+    if (this.fleeArmed) { this.endBattle(false); return; }
+    // Arm: ask for confirmation, auto-disarm after a few seconds.
+    this.fleeArmed = true;
+    this.fleeBtnBg?.setFillStyle(0x992233).setStrokeStyle(2, 0xff99aa);
+    this.fleeBtnLabel?.setText('🏳️ SICHER?').setColor('#ffffff');
+    this.fleeResetTimer?.remove();
+    this.fleeResetTimer = this.time.delayedCall(3000, () => this.disarmFlee());
+  }
+
+  private disarmFlee() {
+    this.fleeArmed = false;
+    this.fleeResetTimer?.remove();
+    this.fleeResetTimer = undefined;
+    this.fleeBtnBg?.setFillStyle(0x55222d).setStrokeStyle(2, 0xff6677);
+    this.fleeBtnLabel?.setText('🏳️ FLIEHEN').setColor('#ffccd2');
+  }
+
   private toggleAutoBattle() {
     this.autoBattle = !this.autoBattle;
     if (this.speedBtnBg && this.speedBtnLabel) {
@@ -1877,5 +1921,7 @@ export class Battle extends Phaser.Scene {
 
   shutdown() {
     EventBus.off(GameEvents.MINIGAME_COMPLETE, this.onMinigameResult, this);
+    this.fleeResetTimer?.remove();
+    this.fleeResetTimer = undefined;
   }
 }
