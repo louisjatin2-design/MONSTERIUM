@@ -72,6 +72,16 @@ function getEffectiveSpeed(c: BattleCombatant): number {
   return spd;
 }
 
+// A combatant's defence after factoring in its active buffs/debuffs. DefDown
+// (a debuff) lowers it 25%; DefUp (a support buff) raises it 40%. Centralised
+// so every damage path — normal hits, AoE, ULTIMA and the auto-pilot — agrees.
+export function effectiveDefense(c: BattleCombatant): number {
+  let def = c.defenseStat;
+  if (c.statusEffects.some(e => e.effect === 'DefDown')) def = Math.floor(def * 0.75);
+  if (c.statusEffects.some(e => e.effect === 'DefUp')) def = Math.floor(def * 1.4);
+  return Math.max(1, def);
+}
+
 export function calculateDamage(params: {
   attackerATK: number;
   movePower: number;
@@ -100,7 +110,8 @@ export function calculateDamage(params: {
 
   let atk = attackerATK;
 
-  // Status effects
+  // Status effects — AtkUp (support buff) raises damage, AtkDown lowers it.
+  if (attackerStatuses.some(e => e.effect === 'AtkUp')) atk = Math.floor(atk * 1.35);
   if (attackerStatuses.some(e => e.effect === 'AtkDown')) atk = Math.floor(atk * 0.75);
 
   // Trait: Berserk doubles attack when below 30% HP
@@ -230,6 +241,33 @@ export function gainUltCharge(c: BattleCombatant, damageDealt: number): void {
   c.ultCharge = Math.min(100, c.ultCharge + Math.floor(damageDealt * 0.22));
 }
 
+// ── Battle energy ────────────────────────────────────────────────────────────
+//
+// Energy is a per-combatant resource, separate from HP and the ULTIMA charge.
+// Costly attacks (heavy hitters, AoE blasts and support moves) spend it; basic
+// attacks are free. Each round a combatant regenerates ~40% of its maximum, so
+// a fully drained bar refills within roughly 2–3 rounds — meaning even the most
+// expensive moves can be used again after a short pause.
+export const ENERGY_REGEN_FRACTION = 0.4;
+
+export function getMoveEnergyCost(move: { energyCost?: number }): number {
+  return typeof move.energyCost === 'number' ? Math.max(0, move.energyCost) : 0;
+}
+
+export function canAffordMove(c: BattleCombatant, move: { energyCost?: number }): boolean {
+  return c.energy >= getMoveEnergyCost(move);
+}
+
+export function spendEnergy(c: BattleCombatant, move: { energyCost?: number }): void {
+  c.energy = Math.max(0, c.energy - getMoveEnergyCost(move));
+}
+
+// Recover one round's worth of energy (called once per meta-round per combatant).
+export function regenEnergy(c: BattleCombatant): void {
+  const regen = Math.ceil(c.maxEnergy * ENERGY_REGEN_FRACTION);
+  c.energy = Math.min(c.maxEnergy, c.energy + regen);
+}
+
 // How much charge a monster's ULTIMA needs before it can fire. The ult's base
 // damage scales with the monster's attack stat, so monsters with a weaker ult
 // (lower attack) charge faster by requiring less charge; hard hitters need
@@ -274,6 +312,8 @@ export function buildCombatant(
     equippedMoveIds,
     name,
     ultCharge: 0,
+    energy: def.baseStats.energy,
+    maxEnergy: def.baseStats.energy,
     moveCooldowns: {},
   };
 }
