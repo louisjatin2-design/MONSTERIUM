@@ -39,11 +39,16 @@ export function TeamSelectPanel({ battlePayload, onClose }: Props) {
 
   const startBattle = () => {
     if (selected.length === 0) return;
+    // Close this picker FIRST: onClose sets activePanel to null. Emitting
+    // START_BATTLE afterwards triggers BATTLE_STARTED, which sets activePanel
+    // to 'battle'. If the order were reversed, React would batch both setState
+    // calls in this handler and the trailing null would win — leaving the
+    // normal HUD / rails visible over the fight.
+    onClose();
     EventBus.emit(GameEvents.START_BATTLE, {
       playerTeam: selected,
       ...battlePayload,
     });
-    onClose();
   };
 
   return (
