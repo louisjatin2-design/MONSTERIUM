@@ -39,11 +39,15 @@ export function TeamSelectPanel({ battlePayload, onClose }: Props) {
 
   const startBattle = () => {
     if (selected.length === 0) return;
+    // START_BATTLE runs synchronously and makes Island emit BATTLE_STARTED,
+    // which replaces this panel with the 'battle' screen (and hides the HUD /
+    // rails). Do NOT call onClose() here — it would set activePanel back to
+    // null in the same React tick and win, leaving the normal UI visible
+    // during the fight.
     EventBus.emit(GameEvents.START_BATTLE, {
       playerTeam: selected,
       ...battlePayload,
     });
-    onClose();
   };
 
   return (
