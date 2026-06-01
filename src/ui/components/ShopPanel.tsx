@@ -19,6 +19,7 @@ interface ShopItem {
   name: string;
   description: string;
   diamondCost?: number;
+  goldCost?: number;
   action: (store: ReturnType<typeof useGameStore.getState>) => void;
 }
 
@@ -94,8 +95,11 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
       <div style={{ overflowY: 'auto', padding: 14, maxHeight: 'calc(min(88vh, 100vh - 150px) - 180px)' }}>
         {tab === 'items' ? (
           SHOP_ITEMS.map(item => {
-            const cost = item.diamondCost ?? 0;
-            const canAfford = diamonds >= cost;
+            // Items are priced in either diamonds or gold. Read whichever this
+            // item uses so gold eggs don't fall through to a 💎 0 (free) label.
+            const isGold = item.goldCost != null;
+            const cost = isGold ? item.goldCost! : (item.diamondCost ?? 0);
+            const canAfford = isGold ? gold >= cost : diamonds >= cost;
             return (
               <div key={item.id} className="monster-card" style={{
                 marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -108,7 +112,7 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
                 <button className="btn btn-info" style={{ minWidth: 72, fontSize: 13 }}
                   disabled={!canAfford}
                   onClick={() => item.action(useGameStore.getState())}>
-                  💎 {cost}
+                  {isGold ? `🪙 ${cost.toLocaleString()}` : `💎 ${cost}`}
                 </button>
               </div>
             );
