@@ -129,46 +129,46 @@
 /* Smooth iOS momentum scroll */
 .panel { -webkit-overflow-scrolling: touch; }
 
-/* ── Side panel: right-anchored, collapses to full-width on mobile ── */
-.panel-side {
+/* ── Docked "tab" panels ──────────────────────────────────────────────
+   Every menu is presented as a full-height content tab that fills the area
+   between the HUD (top) and the BottomBar (bottom), instead of a floating
+   popup centered over a dimmed game. Uniform width keeps the tabbed feel
+   consistent across every menu.
+   --hud-h / --bar-h match HUD.tsx (60px) and BottomBar.tsx (84px).        */
+:root { --hud-h: 60px; --bar-h: 84px; }
+
+.panel-side,
+.panel-modal {
   box-sizing: border-box;
-  right: 16px;
-  top: 62px;
-  width: min(420px, calc(100vw - 32px));
-  /* Use --vh to avoid iOS Safari address-bar bug */
-  max-height: calc(var(--vh, 1vh) * 100 - 152px);
+  left: 50%;
+  transform: translateX(-50%);
+  top: var(--hud-h);
+  bottom: var(--bar-h);
+  width: min(640px, 100vw);
+  max-height: none;
   padding: 16px;
   overflow-y: auto;
+  border-radius: 16px 16px 0 0;
 }
-.panel-side-narrow { width: min(360px, calc(100vw - 32px)); }
-.panel-side-xs     { width: min(320px, calc(100vw - 32px)); }
 
-@media (max-width: 520px) {
+/* Width / variant modifiers are kept for compatibility but no longer change
+   the docked tab width — every tab shares the same footprint. */
+.panel-side-narrow,
+.panel-side-xs,
+.panel-w-xl,
+.panel-w-lg,
+.panel-w-md,
+.panel-w-sm,
+.panel-w-xs { box-sizing: border-box; }
+
+/* On narrow screens the tab spans the full width edge-to-edge. */
+@media (max-width: 700px) {
   .panel-side,
-  .panel-side-narrow,
-  .panel-side-xs {
-    right: 8px;
-    left: 8px;
-    width: auto;
-    max-height: calc(var(--vh, 1vh) * 100 - 155px);
+  .panel-modal {
+    width: 100vw;
+    border-radius: 0;
   }
 }
-
-/* ── Centered modal panel ─────────────────────────────────────────── */
-.panel-modal {
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  max-height: min(calc(var(--vh, 1vh) * 88), calc(var(--vh, 1vh) * 100 - 150px));
-  overflow-y: auto;
-}
-
-/* Width modifiers — box-sizing: border-box so padding/border are included */
-.panel-w-xl { box-sizing: border-box; width: min(600px, calc(100vw - 16px)); }
-.panel-w-lg { box-sizing: border-box; width: min(500px, calc(100vw - 16px)); }
-.panel-w-md { box-sizing: border-box; width: min(460px, calc(100vw - 16px)); }
-.panel-w-sm { box-sizing: border-box; width: min(420px, calc(100vw - 16px)); }
-.panel-w-xs { box-sizing: border-box; width: min(320px, calc(100vw - 16px)); }
 
 /* ── Small-screen touch polish ───────────────────────────────────── */
 @media (max-width: 420px) {
@@ -192,32 +192,10 @@
 
 @media (orientation: portrait) and (max-width: 767px) {
 
-  /* 1 ── Phaser canvas: override CENTER_BOTH, pin it just below the HUD */
+  /* Phaser canvas: override CENTER_BOTH, pin it just below the HUD.
+     Docked tab panels already fill HUD→BottomBar via the base rules. */
   #game-container canvas {
     /* Phaser writes margin-top to vertically center; we move canvas to top */
-    margin-top: 62px !important;
-  }
-
-  /* 2 ── Side panels: open below the canvas, not covering it
-          canvas height ≈ 56.25 vw  (= 100vw × 720/1280)
-          canvas bottom ≈ 62px (HUD) + 56.25vw + 4px gap              */
-  .panel-side,
-  .panel-side-narrow,
-  .panel-side-xs {
-    top: calc(66px + 56.25vw) !important;
-    max-height: calc(var(--vh, 1vh) * 100 - 56.25vw - 158px) !important;
-    /* 158 = 62 HUD + 84 BottomBar + 12 safety                         */
-  }
-
-  /* 3 ── Modal panels: stretch from just below HUD to just above BottomBar
-          instead of centering in a mostly-empty portrait viewport       */
-  .panel.panel-modal {
-    top:       62px  !important;
-    bottom:    84px  !important;
-    /* Keep the left: 50% + translateX(-50%) horizontal centering
-       but remove the vertical translate so top/bottom anchors work     */
-    transform: translateX(-50%) !important;
-    max-height: none !important;
-    overflow-y: auto;
+    margin-top: 60px !important;
   }
 }
