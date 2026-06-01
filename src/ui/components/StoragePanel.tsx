@@ -43,7 +43,7 @@ export function StoragePanel({ onClose }: StoragePanelProps) {
         </div>
       </div>
 
-      <div style={{ overflowY: 'auto', padding: 14, maxHeight: 'calc(min(88vh, 100vh - 150px) - 190px)' }}>
+      <div style={{ overflowY: 'auto', padding: 14, flex: 1, minHeight: 0 }}>
         {sorted.length === 0 && (
           <div style={{ textAlign: 'center', color: '#888', padding: 28 }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>📭</div>

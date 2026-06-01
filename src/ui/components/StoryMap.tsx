@@ -128,9 +128,8 @@ export function StoryMap({ onClose }: StoryMapProps) {
 
       {/* ── Scrollable map area ──────────────────────────────────────── */}
       <div ref={scrollRef} style={{
-        flex: 1, overflowY: 'auto', position: 'relative',
+        flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative',
         background: `radial-gradient(circle at 50% 0%, ${world.bgTo}55, ${world.bgFrom}) , #0a0512`,
-        maxHeight: 'calc(min(88vh, 100vh - 150px) - 230px)',
       }}>
         <div style={{ position: 'relative', height: mapH, margin: '0 4px' }}>
           {/* Connector path */}

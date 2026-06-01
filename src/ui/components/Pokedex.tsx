@@ -102,7 +102,7 @@ export function Pokedex({ onClose }: PokedexProps) {
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))',
         gap: 8, overflowY: 'auto', padding: 14,
-        maxHeight: 'calc(min(88vh, 100vh - 150px) - 200px)',
+        flex: 1, minHeight: 0,
       }}>
         {filtered.map(id => {
           const def = MONSTER_DEFS[id]!;
