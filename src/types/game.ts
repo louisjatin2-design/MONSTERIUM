@@ -124,6 +124,29 @@ export interface BuildingInstance {
   lastCollectedMs: number;
 }
 
+// Decorative-but-blocking terrain features scattered across an island, in the
+// style of Monster Legends. Each obstacle occupies one or more land tiles and
+// must be cleared (for gold) before the player can build there — clearing it
+// yields a small one-off reward.
+export type ObstacleType = 'rock' | 'tree' | 'bush' | 'crystal' | 'mushroom' | 'bones';
+
+export interface ObstacleDef {
+  id: string;
+  name: string;
+  type: ObstacleType;
+  tilesW: number;
+  tilesH: number;
+  clearCost: number;                                   // gold to clear away
+  clearReward: { gold?: number; food?: number; xp?: number };
+}
+
+// A concrete obstacle placement on an island's grid.
+export interface ObstaclePlacement {
+  defId: string;
+  tileX: number;
+  tileY: number;
+}
+
 export interface IslandDef {
   id: string;
   name: string;
@@ -134,6 +157,8 @@ export interface IslandDef {
   diamondCost?: number;
   fragmentsRequired?: number;
   theme: string;
+  // Pre-placed terrain obstacles that block building until cleared.
+  obstacles?: ObstaclePlacement[];
 }
 
 export interface Egg {
