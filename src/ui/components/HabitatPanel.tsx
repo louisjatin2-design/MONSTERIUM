@@ -94,106 +94,21 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
         {monsters.map(m => {
           const mDef = MONSTER_DEFS[m.defId];
           if (!mDef) return null;
-          const feedCost  = calculateFeedCost(m.level);
-          const canFeed   = food >= feedCost;
-          const sellValue = calculateSellValue(RARITY_RANK[mDef.rarity], m.level);
-          const evoReady  = isEvolutionReady(m);
-          const nextStage = getNextEvolutionStage(m.stage);
-          const stageName = getEvolutionStageName(m.defId, m.stage);
-          const isShowingAttacks = subPanel.type === 'attacks' && subPanel.monsterId === m.instanceId;
-
+          // Only name + level here. Everything else (feed, sell, evolve,
+          // attacks, remove) now lives in the detail screen.
           return (
-            <div key={m.instanceId} className="monster-card" style={{ marginBottom: 8, border: evoReady ? '1px solid #ffd700' : undefined }}>
-              {/* Header row */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <span style={{ fontWeight: 'bold' }}>
-                    {m.name}
-                    <span className="rarity-badge" style={{ background: RARITY_COLORS[mDef.rarity], color: '#000', marginLeft: 4 }}>
-                      {mDef.rarity}
-                    </span>
-                  </span>
-                  <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-                    Lv {m.level} · <span style={{ color: '#bb99ff' }}>{stageName}</span> · {mDef.elements.join('/')}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <button className="btn btn-info" style={{ padding: '2px 6px', fontSize: 10 }}
-                    title="Detailansicht"
-                    onClick={() => EventBus.emit(GameEvents.OPEN_MONSTER_DETAIL, { instanceId: m.instanceId })}>
-                    ℹ️
-                  </button>
-                  <button className="btn btn-gold" style={{ padding: '2px 6px', fontSize: 10 }}
-                    title={`Verkaufen für ${sellValue} Gold`}
-                    onClick={() => { if (confirm(`${m.name} für 🪙 ${sellValue} verkaufen?`)) sellMonster(m.instanceId); }}>
-                    🪙{sellValue}
-                  </button>
-                  <button className="btn btn-danger" style={{ padding: '2px 6px', fontSize: 10 }}
-                    onClick={() => removeFromHabitat(m.instanceId)}>
-                    Entfernen
-                  </button>
-                </div>
-              </div>
-
-              {/* Evolution badge */}
-              {evoReady && nextStage && (
-                <div style={{ marginTop: 6, padding: '4px 8px', background: 'rgba(255,215,0,0.12)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 12, color: '#ffd700' }}>
-                    ✨ Kann sich zu <b>{getEvolutionStageName(m.defId, nextStage)}</b> entwickeln!
-                  </span>
-                  <button
-                    style={{ padding: '3px 10px', fontSize: 12, background: '#664400', color: '#ffd700', border: '1px solid #ffd700', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}
-                    onClick={() => evolveMonster(m.instanceId)}>
-                    ENTWICKELN ✨
-                  </button>
-                </div>
-              )}
-              {!evoReady && nextStage && (
-                <div style={{ fontSize: 10, color: '#555', marginTop: 4 }}>
-                  Nächste Entwicklung bei Lv {EVOLUTION_LEVELS[nextStage]}
-                </div>
-              )}
-
-              {/* Feed bar */}
-              {(() => {
-                const need = Math.floor(100 * Math.pow(m.level, 1.5));
-                const perFeed = Math.ceil(need / 4);
-                const feedsDone = Math.min(4, Math.round(m.xp / perFeed));
-                return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                    <div style={{ flex: 1, display: 'flex', gap: 3 }}>
-                      {[0, 1, 2, 3].map(i => (
-                        <div key={i} style={{ flex: 1, height: 7, borderRadius: 3, background: i < feedsDone ? '#4488ff' : '#333' }} />
-                      ))}
-                    </div>
-                    <span style={{ fontSize: 10, color: '#888' }}>{feedsDone}/4</span>
-                    <button className="btn btn-primary" style={{ padding: '2px 8px', fontSize: 11 }}
-                      disabled={!canFeed || m.level >= 100}
-                      onClick={() => feedMonster(m.instanceId, feedCost)}>
-                      Füttern 🌾{feedCost}
-                    </button>
-                  </div>
-                );
-              })()}
-
-              {/* Attack management toggle */}
-              <button
-                style={{ marginTop: 6, width: '100%', padding: '3px 0', fontSize: 11, background: '#1a2a3a', color: '#88aaff', border: '1px solid #335', borderRadius: 4, cursor: 'pointer' }}
-                onClick={() => setSubPanel(isShowingAttacks ? { type: 'none' } : { type: 'attacks', monsterId: m.instanceId })}>
-                ⚔️ Attacken verwalten ({m.equippedMoveIds.length}/{m.maxAttackSlots ?? 2} Slots) {isShowingAttacks ? '▲' : '▼'}
-              </button>
-
-              {/* Inline attack panel */}
-              {isShowingAttacks && (
-                <AttackSubPanel
-                  monster={m}
-                  gold={gold}
-                  diamonds={diamonds}
-                  onEquip={(moveId, replaceId) => equipAttack(m.instanceId, moveId, replaceId)}
-                  onUnequip={(moveId) => unequipAttack(m.instanceId, moveId)}
-                  onTrain={(moveId) => trainAttack(m.instanceId, moveId)}
-                />
-              )}
+            <div key={m.instanceId} className="monster-card" style={{
+              marginBottom: 6, display: 'flex', justifyContent: 'space-between',
+              alignItems: 'center', cursor: 'pointer',
+            }}
+              onClick={() => EventBus.emit(GameEvents.OPEN_MONSTER_DETAIL, { instanceId: m.instanceId })}>
+              <span style={{ fontWeight: 'bold' }}>
+                {m.name}
+                <span className="rarity-badge" style={{ background: RARITY_COLORS[mDef.rarity], color: '#000', marginLeft: 6 }}>
+                  {mDef.rarity}
+                </span>
+              </span>
+              <span style={{ fontSize: 12, color: '#aaccff' }}>Lv {m.level} · Details ›</span>
             </div>
           );
         })}
