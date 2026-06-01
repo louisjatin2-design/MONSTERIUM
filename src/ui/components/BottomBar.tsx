@@ -1,6 +1,8 @@
 import React from 'react';
 
 interface BottomBarProps {
+  /** Type of the currently open panel, so the matching tab is highlighted. */
+  active?:   string | null;
   onAttack:  () => void;
   onPokedex: () => void;
   onStory:   () => void;
@@ -9,24 +11,28 @@ interface BottomBarProps {
   onHatch:   () => void;
 }
 
+type HandlerKey = 'onAttack' | 'onPokedex' | 'onStory' | 'onShop' | 'onBreed' | 'onHatch';
+
 const BUTTONS: Array<{
   icon: string;
   label: string;
-  key: keyof BottomBarProps;
+  key: HandlerKey;
+  /** activePanel.type this tab maps to, used for the active highlight. */
+  panel: string;
   from: string;
   to: string;
   border: string;
 }> = [
-  { icon: '⚔️',  label: 'ATTACK',  key: 'onAttack',  from: '#e84545', to: '#b82828', border: '#ff7070' },
-  { icon: '📖',  label: 'POKÉDEX', key: 'onPokedex', from: '#4578e8', to: '#2850b8', border: '#70a0ff' },
-  { icon: '🗺️',  label: 'STORY',   key: 'onStory',   from: '#9b45e8', to: '#6a28b8', border: '#c070ff' },
-  { icon: '💞',  label: 'BREED',   key: 'onBreed',   from: '#e845a8', to: '#b82878', border: '#ff70d0' },
-  { icon: '🥚',  label: 'HATCH',   key: 'onHatch',   from: '#45c8e8', to: '#289ab8', border: '#70e0ff' },
-  { icon: '🛒',  label: 'SHOP',    key: 'onShop',    from: '#e8a845', to: '#b87c28', border: '#ffd070' },
+  { icon: '⚔️',  label: 'ATTACK',  key: 'onAttack',  panel: 'story',    from: '#e84545', to: '#b82828', border: '#ff7070' },
+  { icon: '📖',  label: 'POKÉDEX', key: 'onPokedex', panel: 'pokedex',  from: '#4578e8', to: '#2850b8', border: '#70a0ff' },
+  { icon: '🗺️',  label: 'STORY',   key: 'onStory',   panel: 'story',    from: '#9b45e8', to: '#6a28b8', border: '#c070ff' },
+  { icon: '💞',  label: 'BREED',   key: 'onBreed',   panel: 'breeding', from: '#e845a8', to: '#b82878', border: '#ff70d0' },
+  { icon: '🥚',  label: 'HATCH',   key: 'onHatch',   panel: 'hatchery', from: '#45c8e8', to: '#289ab8', border: '#70e0ff' },
+  { icon: '🛒',  label: 'SHOP',    key: 'onShop',    panel: 'shop',     from: '#e8a845', to: '#b87c28', border: '#ffd070' },
 ];
 
-export function BottomBar({ onAttack, onPokedex, onStory, onShop, onBreed, onHatch }: BottomBarProps) {
-  const handlers: Record<keyof BottomBarProps, () => void> = {
+export function BottomBar({ active = null, onAttack, onPokedex, onStory, onShop, onBreed, onHatch }: BottomBarProps) {
+  const handlers: Record<HandlerKey, () => void> = {
     onAttack, onPokedex, onStory, onShop, onBreed, onHatch,
   };
 
@@ -55,6 +61,7 @@ export function BottomBar({ onAttack, onPokedex, onStory, onShop, onBreed, onHat
           from={btn.from}
           to={btn.to}
           border={btn.border}
+          active={active === btn.panel}
           onClick={handlers[btn.key]}
         />
       ))}
@@ -63,9 +70,9 @@ export function BottomBar({ onAttack, onPokedex, onStory, onShop, onBreed, onHat
 }
 
 function BarButton({
-  icon, label, from, to, border, onClick,
+  icon, label, from, to, border, active, onClick,
 }: {
-  icon: string; label: string; from: string; to: string; border: string; onClick: () => void;
+  icon: string; label: string; from: string; to: string; border: string; active: boolean; onClick: () => void;
 }) {
   const [pressed, setPressed] = React.useState(false);
 
@@ -77,7 +84,7 @@ function BarButton({
       style={{
         width: 'clamp(46px, calc((100vw - 16px) / 6), 66px)',
         height: 'clamp(48px, calc((100vw - 16px) / 6 + 2px), 68px)',
-        border: `2px solid ${border}`,
+        border: active ? '2px solid #ffffff' : `2px solid ${border}`,
         borderRadius: 14,
         background: pressed
           ? `linear-gradient(160deg, ${to}, #000)`
@@ -88,10 +95,12 @@ function BarButton({
         justifyContent: 'center',
         gap: 2,
         cursor: 'pointer',
-        boxShadow: pressed
-          ? `0 1px 4px rgba(0,0,0,0.6)`
-          : `0 4px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.2)`,
-        transform: pressed ? 'translateY(2px)' : 'translateY(0)',
+        boxShadow: active
+          ? `0 0 0 2px ${border}, 0 0 14px ${border}, inset 0 1px 0 rgba(255,255,255,0.3)`
+          : pressed
+            ? `0 1px 4px rgba(0,0,0,0.6)`
+            : `0 4px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.2)`,
+        transform: pressed ? 'translateY(2px)' : active ? 'translateY(-2px)' : 'translateY(0)',
         transition: 'transform 0.08s, box-shadow 0.08s',
         padding: 0,
         userSelect: 'none',
