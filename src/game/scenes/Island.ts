@@ -206,12 +206,22 @@ export class Island extends Phaser.Scene {
     });
 
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
-      // End a pinch once a finger lifts.
-      if (this.pinchStartDist > 0 || this.overlayPinchDist > 0) {
-        if (this.input.manager.pointersTotal <= 2) {
-          this.pinchStartDist = 0;
-          this.overlayPinchDist = 0;
-        }
+      const wasPinching = this.pinchStartDist > 0 || this.overlayPinchDist > 0;
+      // Count fingers STILL down (the one that just lifted already reads
+      // isDown=false here). When fewer than two remain, the pinch is over —
+      // clear its state so subsequent single taps register again. (The old
+      // check used input.manager.pointersTotal, which is the configured pointer
+      // count, not how many are down, so it never reset → taps died after zoom.)
+      const downCount = [this.input.pointer1, this.input.pointer2, this.input.pointer3]
+        .filter(pt => pt && pt.isDown).length;
+      if (downCount < 2) {
+        this.pinchStartDist = 0;
+        this.overlayPinchDist = 0;
+      }
+      if (wasPinching) {
+        // Lifting a finger out of a pinch must not count as a tap.
+        this.isDragging = false;
+        this.overlayDragging = false;
         return;
       }
       this.isDragging = false;
