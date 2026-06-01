@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PhaserGame } from '@ui/PhaserGame';
 import { HUD } from '@ui/components/HUD';
-import { BottomBar } from '@ui/components/BottomBar';
+import { ActionRail } from '@ui/components/ActionRail';
+import { SideRail } from '@ui/components/SideRail';
 import { BuildMenu } from '@ui/components/BuildMenu';
 import { HabitatPanel } from '@ui/components/HabitatPanel';
 import { BreedingPanel } from '@ui/components/BreedingPanel';
@@ -127,32 +128,41 @@ export default function App() {
     EventBus.emit(GameEvents.PANEL_CLOSED, {});
   };
 
-  // Tab behaviour: tapping the active tab again closes it, otherwise switch to it.
-  const togglePanel = (panel: NonNullable<ActivePanel>) => {
-    if (activePanel?.type === panel.type) closePanel();
-    else setActivePanel(panel);
-  };
-
   const isBattleActive = activePanel?.type === 'battle';
+  const hasPanelOpen   = activePanel !== null && !isBattleActive;
 
   return (
     <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' }}>
       <PhaserGame ref={phaserRef} />
 
-      {/* Top HUD + bottom tab bar — hidden during battle so only the
-          fight screen shows (no shop/resource access mid-fight). The bar
-          stays visible while a tab is open so you can switch tabs. */}
+      {/* Backdrop: dims Phaser (and the floating rails) when a panel is open,
+          and closes the panel when the empty area is tapped. */}
+      {hasPanelOpen && (
+        <div
+          style={{
+            position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
+            zIndex: 150,
+            background: 'rgba(0,0,0,0.55)',
+            pointerEvents: 'auto',
+          }}
+          onClick={closePanel}
+          onKeyDown={e => e.stopPropagation()}
+        />
+      )}
+
+      {/* Floating top HUD + side action rails — hidden during battle so only
+          the fight screen shows (no shop/resource access mid-fight). */}
       {!isBattleActive && (
         <>
           <HUD />
-          <BottomBar
-            active={activePanel?.type ?? null}
-            onAttack={() => togglePanel({ type: 'story' })}
-            onPokedex={() => togglePanel({ type: 'pokedex' })}
-            onStory={() => togglePanel({ type: 'story' })}
-            onShop={() => togglePanel({ type: 'shop' })}
-            onBreed={() => togglePanel({ type: 'breeding' })}
-            onHatch={() => togglePanel({ type: 'hatchery' })}
+          <SideRail />
+          <ActionRail
+            onAttack={() => setActivePanel({ type: 'story' })}
+            onPokedex={() => setActivePanel({ type: 'pokedex' })}
+            onStory={() => setActivePanel({ type: 'story' })}
+            onShop={() => setActivePanel({ type: 'shop' })}
+            onBreed={() => setActivePanel({ type: 'breeding' })}
+            onHatch={() => setActivePanel({ type: 'hatchery' })}
           />
         </>
       )}

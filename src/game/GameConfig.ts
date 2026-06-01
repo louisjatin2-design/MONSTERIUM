@@ -15,7 +15,9 @@ export const GameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   width: 1280,
   height: 720,
-  backgroundColor: '#0a0a1a',
+  // Sky-blue base so any letterbox margin blends with the habitat's sky
+  // instead of showing as black bars.
+  backgroundColor: '#5ab4e0',
   parent: 'game-container',
   scene: [Boot, Preload, MainMenu, Island, Battle, TimingBarScene, AimClickScene, ButtonSequenceScene, MashButtonScene, SwipePathScene],
   scale: {

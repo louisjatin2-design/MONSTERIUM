@@ -116,6 +116,12 @@
   50%      { transform: translate(-50%, -50%) scale(1.12); }
 }
 
+/* Primary bottom-bar button gentle attention glow */
+@keyframes primaryPulse {
+  0%, 100% { box-shadow: 0 5px 14px rgba(255,90,60,0.45), inset 0 1px 0 rgba(255,255,255,0.3); }
+  50%      { box-shadow: 0 5px 20px rgba(255,140,60,0.8),  inset 0 1px 0 rgba(255,255,255,0.35); }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
@@ -129,46 +135,49 @@
 /* Smooth iOS momentum scroll */
 .panel { -webkit-overflow-scrolling: touch; }
 
-/* ── Docked "tab" panels ──────────────────────────────────────────────
-   Every menu is presented as a full-height content tab that fills the area
-   between the HUD (top) and the BottomBar (bottom), instead of a floating
-   popup centered over a dimmed game. Uniform width keeps the tabbed feel
-   consistent across every menu.
-   --hud-h / --bar-h match HUD.tsx (60px) and BottomBar.tsx (84px).        */
-:root { --hud-h: 60px; --bar-h: 84px; }
-
-.panel-side,
-.panel-modal {
+/* ── Floating side panel: right-anchored, collapses to full-width on mobile.
+   The full-width top/bottom bars are gone — the world fills the whole screen
+   and panels float as overlays (dimmed by the backdrop) over the habitat.  */
+.panel-side {
   box-sizing: border-box;
-  left: 50%;
-  transform: translateX(-50%);
-  top: var(--hud-h);
-  bottom: var(--bar-h);
-  width: min(640px, 100vw);
-  max-height: none;
+  right: 16px;
+  top: 64px;
+  width: min(420px, calc(100vw - 32px));
+  /* Use --vh to avoid iOS Safari address-bar bug. No solid bars reserve
+     space any more, so panels may use almost the full height.             */
+  max-height: calc(var(--vh, 1vh) * 100 - 88px);
   padding: 16px;
   overflow-y: auto;
-  border-radius: 16px 16px 0 0;
 }
+.panel-side-narrow { width: min(360px, calc(100vw - 32px)); }
+.panel-side-xs     { width: min(320px, calc(100vw - 32px)); }
 
-/* Width / variant modifiers are kept for compatibility but no longer change
-   the docked tab width — every tab shares the same footprint. */
-.panel-side-narrow,
-.panel-side-xs,
-.panel-w-xl,
-.panel-w-lg,
-.panel-w-md,
-.panel-w-sm,
-.panel-w-xs { box-sizing: border-box; }
-
-/* On narrow screens the tab spans the full width edge-to-edge. */
-@media (max-width: 700px) {
+@media (max-width: 520px) {
   .panel-side,
-  .panel-modal {
-    width: 100vw;
-    border-radius: 0;
+  .panel-side-narrow,
+  .panel-side-xs {
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-height: calc(var(--vh, 1vh) * 100 - 88px);
   }
 }
+
+/* ── Centered modal panel ─────────────────────────────────────────── */
+.panel-modal {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-height: min(calc(var(--vh, 1vh) * 88), calc(var(--vh, 1vh) * 100 - 110px));
+  overflow-y: auto;
+}
+
+/* Width modifiers — box-sizing: border-box so padding/border are included */
+.panel-w-xl { box-sizing: border-box; width: min(600px, calc(100vw - 16px)); }
+.panel-w-lg { box-sizing: border-box; width: min(500px, calc(100vw - 16px)); }
+.panel-w-md { box-sizing: border-box; width: min(460px, calc(100vw - 16px)); }
+.panel-w-sm { box-sizing: border-box; width: min(420px, calc(100vw - 16px)); }
+.panel-w-xs { box-sizing: border-box; width: min(320px, calc(100vw - 16px)); }
 
 /* ── Small-screen touch polish ───────────────────────────────────── */
 @media (max-width: 420px) {
@@ -188,14 +197,21 @@
 
 /* ═══════════════════════════════════════════════════════
    PORTRAIT PHONE LAYOUT  (≤ 767 px wide)
+
+   The full-width top/bottom bars are gone — the Phaser world now fills the
+   whole screen and the UI floats as side overlays. Panels simply overlay
+   the world (dimmed by the backdrop), so no canvas pinning is needed.
    ═══════════════════════════════════════════════════════ */
 
 @media (orientation: portrait) and (max-width: 767px) {
 
-  /* Phaser canvas: override CENTER_BOTH, pin it just below the HUD.
-     Docked tab panels already fill HUD→BottomBar via the base rules. */
-  #game-container canvas {
-    /* Phaser writes margin-top to vertically center; we move canvas to top */
-    margin-top: 60px !important;
+  /* Modal panels: stretch toward the screen edges instead of centring in a
+     tall portrait viewport, leaving small top/bottom margins.            */
+  .panel.panel-modal {
+    top:       16px  !important;
+    bottom:    16px  !important;
+    transform: translateX(-50%) !important;
+    max-height: none !important;
+    overflow-y: auto;
   }
 }
