@@ -13,9 +13,16 @@ import {
   processStatusTick, buildCombatant, gainUltCharge, ultChargeCostFor,
   getMoveCooldown, tickMoveCooldowns, addStatusEffect,
   earlyCampaignDamageBonus, campaignRewardMultiplier,
+  effectiveDefense, getMoveEnergyCost, canAffordMove, spendEnergy, regenEnergy,
 } from '@systems/BattleSystem';
 import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
-import type { BattleCombatant, MoveDef, MinigameType } from '@gtypes/game';
+import type { BattleCombatant, MoveDef, MinigameType, StatusEffect } from '@gtypes/game';
+
+// Every harmful status effect — used by the support "cleanse" move to decide
+// which effects to strip (leaving positive buffs like AtkUp/DefUp in place).
+const NEGATIVE_STATUS: StatusEffect[] = [
+  'Burn', 'Poison', 'Freeze', 'Stun', 'Paralyze', 'Blind', 'DefDown', 'AtkDown',
+];
 
 // Which Phaser scene drives each minigame type.
 const MINIGAME_SCENE_KEYS: Record<MinigameType, string> = {
@@ -58,6 +65,7 @@ export class Battle extends Phaser.Scene {
   // UI elements
   private hpBars: Map<string, { bar: Phaser.GameObjects.Rectangle; bg: Phaser.GameObjects.Rectangle }> = new Map();
   private ultBars: Map<string, { bar: Phaser.GameObjects.Rectangle; bg: Phaser.GameObjects.Rectangle }> = new Map();
+  private energyBars: Map<string, { bar: Phaser.GameObjects.Rectangle; bg: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text }> = new Map();
   private ultReadyIcons: Map<string, Phaser.GameObjects.Text> = new Map();
   private nameLabels: Map<string, Phaser.GameObjects.Text> = new Map();
   private hpLabels: Map<string, Phaser.GameObjects.Text> = new Map();
@@ -389,6 +397,15 @@ export class Battle extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(5);
     this.ultReadyIcons.set(c.instanceId, ultIcon);
 
+    // Energy bar — a thin cyan gauge between the trait line and the status
+    // badges. Drains when costly moves are used, refilling over a few rounds.
+    const enBg = this.add.rectangle(x, y - 9, w - 10, 5, 0x0b2733).setOrigin(0.5);
+    const enBar = this.add.rectangle(x - (w - 10) / 2, y - 9, w - 10, 5, 0x33ccff).setOrigin(0, 0.5);
+    const enLabel = this.add.text(x + w / 2 - 6, y - 9, `⚡${c.energy}`, {
+      fontSize: '9px', color: '#aaf0ff', fontStyle: 'bold',
+    }).setOrigin(1, 0.5);
+    this.energyBars.set(c.instanceId, { bar: enBar, bg: enBg, label: enLabel });
+
     this.updateStatusDisplay(c);
   }
 
@@ -656,6 +673,14 @@ export class Battle extends Phaser.Scene {
     if (icon) icon.setText(ready ? '⚡ ULTIMA BEREIT ⚡' : '');
   }
 
+  private updateEnergyBar(c: BattleCombatant) {
+    const eb = this.energyBars.get(c.instanceId);
+    if (!eb) return;
+    const ratio = Math.max(0, Math.min(1, c.energy / c.maxEnergy));
+    this.tweens.add({ targets: eb.bar, width: eb.bg.width * ratio, duration: 300, ease: 'Quad.out' });
+    eb.label.setText(`⚡${Math.round(c.energy)}`);
+  }
+
   private startRound() {
     const allCombatants = [...this.playerCombatants, ...this.enemyCombatants];
     this.turnOrder = buildTurnQueue(allCombatants);
@@ -702,6 +727,9 @@ export class Battle extends Phaser.Scene {
         }
         // Recharge strong moves by one round.
         tickMoveCooldowns(c);
+        // Refill a chunk of battle energy (full again within ~2–3 rounds).
+        regenEnergy(c);
+        this.updateEnergyBar(c);
         this.updateStatusDisplay(c);
       }
       if (checkVictory()) return;
@@ -780,27 +808,69 @@ export class Battle extends Phaser.Scene {
       const cdLeft = attacker.moveCooldowns[moveId] ?? 0;
       const onCooldown = cdLeft > 0;
       const maxCd = getMoveCooldown(moveDef);
+      const energyCost = getMoveEnergyCost(moveDef);
+      const affordable = canAffordMove(attacker, moveDef);
+      const disabled = onCooldown || !affordable;
 
-      const btn = this.add.rectangle(x, y, 100, 44, onCooldown ? 0x2a2a33 : 0x334477)
-        .setStrokeStyle(2, onCooldown ? 0x555566 : 0xaabbff);
-      if (!onCooldown) btn.setInteractive({ useHandCursor: true });
+      // Support moves get a calm green tint; offensive moves the usual blue.
+      const baseColor = moveDef.support ? 0x2d5a3a : 0x334477;
+      const hoverColor = moveDef.support ? 0x3d7a4f : 0x4455aa;
+      const strokeColor = moveDef.support ? 0x77dd99 : 0xaabbff;
 
-      const txt = this.add.text(x, y - 8, moveDef.name, {
-        fontSize: '11px', color: onCooldown ? '#777788' : '#ffffff', fontStyle: 'bold',
+      const btn = this.add.rectangle(x, y, 100, 44, disabled ? 0x2a2a33 : baseColor)
+        .setStrokeStyle(2, disabled ? 0x555566 : strokeColor);
+      if (!disabled) btn.setInteractive({ useHandCursor: true });
+
+      // Tag AoE / support moves on the name line so their role is obvious.
+      const tag = moveDef.support ? '✚ ' : (moveDef.targeting === 'aoe' ? '✺ ' : '');
+      const txt = this.add.text(x, y - 8, tag + moveDef.name, {
+        fontSize: '11px', color: disabled ? '#777788' : '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
-      const powerTxt = this.add.text(x, y + 8,
-        onCooldown ? `⏳ ${cdLeft} Runde${cdLeft > 1 ? 'n' : ''}` : `⚡${moveDef.power}x${maxCd > 0 ? ` · CD ${maxCd}` : ''}`,
-        { fontSize: '10px', color: onCooldown ? '#cc8844' : '#aaccff' }).setOrigin(0.5);
+
+      // Subtitle: cooldown / energy-shortage warning, else the move's stat line
+      // (power or support effect) plus its energy cost if any.
+      let sub: string;
+      let subColor: string;
+      if (onCooldown) {
+        sub = `⏳ ${cdLeft} Runde${cdLeft > 1 ? 'n' : ''}`;
+        subColor = '#cc8844';
+      } else if (!affordable) {
+        sub = `⚡${energyCost} · zu wenig`;
+        subColor = '#ff8866';
+      } else {
+        const main = moveDef.support ? this.supportShortLabel(moveDef) : `${moveDef.power}x`;
+        const extras: string[] = [];
+        if (!moveDef.support && maxCd > 0) extras.push(`CD ${maxCd}`);
+        if (energyCost > 0) extras.push(`⚡${energyCost}`);
+        sub = extras.length ? `${main} · ${extras.join(' · ')}` : main;
+        subColor = moveDef.support ? '#aaffcc' : '#aaccff';
+      }
+      const powerTxt = this.add.text(x, y + 8, sub, {
+        fontSize: '10px', color: subColor,
+      }).setOrigin(0.5);
 
       const container = this.add.container(0, 0, [btn, txt, powerTxt]);
       this.attackButtons.push(container);
 
-      if (!onCooldown) {
+      if (!disabled) {
         btn.on('pointerdown', () => this.onMoveSelected(moveId, attacker));
-        btn.on('pointerover', () => btn.setFillStyle(0x4455aa));
-        btn.on('pointerout', () => btn.setFillStyle(0x334477));
+        btn.on('pointerover', () => btn.setFillStyle(hoverColor));
+        btn.on('pointerout', () => btn.setFillStyle(baseColor));
       }
     });
+  }
+
+  // A compact descriptor for a support move shown on its attack button.
+  private supportShortLabel(move: MoveDef): string {
+    const s = move.support;
+    if (!s) return 'Support';
+    switch (s.kind) {
+      case 'heal':     return `+${Math.round((s.amount ?? 0.3) * 100)}% HP`;
+      case 'cleanse':  return 'Reinigung';
+      case 'energize': return `+${s.amount ?? 0} ⚡`;
+      case 'atkBuff':  return 'ATK ↑';
+      case 'defBuff':  return 'DEF ↑';
+    }
   }
 
   private clearAttackButtons() {
@@ -837,6 +907,15 @@ export class Battle extends Phaser.Scene {
     this.selectedMoveId = moveId;
     const moveDef = ATTACKS[moveId];
     if (!moveDef) { this.turnIndex++; this.nextTurn(); return; }
+
+    // Support moves aid the caster's own team and AoE moves hit every enemy, so
+    // neither needs the player to pick a single enemy target — go straight to
+    // the minigame. Single-target attacks ask for a target first.
+    if (moveDef.support || moveDef.targeting === 'aoe') {
+      this.selectedTarget = this.enemyCombatants.find(c => c.currentHp > 0) ?? null;
+      this.launchAttackMinigame(attacker);
+      return;
+    }
 
     this.showTargetSelection((target) => {
       this.selectedTarget = target;
@@ -889,18 +968,26 @@ export class Battle extends Phaser.Scene {
       return;
     }
 
-    // ── Normal attack ────────────────────────────────────────────────────────
+    // ── Normal attack / support ──────────────────────────────────────────────
     this.state = 'PLAYER_TURN';
     const moveDef = ATTACKS[this.selectedMoveId];
     if (!moveDef) { this.turnIndex++; this.nextTurn(); return; }
 
-    // Use the player's chosen target (fall back to first alive enemy if needed)
-    let target = (this.selectedTarget && this.selectedTarget.currentHp > 0)
-      ? this.selectedTarget
-      : this.enemyCombatants.find(c => c.currentHp > 0) ?? null;
-    if (!target) { this.endBattle(true); return; }
+    if (moveDef.support) {
+      this.applySupport(this.currentAttacker, moveDef, data.score);
+    } else {
+      // Use the player's chosen target (fall back to first alive enemy if needed).
+      // applyAttack expands AoE moves to every enemy on its own.
+      const target = (this.selectedTarget && this.selectedTarget.currentHp > 0)
+        ? this.selectedTarget
+        : this.enemyCombatants.find(c => c.currentHp > 0) ?? null;
+      if (!target) { this.endBattle(true); return; }
+      this.applyAttack(this.currentAttacker, target, moveDef, data.score);
+    }
 
-    this.applyAttack(this.currentAttacker, target, moveDef, data.score);
+    // Spend the move's energy cost (no-op for free moves).
+    spendEnergy(this.currentAttacker, moveDef);
+    this.updateEnergyBar(this.currentAttacker);
     // Put strong moves on cooldown so they can't be used every turn.
     const cd = getMoveCooldown(moveDef);
     if (cd > 0) this.currentAttacker.moveCooldowns[this.selectedMoveId] = cd + 1;
@@ -919,19 +1006,34 @@ export class Battle extends Phaser.Scene {
       return;
     }
 
-    // The AI only picks from moves that aren't recharging.
-    const readyMoves = attacker.equippedMoveIds.filter(id => (attacker.moveCooldowns[id] ?? 0) === 0);
-    const pool = readyMoves.length > 0 ? readyMoves : attacker.equippedMoveIds;
+    // The AI only picks from moves that aren't recharging AND it can afford the
+    // energy for. If everything costs too much, it falls back to its free moves.
+    const usable = attacker.equippedMoveIds.filter(id => {
+      const m = ATTACKS[id];
+      return m && (attacker.moveCooldowns[id] ?? 0) === 0 && canAffordMove(attacker, m);
+    });
+    const freeReady = attacker.equippedMoveIds.filter(id => {
+      const m = ATTACKS[id];
+      return m && (attacker.moveCooldowns[id] ?? 0) === 0 && getMoveEnergyCost(m) === 0;
+    });
+    const pool = usable.length > 0 ? usable : (freeReady.length > 0 ? freeReady : attacker.equippedMoveIds);
     const { moveId, accuracy } = generateAiAttack(pool);
     const moveDef = ATTACKS[moveId];
     if (!moveDef) { this.turnIndex++; this.nextTurn(); return; }
     this.enemyUsedMoveIds.add(moveId); // track for post-battle learn
 
-    const players = this.playerCombatants.filter(c => c.currentHp > 0);
-    if (players.length === 0) { this.endBattle(false); return; }
-    const target = players[Math.floor(Math.random() * players.length)];
+    if (moveDef.support) {
+      // Support move: aid the enemy's own team rather than striking the player.
+      this.applySupport(attacker, moveDef, accuracy);
+    } else {
+      const players = this.playerCombatants.filter(c => c.currentHp > 0);
+      if (players.length === 0) { this.endBattle(false); return; }
+      const target = players[Math.floor(Math.random() * players.length)];
+      this.applyAttack(attacker, target, moveDef, accuracy);
+    }
 
-    this.applyAttack(attacker, target, moveDef, accuracy);
+    spendEnergy(attacker, moveDef);
+    this.updateEnergyBar(attacker);
     const cd = getMoveCooldown(moveDef);
     if (cd > 0) attacker.moveCooldowns[moveId] = cd + 1;
     this.turnIndex++;
@@ -980,15 +1082,13 @@ export class Battle extends Phaser.Scene {
     const attackerDef = MONSTER_DEFS[attacker.defId];
     const targetDef = MONSTER_DEFS[target.defId];
     if (!attackerDef || !targetDef) return 0;
-    let def = target.defenseStat;
-    if (target.statusEffects.some(e => e.effect === 'DefDown')) def = Math.floor(def * 0.75);
     return calculateDamage({
       attackerATK: attacker.attackStat,
       movePower: power,
       minigameScore: AUTO_BATTLE_SCORE,
       attackerElement: element,
       defenderElements: targetDef.elements as string[],
-      defenderDEF: def,
+      defenderDEF: effectiveDefense(target),
       attackerTrait: attacker.trait,
       attackerStatuses: attacker.statusEffects,
       attackerCurrentHp: attacker.currentHp,
@@ -1022,8 +1122,18 @@ export class Battle extends Phaser.Scene {
   private chooseBestMove(attacker: BattleCombatant): { moveId: string; target: BattleCombatant } | null {
     const enemies = this.enemyCombatants.filter(c => c.currentHp > 0);
     if (enemies.length === 0) return null;
-    const ready = attacker.equippedMoveIds.filter(id => ATTACKS[id] && (attacker.moveCooldowns[id] ?? 0) === 0);
-    const pool = ready.length > 0 ? ready : attacker.equippedMoveIds.filter(id => ATTACKS[id]);
+    // Prefer ready, affordable offensive moves; fall back to free attacks, then
+    // to any attack. Support moves are skipped here — they deal no damage.
+    const usable = attacker.equippedMoveIds.filter(id => {
+      const m = ATTACKS[id];
+      return m && !m.support && (attacker.moveCooldowns[id] ?? 0) === 0 && canAffordMove(attacker, m);
+    });
+    const free = attacker.equippedMoveIds.filter(id => {
+      const m = ATTACKS[id];
+      return m && !m.support && getMoveEnergyCost(m) === 0;
+    });
+    const any = attacker.equippedMoveIds.filter(id => ATTACKS[id] && !ATTACKS[id]!.support);
+    const pool = usable.length > 0 ? usable : (free.length > 0 ? free : any);
     if (pool.length === 0) return null;
 
     let bestMove: string | null = null;
@@ -1079,6 +1189,8 @@ export class Battle extends Phaser.Scene {
     this.state = 'PLAYER_TURN';
     this.statusText.setText(`⏩ ${attacker.name} → ${moveDef.name}`);
     this.applyAttack(attacker, choice.target, moveDef, AUTO_BATTLE_SCORE);
+    spendEnergy(attacker, moveDef);
+    this.updateEnergyBar(attacker);
     const cd = getMoveCooldown(moveDef);
     if (cd > 0) attacker.moveCooldowns[choice.moveId] = cd + 1;
     this.turnIndex++;
@@ -1092,18 +1204,49 @@ export class Battle extends Phaser.Scene {
     return earlyCampaignDamageBonus(this.data_.storyIndex);
   }
 
-  private applyAttack(attacker: BattleCombatant, target: BattleCombatant, move: MoveDef, score: number) {
-    // Check blind
+  private applyAttack(attacker: BattleCombatant, primaryTarget: BattleCombatant, move: MoveDef, score: number) {
+    // Blind: a blinded attacker may miss the whole action.
     if (attacker.statusEffects.some(e => e.effect === 'Blind') && Math.random() < 0.3) {
       this.log(`${attacker.name} missed!`);
       return;
     }
 
+    // Resolve the target list: AoE moves strike every living foe; single-target
+    // moves hit only the chosen one.
+    const opponents = attacker.isPlayer ? this.enemyCombatants : this.playerCombatants;
+    const targets = move.targeting === 'aoe'
+      ? opponents.filter(c => c.currentHp > 0)
+      : [primaryTarget].filter(c => c.currentHp > 0);
+    if (targets.length === 0) return;
+
+    // One lunge toward the enemy side no matter how many foes are struck.
+    this.playLunge(attacker.instanceId, attacker.isPlayer ? 'right' : 'left');
+
+    let totalDealt = 0;
+    for (const target of targets) {
+      totalDealt += this.applyAttackHit(attacker, target, move, score, targets.length > 1);
+    }
+
+    if (move.targeting === 'aoe') {
+      this.log(`${attacker.name} → ${move.name}: ${totalDealt} Schaden an ${targets.length} Gegnern (${Math.floor(score)}%)`);
+    }
+
+    // Ult charge and XP are awarded once, from the combined damage dealt.
+    gainUltCharge(attacker, totalDealt);
+    this.updateUltBar(attacker);
+    if (attacker.isPlayer && totalDealt > 0) {
+      const store = useGameStore.getState();
+      if (store.monsters[attacker.instanceId]) {
+        store.addXpToMonster(attacker.instanceId, Math.floor(totalDealt / 10));
+      }
+    }
+  }
+
+  // Resolves a single damage instance against one target: damage maths, visuals,
+  // status application and (for single hits) logging. Returns the damage dealt.
+  private applyAttackHit(attacker: BattleCombatant, target: BattleCombatant, move: MoveDef, score: number, isAoe: boolean): number {
     const attackerDef = MONSTER_DEFS[attacker.defId];
     const targetDef = MONSTER_DEFS[target.defId];
-
-    let targetDef_ = target.defenseStat;
-    if (target.statusEffects.some(e => e.effect === 'DefDown')) targetDef_ = Math.floor(targetDef_ * 0.75);
 
     const dmg = calculateDamage({
       attackerATK: attacker.attackStat,
@@ -1111,7 +1254,7 @@ export class Battle extends Phaser.Scene {
       minigameScore: score,
       attackerElement: move.element,
       defenderElements: targetDef.elements as string[],
-      defenderDEF: targetDef_,
+      defenderDEF: effectiveDefense(target),
       attackerTrait: attacker.trait,
       attackerStatuses: attacker.statusEffects,
       attackerCurrentHp: attacker.currentHp,
@@ -1138,9 +1281,6 @@ export class Battle extends Phaser.Scene {
     const superEffective = elementBonus > 0;
     const fromPos = this.avatarHomes.get(attacker.instanceId) ?? this.cardCenters.get(attacker.instanceId);
     const toPos = this.avatarHomes.get(target.instanceId) ?? this.cardCenters.get(target.instanceId);
-
-    // Attacker lunges toward the target's side of the field.
-    this.playLunge(attacker.instanceId, attacker.isPlayer ? 'right' : 'left');
 
     const onImpact = () => {
       if (toPos) this.spawnImpactBurst(toPos.x, toPos.y, moveColor);
@@ -1181,20 +1321,88 @@ export class Battle extends Phaser.Scene {
     }
 
     this.updateStatusDisplay(target);
-    this.log(`${attacker.name} → ${target.name}: ${move.name} for ${totalDmg} dmg (${Math.floor(score)}% acc)`);
-
-    // Fill ult charge from damage dealt
-    gainUltCharge(attacker, totalDmg);
-    this.updateUltBar(attacker);
-
-    // Reward XP to player monsters for dealing damage
-    if (attacker.isPlayer) {
-      const store = useGameStore.getState();
-      const monsterInstance = store.monsters[attacker.instanceId];
-      if (monsterInstance) {
-        store.addXpToMonster(attacker.instanceId, Math.floor(totalDmg / 10));
-      }
+    // AoE hits are summarised by the caller; single hits log their own line.
+    if (!isAoe) {
+      this.log(`${attacker.name} → ${target.name}: ${move.name} for ${totalDmg} dmg (${Math.floor(score)}% acc)`);
     }
+    return totalDmg;
+  }
+
+  // Resolves a support move: heals, cleanses, restores energy or buffs the
+  // caster's own side. The minigame `score` scales how much HP/energy is given.
+  private applySupport(caster: BattleCombatant, move: MoveDef, score: number) {
+    const s = move.support;
+    if (!s) return;
+    const allies = caster.isPlayer ? this.playerCombatants : this.enemyCombatants;
+    const living = allies.filter(a => a.currentHp > 0);
+    const targets = s.team ? living : [caster];
+    // A weak result still does something; a strong one delivers the full effect.
+    const scoreFactor = 0.5 + Math.min(1, Math.max(0, score) / 100) * 0.5; // 0.5 – 1.0
+    const burstColor = caster.isPlayer ? 0x66ff99 : 0xff9966;
+
+    for (const ally of targets) {
+      switch (s.kind) {
+        case 'heal': {
+          const heal = Math.max(1, Math.floor(ally.maxHp * (s.amount ?? 0.3) * scoreFactor));
+          ally.currentHp = Math.min(ally.maxHp, ally.currentHp + heal);
+          this.updateHpBar(ally);
+          this.showHealText(ally.instanceId, heal);
+          break;
+        }
+        case 'cleanse': {
+          const had = ally.statusEffects.some(e => NEGATIVE_STATUS.includes(e.effect));
+          ally.statusEffects = ally.statusEffects.filter(e => !NEGATIVE_STATUS.includes(e.effect));
+          this.updateStatusDisplay(ally);
+          if (had) this.showSupportText(ally.instanceId, '✨ Gereinigt', '#aaffff');
+          break;
+        }
+        case 'energize': {
+          const amt = Math.max(1, Math.floor((s.amount ?? 30) * scoreFactor));
+          ally.energy = Math.min(ally.maxEnergy, ally.energy + amt);
+          this.updateEnergyBar(ally);
+          this.showSupportText(ally.instanceId, `+${amt} ⚡`, '#aaf0ff');
+          break;
+        }
+        case 'atkBuff': {
+          addStatusEffect(ally, 'AtkUp');
+          this.updateStatusDisplay(ally);
+          this.showSupportText(ally.instanceId, 'ATK ↑', '#88ffaa');
+          break;
+        }
+        case 'defBuff': {
+          addStatusEffect(ally, 'DefUp');
+          this.updateStatusDisplay(ally);
+          this.showSupportText(ally.instanceId, 'DEF ↑', '#88ccff');
+          break;
+        }
+      }
+      const ctr = this.cardCenters.get(ally.instanceId);
+      if (ctr) this.spawnImpactBurst(ctr.x, ctr.y, burstColor);
+    }
+
+    this.log(`${caster.name} setzt ${move.name} ein.`);
+  }
+
+  // Floating green "+N" heal number above an ally's card.
+  private showHealText(instanceId: string, amount: number) {
+    const center = this.cardCenters.get(instanceId);
+    if (!center) return;
+    const txt = this.add.text(center.x, center.y - 8, `+${amount}`, {
+      fontSize: '30px', color: '#66ff99', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(900);
+    txt.setScale(0.4);
+    this.tweens.add({ targets: txt, scale: 1.15, duration: 160, yoyo: true, ease: 'Quad.out' });
+    this.tweens.add({
+      targets: txt, y: center.y - 55, alpha: 0, duration: 1000, ease: 'Quad.in',
+      onComplete: () => txt.destroy(),
+    });
+  }
+
+  // Small floating label above an ally's card for non-heal support effects.
+  private showSupportText(instanceId: string, label: string, color: string) {
+    const center = this.cardCenters.get(instanceId);
+    if (center) this.showEffectivenessText(center.x, center.y - 30, label, color);
   }
 
   private applyUlt(attacker: BattleCombatant, score1: number, score2: number) {
@@ -1212,8 +1420,7 @@ export class Battle extends Phaser.Scene {
 
     const def = MONSTER_DEFS[attacker.defId];
     const targetDef = MONSTER_DEFS[target.defId];
-    let effectiveDef = target.defenseStat;
-    if (target.statusEffects.some(e => e.effect === 'DefDown')) effectiveDef = Math.floor(effectiveDef * 0.75);
+    const effectiveDef = effectiveDefense(target);
 
     const avgScore = (score1 + score2) / 2;
     const dmg = calculateDamage({

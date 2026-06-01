@@ -10,7 +10,9 @@ export type RarityType =
 
 export type StatusEffect =
   | 'Burn' | 'Freeze' | 'Paralyze' | 'Poison'
-  | 'Stun' | 'Blind' | 'DefDown' | 'AtkDown';
+  | 'Stun' | 'Blind' | 'DefDown' | 'AtkDown'
+  // Positive buffs applied by support attacks.
+  | 'AtkUp' | 'DefUp';
 
 export type TraitType =
   | 'Mania' | 'Tough' | 'Swift' | 'Undead' | 'Fireproof'
@@ -24,6 +26,22 @@ export type BuildingCategory =
 export type MinigameType = 'TimingBar' | 'AimClick' | 'ButtonSequence' | 'MashButton' | 'SwipePath';
 
 export type AttackTargeting = 'single' | 'aoe';
+
+// Support attacks don't damage the enemy — they aid the caster's own side.
+//   heal     → restore HP (amount = fraction of maxHp, scaled by minigame score)
+//   cleanse  → strip all negative status effects
+//   energize → restore battle energy (amount = flat energy points)
+//   atkBuff  → grant the AtkUp buff (boosts damage dealt)
+//   defBuff  → grant the DefUp buff (reduces damage taken)
+export type SupportKind = 'heal' | 'cleanse' | 'energize' | 'atkBuff' | 'defBuff';
+
+export interface SupportEffect {
+  kind: SupportKind;
+  // heal: fraction of maxHp (0..1); energize: flat energy points. Unused by buffs.
+  amount?: number;
+  // When true the effect hits the whole living team; otherwise just the caster.
+  team?: boolean;
+}
 
 export interface MonsterBaseStats {
   hp: number;
@@ -84,6 +102,12 @@ export interface MoveDef {
   // Rounds this move must recharge after use before it can be picked again.
   // Optional; if omitted it's derived from power (strong moves get a cooldown).
   cooldown?: number;
+  // Battle-energy this move drains from the caster. Optional — many basic
+  // attacks cost nothing; heavy hitters, AoE blasts and support moves do.
+  energyCost?: number;
+  // Present only on support moves; when set the move aids the caster's team
+  // instead of damaging the enemy (power is typically 0).
+  support?: SupportEffect;
 }
 
 export interface BuildingLevelData {
@@ -189,6 +213,10 @@ export interface BattleCombatant {
   equippedMoveIds: string[];
   name: string;
   ultCharge: number;  // 0–100; fills as this monster deals damage
+  // Battle energy spent by costly attacks. Separate from HP and ult charge;
+  // regenerates a chunk every round so it refills within ~2–3 rounds.
+  energy: number;
+  maxEnergy: number;
   // moveId → rounds remaining before it can be used again (strong moves only).
   moveCooldowns: Record<string, number>;
 }

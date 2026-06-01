@@ -1,7 +1,7 @@
 import type { StatusEffect } from '@gtypes/game';
 
 // How a status effect behaves at a glance — used for grouping and colouring.
-export type StatusCategory = 'dot' | 'control' | 'debuff';
+export type StatusCategory = 'dot' | 'control' | 'debuff' | 'buff';
 
 export interface StatusEffectDef {
   id: StatusEffect;
@@ -82,6 +82,22 @@ export const STATUS_EFFECTS: Record<StatusEffect, StatusEffectDef> = {
     color: '#c0392b',
     category: 'debuff',
     description: 'Angriff ist um 25% gesenkt.',
+  },
+  AtkUp: {
+    id: 'AtkUp',
+    name: 'Angriff ↑',
+    icon: '🔺',
+    color: '#27ae60',
+    category: 'buff',
+    description: 'Angriff ist um 35% erhöht.',
+  },
+  DefUp: {
+    id: 'DefUp',
+    name: 'Verteidigung ↑',
+    icon: '🛡️',
+    color: '#2980b9',
+    category: 'buff',
+    description: 'Verteidigung ist um 40% erhöht.',
   },
 };
 

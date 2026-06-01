@@ -34,8 +34,9 @@ export const ATTACKS: Record<string, MoveDef> = {
     power: 2.0,
     minigameType: 'ButtonSequence',
     statusEffect: { effect: 'Stun', threshold: 75 },
-    description: 'A devastating wave. Stuns if the full sequence is executed.',
+    description: 'A devastating wave that crashes over every foe. Stuns if the full sequence is executed.',
     targeting: 'aoe',
+    energyCost: 50,
   },
   spark: {
     id: 'spark',
@@ -89,6 +90,7 @@ export const ATTACKS: Record<string, MoveDef> = {
     statusEffect: { effect: 'Blind', threshold: 70 },
     description: 'A spinning vortex that batters every foe. May Blind.',
     targeting: 'aoe',
+    energyCost: 52,
   },
   frost_bite: {
     id: 'frost_bite',
@@ -108,6 +110,7 @@ export const ATTACKS: Record<string, MoveDef> = {
     statusEffect: { effect: 'Freeze', threshold: 75 },
     description: 'An icy storm that blankets the whole field. May Freeze all foes.',
     targeting: 'aoe',
+    energyCost: 45,
   },
   shadow_strike: {
     id: 'shadow_strike',
@@ -203,6 +206,7 @@ export const ATTACKS: Record<string, MoveDef> = {
     minigameType: 'SwipePath',
     description: 'Trace the tear in reality to rip every enemy at once.',
     targeting: 'aoe',
+    energyCost: 54,
   },
   static_overload: {
     id: 'static_overload',
@@ -1145,5 +1149,189 @@ export const ATTACKS: Record<string, MoveDef> = {
     id: 'telekinetic_slam', name: 'Telekinetic Slam', element: 'Psycho', power: 1.7,
     minigameType: 'AimClick', statusEffect: { effect: 'Stun', threshold: 80 },
     description: 'Telekinetically slams the foe into a wall.',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AoE ATTACKS — strike every enemy at once. High power, so they drain a big
+  // chunk of energy (you can't open every round with one).
+  // ═══════════════════════════════════════════════════════════════════════════
+  flame_tempest: {
+    id: 'flame_tempest', name: 'Flame Tempest', element: 'Fire', power: 2.4,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Burn', threshold: 65 },
+    description: 'A firestorm that engulfs the whole enemy team. Often Burns.',
+    targeting: 'aoe', energyCost: 55,
+  },
+  tsunami: {
+    id: 'tsunami', name: 'Tsunami', element: 'Water', power: 2.5,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'DefDown', threshold: 68 },
+    description: 'A colossal wall of water that crashes over every foe.',
+    targeting: 'aoe', energyCost: 58,
+  },
+  thunderstorm: {
+    id: 'thunderstorm', name: 'Thunderstorm', element: 'Electric', power: 2.4,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Paralyze', threshold: 68 },
+    description: 'Lightning rains down on the entire battlefield. May Paralyze all.',
+    targeting: 'aoe', energyCost: 55,
+  },
+  earthquake: {
+    id: 'earthquake', name: 'Earthquake', element: 'Earth', power: 2.5,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Stun', threshold: 66 },
+    description: 'Splits the ground beneath every enemy. May Stun the whole team.',
+    targeting: 'aoe', energyCost: 58,
+  },
+  tempest_gale: {
+    id: 'tempest_gale', name: 'Tempest Gale', element: 'Air', power: 2.3,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Blind', threshold: 66 },
+    description: 'A screaming gale that flays every foe and clouds their sight.',
+    targeting: 'aoe', energyCost: 52,
+  },
+  permafrost_nova: {
+    id: 'permafrost_nova', name: 'Permafrost Nova', element: 'Ice', power: 2.4,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Freeze', threshold: 65 },
+    description: 'An expanding ring of absolute cold that may Freeze all foes.',
+    targeting: 'aoe', energyCost: 55,
+  },
+  shadow_eclipse: {
+    id: 'shadow_eclipse', name: 'Shadow Eclipse', element: 'Darkness', power: 2.5,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'AtkDown', threshold: 65 },
+    description: 'Swallows the field in darkness, sapping every foe\'s strength.',
+    targeting: 'aoe', energyCost: 56,
+  },
+  radiant_nova: {
+    id: 'radiant_nova', name: 'Radiant Nova', element: 'Light', power: 2.4,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Blind', threshold: 68 },
+    description: 'A blinding flare of holy light that sears the whole enemy team.',
+    targeting: 'aoe', energyCost: 55,
+  },
+  toxic_deluge: {
+    id: 'toxic_deluge', name: 'Toxic Deluge', element: 'Poison', power: 2.3,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Poison', threshold: 60 },
+    description: 'A flood of venom that drenches and Poisons every foe.',
+    targeting: 'aoe', energyCost: 52,
+  },
+  seismic_arena: {
+    id: 'seismic_arena', name: 'Seismic Arena', element: 'Combat', power: 2.4,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'DefDown', threshold: 66 },
+    description: 'Pounds the whole arena, cracking the defenses of every enemy.',
+    targeting: 'aoe', energyCost: 55,
+  },
+  arcane_nova: {
+    id: 'arcane_nova', name: 'Arcane Nova', element: 'Magic', power: 2.5,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Stun', threshold: 70 },
+    description: 'A detonation of raw magic that engulfs the entire enemy team.',
+    targeting: 'aoe', energyCost: 58,
+  },
+  judgment_day: {
+    id: 'judgment_day', name: 'Judgment Day', element: 'Angel', power: 2.6,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Stun', threshold: 68 },
+    description: 'Calls down heaven\'s verdict on every foe at once.',
+    targeting: 'aoe', energyCost: 60,
+  },
+  void_collapse: {
+    id: 'void_collapse', name: 'Void Collapse', element: 'Void', power: 2.6,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'DefDown', threshold: 62 },
+    description: 'Collapses reality inward, crushing the whole enemy team.',
+    targeting: 'aoe', energyCost: 60,
+  },
+  galaxy_storm: {
+    id: 'galaxy_storm', name: 'Galaxy Storm', element: 'Cosmos', power: 2.6,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Burn', threshold: 60 },
+    description: 'A swirling galaxy of fire and stardust that scorches every foe.',
+    targeting: 'aoe', energyCost: 60,
+  },
+  plague_storm: {
+    id: 'plague_storm', name: 'Plague Storm', element: 'Plant', power: 2.3,
+    minigameType: 'ButtonSequence', statusEffect: { effect: 'Poison', threshold: 60 },
+    description: 'Spores erupt across the field, Poisoning the entire enemy team.',
+    targeting: 'aoe', energyCost: 52,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SUPPORT ATTACKS — aid your own side instead of damaging the enemy.
+  // Heal, cleanse, restore energy, or buff attack/defense. No enemy target.
+  // ═══════════════════════════════════════════════════════════════════════════
+  mend: {
+    id: 'mend', name: 'Mend', element: 'Light', power: 0,
+    minigameType: 'TimingBar', energyCost: 30,
+    support: { kind: 'heal', amount: 0.35 },
+    description: 'Bathes the caster in light, restoring up to 35% of its HP.',
+  },
+  healing_spring: {
+    id: 'healing_spring', name: 'Healing Spring', element: 'Water', power: 0,
+    minigameType: 'TimingBar', energyCost: 35,
+    support: { kind: 'heal', amount: 0.4 },
+    description: 'Summons a spring that heals the caster for up to 40% of its HP.',
+  },
+  natures_blessing: {
+    id: 'natures_blessing', name: 'Nature\'s Blessing', element: 'Plant', power: 0,
+    minigameType: 'ButtonSequence', energyCost: 50,
+    support: { kind: 'heal', amount: 0.25, team: true },
+    description: 'Verdant energy heals the whole team for up to 25% of their HP.',
+  },
+  divine_renewal: {
+    id: 'divine_renewal', name: 'Divine Renewal', element: 'Angel', power: 0,
+    minigameType: 'ButtonSequence', energyCost: 55,
+    support: { kind: 'heal', amount: 0.3, team: true },
+    description: 'Holy light renews the entire team, healing up to 30% of their HP.',
+  },
+  purify: {
+    id: 'purify', name: 'Purify', element: 'Light', power: 0,
+    minigameType: 'TimingBar', energyCost: 25,
+    support: { kind: 'cleanse' },
+    description: 'Cleanses all negative status effects from the caster.',
+  },
+  cleansing_wave: {
+    id: 'cleansing_wave', name: 'Cleansing Wave', element: 'Water', power: 0,
+    minigameType: 'AimClick', energyCost: 40,
+    support: { kind: 'cleanse', team: true },
+    description: 'A wave of clear water washes debuffs off the whole team.',
+  },
+  battle_roar: {
+    id: 'battle_roar', name: 'Battle Roar', element: 'Combat', power: 0,
+    minigameType: 'TimingBar', energyCost: 25,
+    support: { kind: 'atkBuff' },
+    description: 'A fierce roar that raises the caster\'s attack by 35%.',
+  },
+  war_anthem: {
+    id: 'war_anthem', name: 'War Anthem', element: 'Sound', power: 0,
+    minigameType: 'AimClick', energyCost: 45,
+    support: { kind: 'atkBuff', team: true },
+    description: 'A rousing anthem that raises the whole team\'s attack by 35%.',
+  },
+  empower: {
+    id: 'empower', name: 'Empower', element: 'Magic', power: 0,
+    minigameType: 'TimingBar', energyCost: 28,
+    support: { kind: 'atkBuff' },
+    description: 'Channels arcane might to raise the caster\'s attack by 35%.',
+  },
+  iron_wall: {
+    id: 'iron_wall', name: 'Iron Wall', element: 'Metal', power: 0,
+    minigameType: 'TimingBar', energyCost: 25,
+    support: { kind: 'defBuff' },
+    description: 'Hardens the caster\'s body, raising its defense by 40%.',
+  },
+  crystal_barrier: {
+    id: 'crystal_barrier', name: 'Crystal Barrier', element: 'Crystal', power: 0,
+    minigameType: 'AimClick', energyCost: 45,
+    support: { kind: 'defBuff', team: true },
+    description: 'Encases the whole team in crystal, raising defense by 40%.',
+  },
+  stone_guard: {
+    id: 'stone_guard', name: 'Stone Guard', element: 'Earth', power: 0,
+    minigameType: 'TimingBar', energyCost: 25,
+    support: { kind: 'defBuff' },
+    description: 'Raises a wall of rock that boosts the caster\'s defense by 40%.',
+  },
+  mana_font: {
+    id: 'mana_font', name: 'Mana Font', element: 'Magic', power: 0,
+    minigameType: 'TimingBar', energyCost: 0,
+    support: { kind: 'energize', amount: 50 },
+    description: 'Taps a font of mana to restore the caster\'s battle energy.',
+  },
+  second_wind: {
+    id: 'second_wind', name: 'Second Wind', element: 'Air', power: 0,
+    minigameType: 'TimingBar', energyCost: 0,
+    support: { kind: 'energize', amount: 40 },
+    description: 'Catches a fresh gust of wind, restoring battle energy.',
   },
 };
