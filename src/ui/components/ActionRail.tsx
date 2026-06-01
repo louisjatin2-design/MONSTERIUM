@@ -58,8 +58,13 @@ function RailButton({
 
   return (
     <button
+      // Fire on the native click (reliable for mouse AND touch — a slight
+      // finger move during a tap fires pointercancel, which would drop an
+      // onPointerUp-based handler). Pointer events drive only the press visual.
+      onClick={onClick}
       onPointerDown={() => setPressed(true)}
-      onPointerUp={() => { setPressed(false); onClick(); }}
+      onPointerUp={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
       title={label}
       style={{
