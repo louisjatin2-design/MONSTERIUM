@@ -2,6 +2,7 @@ import type { BattleCombatant, StatusEffect, TraitType, ActiveStatusEffect } fro
 import { MONSTER_DEFS } from '@data/monsters';
 import { ATTACKS } from '@data/attacks';
 import { getElementBonus } from '@data/elements';
+import { STATUS_DEFAULT_ROUNDS } from '@data/statusEffects';
 
 export function resolveTurnOrder(combatants: BattleCombatant[]): BattleCombatant[] {
   return [...combatants]
@@ -120,6 +121,29 @@ export function applyStatusEffect(
   if (score < threshold) return false;
   if (targetTrait === 'Fireproof' && effect === 'Burn') return false;
   return true;
+}
+
+/**
+ * Adds a status effect to a combatant without ever creating duplicates.
+ *
+ * If the same effect is already active, its duration is refreshed to the
+ * longer of the current and incoming durations instead of pushing a second
+ * copy. This stops DOT effects (Burn/Poison) from stacking their per-round
+ * damage and keeps the on-card indicator showing one badge per effect.
+ */
+export function addStatusEffect(
+  combatant: BattleCombatant,
+  effect: StatusEffect,
+  rounds: number = STATUS_DEFAULT_ROUNDS,
+  value?: number,
+): void {
+  const existing = combatant.statusEffects.find(e => e.effect === effect);
+  if (existing) {
+    existing.remainingRounds = Math.max(existing.remainingRounds, rounds);
+    if (value !== undefined) existing.value = value;
+    return;
+  }
+  combatant.statusEffects.push({ effect, remainingRounds: rounds, value });
 }
 
 export function processStatusTick(combatant: BattleCombatant): number {

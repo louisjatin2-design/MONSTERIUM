@@ -6,10 +6,11 @@ import { ATTACKS } from '@data/attacks';
 import { RARITY_RANK, RARITY_HATCH_TIME_SEC } from '@data/rarities';
 import { ELEMENT_CSS_COLORS, ELEMENT_COLORS } from '@data/elements';
 import { TRAITS } from '@data/traits';
+import { STATUS_EFFECTS } from '@data/statusEffects';
 import {
   buildTurnQueue, calculateDamage, generateAiAttack,
   processStatusTick, buildCombatant, gainUltCharge,
-  getMoveCooldown, tickMoveCooldowns,
+  getMoveCooldown, tickMoveCooldowns, addStatusEffect,
 } from '@systems/BattleSystem';
 import type { BattleCombatant, MoveDef, MinigameType } from '@gtypes/game';
 
@@ -52,7 +53,8 @@ export class Battle extends Phaser.Scene {
   private ultReadyIcons: Map<string, Phaser.GameObjects.Text> = new Map();
   private nameLabels: Map<string, Phaser.GameObjects.Text> = new Map();
   private hpLabels: Map<string, Phaser.GameObjects.Text> = new Map();
-  private statusLabels: Map<string, Phaser.GameObjects.Text> = new Map();
+  // One container per combatant holding the coloured status-effect badges.
+  private statusContainers: Map<string, Phaser.GameObjects.Container> = new Map();
   private cardCenters: Map<string, { x: number; y: number }> = new Map();
   private attackButtons: Phaser.GameObjects.Container[] = [];
   private detailOverlay: Phaser.GameObjects.Container | null = null;
@@ -225,11 +227,9 @@ export class Battle extends Phaser.Scene {
       fontSize: '10px', color: '#bb99ff',
     }).setOrigin(0, 0);
 
-    // Status effect icons (updated each turn).
-    const statusLabel = this.add.text(textLeft, y + 2, '', {
-      fontSize: '13px',
-    }).setOrigin(0, 0.5);
-    this.statusLabels.set(c.instanceId, statusLabel);
+    // Status effect badges (icon + remaining rounds, updated each turn).
+    const statusContainer = this.add.container(textLeft, y + 4);
+    this.statusContainers.set(c.instanceId, statusContainer);
 
     // Info hint
     this.add.text(x + w / 2 - 6, y - 2, 'ℹ️', { fontSize: '11px' }).setOrigin(1, 0.5);
@@ -259,16 +259,35 @@ export class Battle extends Phaser.Scene {
     this.updateStatusDisplay(c);
   }
 
-  // Map status effects to icons and refresh the on-card indicator.
+  // Rebuild the on-card status badges: one coloured pill per active effect
+  // showing its icon and how many rounds it still has left.
   private updateStatusDisplay(c: BattleCombatant) {
-    const label = this.statusLabels.get(c.instanceId);
-    if (!label) return;
-    const ICONS: Record<string, string> = {
-      Burn: '🔥', Freeze: '🧊', Paralyze: '⚡', Poison: '☠️',
-      Stun: '💫', Blind: '🌫️', DefDown: '🛡️', AtkDown: '⚔️',
-    };
-    const icons = c.statusEffects.map(e => ICONS[e.effect] ?? '•').join(' ');
-    label.setText(icons);
+    const container = this.statusContainers.get(c.instanceId);
+    if (!container) return;
+    container.removeAll(true);
+
+    const badgeW = 30, badgeH = 17, gap = 4;
+    let bx = 0;
+    for (const se of c.statusEffects) {
+      const def = STATUS_EFFECTS[se.effect];
+      const color = def
+        ? Phaser.Display.Color.HexStringToColor(def.color).color
+        : 0x888888;
+
+      const bg = this.add.rectangle(bx, 0, badgeW, badgeH, color, 0.9)
+        .setOrigin(0, 0.5)
+        .setStrokeStyle(1, 0x000000, 0.6);
+      const icon = this.add.text(bx + 3, 0, def?.icon ?? '•', {
+        fontSize: '11px',
+      }).setOrigin(0, 0.5);
+      const rounds = this.add.text(bx + badgeW - 4, 0, `${se.remainingRounds}`, {
+        fontSize: '10px', color: '#ffffff', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(1, 0.5);
+
+      container.add([bg, icon, rounds]);
+      bx += badgeW + gap;
+    }
   }
 
   private showCombatantDetail(c: BattleCombatant) {
@@ -338,6 +357,31 @@ export class Battle extends Phaser.Scene {
         fontSize: '11px', color: '#aaccff',
       }).setOrigin(1, 0));
       yy += 18;
+    }
+
+    // Active status effects (only shown when at least one is present).
+    if (c.statusEffects.length > 0) {
+      yy += 10;
+      items.push(this.add.text(cx - panelW / 2 + 18, yy, 'Aktive Statuseffekte:', {
+        fontSize: '12px', color: '#ffd700', fontStyle: 'bold',
+      }).setOrigin(0, 0));
+      yy += 20;
+      for (const se of c.statusEffects) {
+        const sdef = STATUS_EFFECTS[se.effect];
+        items.push(this.add.text(cx - panelW / 2 + 24, yy,
+          `${sdef?.icon ?? '•'} ${sdef?.name ?? se.effect}`, {
+          fontSize: '12px', color: sdef?.color ?? '#ffffff', fontStyle: 'bold',
+        }).setOrigin(0, 0));
+        items.push(this.add.text(cx + panelW / 2 - 24, yy, `${se.remainingRounds} Rd.`, {
+          fontSize: '11px', color: '#aaaaaa',
+        }).setOrigin(1, 0));
+        yy += 16;
+        items.push(this.add.text(cx - panelW / 2 + 24, yy, sdef?.description ?? '', {
+          fontSize: '10px', color: '#bbbbbb',
+          wordWrap: { width: panelW - 48 },
+        }).setOrigin(0, 0));
+        yy += 18;
+      }
     }
 
     yy += 6;
@@ -684,17 +728,21 @@ export class Battle extends Phaser.Scene {
 
     // Apply status effect
     if (move.statusEffect && score > move.statusEffect.threshold) {
-      const applyEffect = !(target.trait === 'Fireproof' && move.statusEffect.effect === 'Burn');
-      if (applyEffect) {
-        // Mania: if target has Mania, buff instead of debuffing
-        if (target.trait === 'Mania') {
-          target.attackStat = Math.floor(target.attackStat * 3);
-          target.defenseStat = Math.floor(target.defenseStat * 3);
-          this.log(`${target.name} goes MANIC!`);
-        } else {
-          target.statusEffects.push({ effect: move.statusEffect.effect, remainingRounds: 3 });
-          this.log(`${target.name} is affected by ${move.statusEffect.effect}!`);
-        }
+      const effect = move.statusEffect.effect;
+      const statusName = STATUS_EFFECTS[effect]?.name ?? effect;
+      const immune = (TRAITS[target.trait]?.immuneTo ?? []).includes(effect);
+      if (immune) {
+        this.log(`${target.name} ist immun gegen ${statusName}!`);
+      } else if (target.trait === 'Mania') {
+        // Mania: if target has Mania, buff instead of being debuffed.
+        target.attackStat = Math.floor(target.attackStat * 3);
+        target.defenseStat = Math.floor(target.defenseStat * 3);
+        this.log(`${target.name} goes MANIC!`);
+      } else {
+        // addStatusEffect refreshes an existing effect instead of stacking
+        // a duplicate, so each effect only ever appears once.
+        addStatusEffect(target, effect);
+        this.log(`${target.name} ist von ${statusName} betroffen!`);
       }
     }
 

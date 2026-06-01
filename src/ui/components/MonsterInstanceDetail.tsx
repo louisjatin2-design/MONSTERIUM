@@ -5,6 +5,7 @@ import { ATTACKS } from '@data/attacks';
 import { RARITY_COLORS, RARITY_RANK } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { TRAITS } from '@data/traits';
+import { STATUS_EFFECTS } from '@data/statusEffects';
 import { instanceStats } from '@systems/StatSystem';
 import { calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
 import { getUnlockedMoves } from '@systems/ProgressionSystem';
@@ -245,9 +246,18 @@ function MoveRow({ move, open, onToggle, lockedLabel }: {
             <span>🎯 Ziel: <b style={{ color: '#fff' }}>{isAoe ? 'Alle Gegner' : 'Ein Gegner'}</b></span>
             <span>⚡ Stärke: <b style={{ color: '#fff' }}>{move.power}×</b></span>
             <span>🎮 Minispiel: <b style={{ color: '#fff' }}>{MINIGAME_LABELS[move.minigameType]}</b></span>
-            {move.statusEffect && (
-              <span>✦ Effekt: <b style={{ color: '#ffcc66' }}>{move.statusEffect.effect}</b> (ab {move.statusEffect.threshold}%)</span>
-            )}
+            {move.statusEffect && (() => {
+              const sdef = STATUS_EFFECTS[move.statusEffect.effect];
+              return (
+                <span title={sdef?.description}>
+                  ✦ Effekt:{' '}
+                  <b style={{ color: sdef?.color ?? '#ffcc66' }}>
+                    {sdef ? `${sdef.icon} ${sdef.name}` : move.statusEffect.effect}
+                  </b>{' '}
+                  (ab {move.statusEffect.threshold}%)
+                </span>
+              );
+            })()}
           </div>
         </div>
       )}
