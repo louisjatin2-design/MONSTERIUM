@@ -30,7 +30,7 @@ export type ActivePanel =
   | null
   | { type: 'habitat'; instanceId: string }
   | { type: 'farm'; instanceId: string }
-  | { type: 'build'; tileX: number; tileY: number }
+  | { type: 'build'; tileX?: number; tileY?: number }
   | { type: 'breeding' }
   | { type: 'hatchery' }
   | { type: 'hatchConfirm'; eggId: string }
@@ -175,6 +175,7 @@ export default function App() {
             onShop={() => setActivePanel({ type: 'shop' })}
             onBreed={() => setActivePanel({ type: 'breeding' })}
             onHatch={() => setActivePanel({ type: 'hatchery' })}
+            onBuild={() => setActivePanel({ type: 'build' })}
           />
         </>
       )}

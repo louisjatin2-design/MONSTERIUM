@@ -5,8 +5,11 @@ import { EventBus, GameEvents } from '@game/EventBus';
 import '../styles/global.css';
 
 interface BuildMenuProps {
-  tileX: number;
-  tileY: number;
+  // Optional: set when the menu is opened by tapping a specific land tile.
+  // When opened from the BAUEN tab there is no pre-selected tile — the player
+  // picks the spot in the 2D placement overlay instead.
+  tileX?: number;
+  tileY?: number;
   onClose: () => void;
   // Closes the menu WITHOUT emitting PANEL_CLOSED, so entering placement mode
   // isn't immediately cancelled by the panel-closed handler.
@@ -43,7 +46,8 @@ export function BuildMenu({ tileX, tileY, onClose, onStartPlacement }: BuildMenu
       <button className="close-btn" onClick={onClose}>✕</button>
       <div className="panel-title">🏗️ Build Menu</div>
       <div style={{ fontSize: 12, color: '#aaa', marginBottom: 12 }}>
-        Tile ({tileX}, {tileY}) — Gold: <span className="gold-text">{gold}</span>
+        {tileX != null && tileY != null && <>Tile ({tileX}, {tileY}) — </>}
+        Gold: <span className="gold-text">{gold}</span>
       </div>
 
       {/* Category filter */}
