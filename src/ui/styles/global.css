@@ -139,10 +139,11 @@
 .panel-side {
   box-sizing: border-box;
   right: 16px;
-  top: 70px;
+  top: 64px;
   width: min(420px, calc(100vw - 32px));
-  /* Use --vh to avoid iOS Safari address-bar bug */
-  max-height: calc(var(--vh, 1vh) * 100 - 170px);
+  /* Use --vh to avoid iOS Safari address-bar bug. No solid bars any more,
+     so panels may use almost the full height (just top offset + margin). */
+  max-height: calc(var(--vh, 1vh) * 100 - 88px);
   padding: 16px;
   overflow-y: auto;
 }
@@ -156,7 +157,7 @@
     right: 8px;
     left: 8px;
     width: auto;
-    max-height: calc(var(--vh, 1vh) * 100 - 172px);
+    max-height: calc(var(--vh, 1vh) * 100 - 88px);
   }
 }
 
@@ -194,34 +195,19 @@
 
 /* ═══════════════════════════════════════════════════════
    PORTRAIT PHONE LAYOUT  (≤ 767 px wide)
+
+   The full-width top/bottom bars are gone — the Phaser world now fills the
+   whole screen and the UI floats as side overlays. Panels simply overlay
+   the world (dimmed by the backdrop), so no canvas pinning is needed.
    ═══════════════════════════════════════════════════════ */
 
 @media (orientation: portrait) and (max-width: 767px) {
 
-  /* 1 ── Phaser canvas: override CENTER_BOTH, pin it just below the HUD */
-  #game-container canvas {
-    /* Phaser writes margin-top to vertically center; we move canvas to top */
-    margin-top: 64px !important;
-  }
-
-  /* 2 ── Side panels: open below the canvas, not covering it
-          canvas height ≈ 56.25 vw  (= 100vw × 720/1280)
-          canvas bottom ≈ 62px (HUD) + 56.25vw + 4px gap              */
-  .panel-side,
-  .panel-side-narrow,
-  .panel-side-xs {
-    top: calc(68px + 56.25vw) !important;
-    max-height: calc(var(--vh, 1vh) * 100 - 56.25vw - 166px) !important;
-    /* 166 = 64 HUD + 90 BottomBar + 12 safety                         */
-  }
-
-  /* 3 ── Modal panels: stretch from just below HUD to just above BottomBar
-          instead of centering in a mostly-empty portrait viewport       */
+  /* Modal panels: stretch toward the screen edges instead of centring in a
+     tall portrait viewport, leaving small top/bottom margins.            */
   .panel.panel-modal {
-    top:       64px  !important;
-    bottom:    90px  !important;
-    /* Keep the left: 50% + translateX(-50%) horizontal centering
-       but remove the vertical translate so top/bottom anchors work     */
+    top:       16px  !important;
+    bottom:    16px  !important;
     transform: translateX(-50%) !important;
     max-height: none !important;
     overflow-y: auto;

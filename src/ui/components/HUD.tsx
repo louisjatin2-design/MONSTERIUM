@@ -37,17 +37,15 @@ export function HUD(_props: HUDProps) {
 
   return (
     <div style={{
+      // Floating, transparent top overlay — no solid bar, so the whole
+      // screen reads as the habitat. Only the actual widgets catch input.
       position: 'absolute', top: 0, left: 0, right: 0,
-      height: 64,
-      background: 'linear-gradient(180deg, rgba(38,20,72,0.96) 0%, rgba(24,12,46,0.92) 60%, rgba(14,6,30,0.85) 100%)',
-      borderBottom: '2px solid #c79a3a',
       display: 'flex',
-      alignItems: 'center',
-      padding: '0 10px',
+      alignItems: 'flex-start',
+      padding: '8px 10px',
       gap: 8,
-      pointerEvents: 'auto',
-      zIndex: 200,
-      boxShadow: '0 4px 18px rgba(0,0,0,0.7), inset 0 -2px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,215,120,0.25)',
+      pointerEvents: 'none',
+      zIndex: 140,
     }}>
       {/* ── Player portrait: ornate gold ring + level badge ── */}
       <button
@@ -57,6 +55,7 @@ export function HUD(_props: HUDProps) {
           position: 'relative', flexShrink: 0,
           background: 'none', border: 'none', padding: 0, cursor: 'pointer',
           marginRight: 2,
+          pointerEvents: 'auto',
         }}>
         <div style={{
           width: 50, height: 50,
@@ -132,6 +131,7 @@ export function HUD(_props: HUDProps) {
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6,
         marginLeft: 'auto', marginRight: 2,
+        pointerEvents: 'auto',
       }}>
         <ResourcePill icon="🍎" value={food}     color="#ff8a66" />
         <ResourcePill icon="🪙" value={gold}     color="#ffd54a" />
@@ -149,6 +149,7 @@ export function HUD(_props: HUDProps) {
           cursor: 'pointer', fontSize: 19, display: 'flex',
           alignItems: 'center', justifyContent: 'center',
           flexShrink: 0,
+          pointerEvents: 'auto',
           boxShadow: '0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,120,0.25)',
         }}>⚙️</button>
     </div>

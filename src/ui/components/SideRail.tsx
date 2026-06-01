@@ -27,10 +27,10 @@ export function SideRail() {
   return (
     <div style={{
       position: 'absolute',
-      top: 76, right: 8,
+      right: 8, top: '50%', transform: 'translateY(-50%)',
       display: 'flex', flexDirection: 'column', gap: 10,
-      zIndex: 190,
-      pointerEvents: 'auto',
+      zIndex: 140,
+      pointerEvents: 'none',
     }}>
       <RailButton
         icon="🎪" label="Events"
@@ -87,6 +87,7 @@ function RailButton({
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
         cursor: 'pointer',
         userSelect: 'none', touchAction: 'manipulation',
+        pointerEvents: 'auto',
         boxShadow: pressed
           ? '0 1px 4px rgba(0,0,0,0.6)'
           : '0 4px 10px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',

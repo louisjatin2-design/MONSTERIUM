@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PhaserGame } from '@ui/PhaserGame';
 import { HUD } from '@ui/components/HUD';
-import { BottomBar } from '@ui/components/BottomBar';
+import { ActionRail } from '@ui/components/ActionRail';
 import { SideRail } from '@ui/components/SideRail';
 import { BuildMenu } from '@ui/components/BuildMenu';
 import { HabitatPanel } from '@ui/components/HabitatPanel';
@@ -155,7 +155,7 @@ export default function App() {
         <>
           <HUD />
           <SideRail />
-          <BottomBar
+          <ActionRail
             onAttack={() => setActivePanel({ type: 'story' })}
             onPokedex={() => setActivePanel({ type: 'pokedex' })}
             onStory={() => setActivePanel({ type: 'story' })}
