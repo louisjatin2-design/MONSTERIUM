@@ -36,7 +36,7 @@ export function HUD(_props: HUDProps) {
   };
 
   return (
-    <div style={{
+    <div className="hud-bar" style={{
       // Floating, transparent top overlay — no solid bar, so the whole
       // screen reads as the habitat. Only the actual widgets catch input.
       position: 'absolute', top: 0, left: 0, right: 0,
