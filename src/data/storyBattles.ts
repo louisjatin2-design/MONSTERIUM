@@ -34,15 +34,15 @@ export interface StoryWorld {
 }
 
 export const STORY_WORLDS: StoryWorld[] = [
-  { name: 'Der erste Riss',   emoji: '🌀', bgFrom: '#1a0533', bgTo: '#330a66', pathColor: '#9955dd', accent: '#cc88ff', first: 0,  count: 12 },
-  { name: 'Vulkangipfel',     emoji: '🌋', bgFrom: '#2d0800', bgTo: '#6c1800', pathColor: '#cc4400', accent: '#ff7744', first: 12, count: 11 },
-  { name: 'Meerestiefen',     emoji: '🌊', bgFrom: '#001428', bgTo: '#003066', pathColor: '#2266cc', accent: '#55aaff', first: 23, count: 11 },
-  { name: 'Kristallhöhlen',   emoji: '💎', bgFrom: '#0a1520', bgTo: '#142a3a', pathColor: '#336699', accent: '#77bbee', first: 34, count: 11 },
-  { name: 'Sturmgebirge',     emoji: '⚡', bgFrom: '#0c0c2a', bgTo: '#1a1a55', pathColor: '#5555cc', accent: '#aaaaff', first: 45, count: 11 },
-  { name: 'Schattenreich',    emoji: '🌑', bgFrom: '#0a0a16', bgTo: '#1a0a28', pathColor: '#6633aa', accent: '#9966cc', first: 56, count: 11 },
-  { name: 'Sonnentempel',     emoji: '☀️', bgFrom: '#1c1200', bgTo: '#3a2600', pathColor: '#cc9900', accent: '#ffdd44', first: 67, count: 11 },
-  { name: 'Frostöde',         emoji: '❄️', bgFrom: '#001622', bgTo: '#002e44', pathColor: '#2299bb', accent: '#77ddff', first: 78, count: 11 },
-  { name: 'Der Letzte Riss',  emoji: '💀', bgFrom: '#000000', bgTo: '#1a0022', pathColor: '#880088', accent: '#ff88ff', first: 89, count: 11 },
+  { name: 'Der erste Riss',   emoji: '🌀', bgFrom: '#1a0533', bgTo: '#330a66', pathColor: '#9955dd', accent: '#cc88ff', first: 0,  count: 13 },
+  { name: 'Vulkangipfel',     emoji: '🌋', bgFrom: '#2d0800', bgTo: '#6c1800', pathColor: '#cc4400', accent: '#ff7744', first: 13, count: 12 },
+  { name: 'Meerestiefen',     emoji: '🌊', bgFrom: '#001428', bgTo: '#003066', pathColor: '#2266cc', accent: '#55aaff', first: 25, count: 12 },
+  { name: 'Kristallhöhlen',   emoji: '💎', bgFrom: '#0a1520', bgTo: '#142a3a', pathColor: '#336699', accent: '#77bbee', first: 37, count: 12 },
+  { name: 'Sturmgebirge',     emoji: '⚡', bgFrom: '#0c0c2a', bgTo: '#1a1a55', pathColor: '#5555cc', accent: '#aaaaff', first: 49, count: 12 },
+  { name: 'Schattenreich',    emoji: '🌑', bgFrom: '#0a0a16', bgTo: '#1a0a28', pathColor: '#6633aa', accent: '#9966cc', first: 61, count: 12 },
+  { name: 'Sonnentempel',     emoji: '☀️', bgFrom: '#1c1200', bgTo: '#3a2600', pathColor: '#cc9900', accent: '#ffdd44', first: 73, count: 12 },
+  { name: 'Frostöde',         emoji: '❄️', bgFrom: '#001622', bgTo: '#002e44', pathColor: '#2299bb', accent: '#77ddff', first: 85, count: 12 },
+  { name: 'Der Letzte Riss',  emoji: '💀', bgFrom: '#000000', bgTo: '#1a0022', pathColor: '#880088', accent: '#ff88ff', first: 97, count: 12 },
 ];
 
 // ── STORY BATTLES (100 total) ──────────────────────────────────────────────────
@@ -98,7 +98,12 @@ export const STORY_BATTLES: StoryBattle[] = [
     'Hinter dem Riss träumt das Universum von sich selbst. Cosmolord war beim ersten Stern dabei.',
     'cosmolord','glitchfiend','timewyrm', 30,26,24, 10000,12000, 100,'cosmolord'),
 
-  // ── World 2: Vulkangipfel (12-22) ─────────────────────────────────────────
+  // ── World 1 BOSS: Der Eiserne Koloss (physical) ──────────────────────────
+  b('sb_b1','Stage-Boss — Der Eiserne Koloss',
+    'Der Riss spuckt einen Kriegstitan aus, der seit Anbeginn der Zeit kämpft. Kein Echo, kein Glitch — nur rohe, brachiale Gewalt aus Eisen und Stein.',
+    'ironbreaker','ironhide','pebblor', 32,30,28, 12000,13000, 80,'ironbreaker'),
+
+  // ── World 2: Vulkangipfel (13-24) ─────────────────────────────────────────
   b('sb_13','Lavawall-Wächter',
     'Blazecroc läuft Amok im Lavastrom. Das Feuer gehorcht nur ihm.',
     'blazecroc','ironhide','flameling', 28,26,24, 5500,2200),
@@ -143,7 +148,12 @@ export const STORY_BATTLES: StoryBattle[] = [
     'Alles brennt. Nur wer das Feuer zähmt, überlebt.',
     'cosmolord','cosmolord','timewyrm', 48,47,46, 28000,14500, 65),
 
-  // ── World 3: Meerestiefen (23-33) ─────────────────────────────────────────
+  // ── World 2 BOSS: Der Lavachampion (physical) ────────────────────────────
+  b('sb_b2','Stage-Boss — Der Lavachampion',
+    'Aus dem Krater steigt ein Faustkämpfer aus geschmolzenem Gestein. Er trägt keine Magie in sich — nur Muskeln, Feuer und einen Kinnhaken, der Felsen spaltet.',
+    'blazechamp','ironchamp','blazecroc', 50,48,46, 32000,16000, 70,'blazechamp'),
+
+  // ── World 3: Meerestiefen (25-36) ─────────────────────────────────────────
   b('sb_24','Gezeitenbruch',
     'Die Verderbnis sickert in die Tiefsee. Aquawelpen türmen Tsunamis.',
     'aquapup','aquapup','frostpaw', 45,44,43, 22000,10000),
@@ -188,7 +198,12 @@ export const STORY_BATTLES: StoryBattle[] = [
     'Cosmolord regiert die Tiefe. Kein Licht kommt hier an — außer deinem.',
     'cosmolord','timewyrm','voidspecter', 60,59,58, 75000,32000, 85,'stormbeak'),
 
-  // ── World 4: Kristallhöhlen (34-44) ───────────────────────────────────────
+  // ── World 3 BOSS: Der Tiefendruck-Koloss (physical) ──────────────────────
+  b('sb_b3','Stage-Boss — Der Tiefendruck-Koloss',
+    'Im lichtlosen Abgrund wuchs ein Golem aus Eis und Stein, geformt vom Druck der ganzen See. Er bewegt sich langsam — aber jeder Schlag zermalmt wie eine Tiefseegrube.',
+    'icegolem','voidtitan','glaciara', 62,60,58, 85000,36000, 95,'icegolem'),
+
+  // ── World 4: Kristallhöhlen (37-48) ───────────────────────────────────────
   b('sb_35','Erster Kristall',
     'Tief in der Erde funkeln Kristalle — und blinzeln zurück.',
     'crystaldrake','ironhide','pebblor', 58,57,56, 72000,31000),
@@ -233,7 +248,12 @@ export const STORY_BATTLES: StoryBattle[] = [
     'Auf dem Kristallthron sitzt das Echo aller Welten. Es erkennt dich.',
     'cosmolord','timewyrm','glitchfiend', 71,70,69, 150000,66000, 110),
 
-  // ── World 5: Sturmgebirge (45-55) ─────────────────────────────────────────
+  // ── World 4 BOSS: Terraemperor, der lebende Berg (physical) ──────────────
+  b('sb_b4','Stage-Boss — Der lebende Berg',
+    'Die Kristallhöhle war nie eine Höhle. Sie war sein Rücken. Terraemperor erwacht, und der ganze Stollen ist sein Körper — eine wandelnde Gebirgskette aus Erz und Kristall.',
+    'terraemperor','crystaldrake','marbleguard', 73,71,69, 165000,72000, 120,'terraemperor'),
+
+  // ── World 5: Sturmgebirge (49-60) ─────────────────────────────────────────
   b('sb_46','Blitzsturm',
     'Stormbeak formiert einen Schwarm. Die Luft selbst knistert gefährlich.',
     'stormbeak','stormbeak','voltkit', 68,67,66, 148000,65000),
@@ -278,7 +298,12 @@ export const STORY_BATTLES: StoryBattle[] = [
     'Der Glitch hat ein Sturmwesen geformt, das Kontinente verschieben kann.',
     'cosmolord','cosmolord','timewyrm', 81,80,79, 255000,113000, 140),
 
-  // ── World 6: Schattenreich (56-66) ────────────────────────────────────────
+  // ── World 5 BOSS: Der Metallkönig (physical) ─────────────────────────────
+  b('sb_b5','Stage-Boss — Der Metallkönig',
+    'Auf dem höchsten Grat steht ein Titan, geschmiedet aus jedem Erz des Gebirges. Der Sturm prallt an ihm ab. Metalking hat noch nie ein Duell verloren — und will, dass es so bleibt.',
+    'metalking','ironbreaker','ironchamp', 83,81,79, 280000,124000, 150,'metalking'),
+
+  // ── World 6: Schattenreich (61-72) ────────────────────────────────────────
   b('sb_57','Dunkelheit erwacht',
     'Das Schattenreich öffnet sich. Shadowfox ist der erste, der dich begrüßt.',
     'shadowfox','shadowfox','venomscale', 78,77,76, 252000,110000),
@@ -323,7 +348,12 @@ export const STORY_BATTLES: StoryBattle[] = [
     'Der Fürst des Schattenreichs ist erwacht. Er hat keine Form mehr.',
     'cosmolord','timewyrm','glitchfiend', 89,88,87, 410000,178000, 175),
 
-  // ── World 7: Sonnentempel (67-77) ─────────────────────────────────────────
+  // ── World 6 BOSS: Der Leerkoloss (physical) ──────────────────────────────
+  b('sb_b6','Stage-Boss — Der Leerkoloss',
+    'Drei Kräfte, die sich auslöschen sollten — Erde, Stahl und Leere — taten es nicht. Voidgiant stapft durch das Schattenreich, und der Boden, den er berührt, zerfällt zu nichts.',
+    'voidgiant','voidtitan','ironbreaker', 90,89,88, 450000,196000, 190,'voidgiant'),
+
+  // ── World 7: Sonnentempel (73-84) ─────────────────────────────────────────
   b('sb_68','Goldenes Tor',
     'Das goldene Tor des Tempels ist versiegelt. Luminos bewacht es.',
     'luminos','luminos','angelfire', 86,85,84, 405000,176000),
@@ -368,7 +398,12 @@ export const STORY_BATTLES: StoryBattle[] = [
     'Auf dem Sonnenthron sitzt das Licht selbst — und es ist böse geworden.',
     'cosmolord','cosmolord','timewyrm', 95,94,94, 615000,269000, 200),
 
-  // ── World 8: Frostöde (78-88) ─────────────────────────────────────────────
+  // ── World 7 BOSS: Der Heilige Champion (physical) ────────────────────────
+  b('sb_b7','Stage-Boss — Der Heilige Champion',
+    'Der Tempelhüter braucht keine Strahlen oder Sprüche. Holychampion segnet seine Fäuste mit dem Licht jedes Ordens und schlägt zu, bis selbst Dämonen es sich anders überlegen.',
+    'holychampion','terraangel','metalangel', 96,95,94, 660000,290000, 215,'holychampion'),
+
+  // ── World 8: Frostöde (85-96) ─────────────────────────────────────────────
   b('sb_79','Gefrorene Zeit',
     'Timewyrm hat die Zeit im Eis eingeschlossen. Alles steht still.',
     'glaciara','glaciara','timewyrm', 92,92,91, 608000,265000),
@@ -413,7 +448,12 @@ export const STORY_BATTLES: StoryBattle[] = [
     'Das Eis schmilzt nie. Timewyrm und Cosmolords halten die Kälte.',
     'timewyrm','cosmolord','cosmolord', 99,98,98, 894000,391000, 245),
 
-  // ── World 9: Der Letzte Riss (89-99) ──────────────────────────────────────
+  // ── World 8 BOSS: Der Eiserne Souverän (physical) ────────────────────────
+  b('sb_b8','Stage-Boss — Der Eiserne Souverän',
+    'Tief in der Frostöde wartet der Souverän aller physischen Kraft. Ironsovereign hielt einst einen Meteor mit der Handfläche auf — aus Verärgerung. Das Eis bricht an seiner Rüstung.',
+    'ironsovereign','icegolem','voidgiant', 100,99,98, 960000,420000, 270,'ironsovereign'),
+
+  // ── World 9: Der Letzte Riss (97-108) ─────────────────────────────────────
   b('sb_90','Die Schwelle',
     'Du stehst vor dem Letzten Riss. Cosmolord, Timewyrm, Glitchfiend. Kein Zurück.',
     'cosmolord','timewyrm','glitchfiend', 99,99,98, 930000,407000),
@@ -457,6 +497,11 @@ export const STORY_BATTLES: StoryBattle[] = [
   b('sb_100','MONSTERIUM: DAS LETZTE KAPITEL',
     'Jenseits des Risses liegt Stille. Drei Cosmolords. Das Schicksal Monsteriums liegt in deinen Händen.',
     'cosmolord','cosmolord','cosmolord', 100,100,100, 2000000,1000000, 500),
+
+  // ── World 9 BOSS: URKRAFT — Allmight (physical, final) ────────────────────
+  b('sb_b9','Stage-Boss — URKRAFT',
+    'Jenseits aller Echos und jeden Glitches steht das erste Monster, das je existierte: die Vereinigung von Erde, Feuer und Meer. Allmight braucht keine Magie. Es IST die rohe Kraft, aus der alles entstand — und es will sehen, ob du würdig bist.',
+    'allmight','worldshatter','ironsovereign', 100,100,100, 2500000,1250000, 600,'allmight'),
 ];
 
 export const LEAGUES = [
