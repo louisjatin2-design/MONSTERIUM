@@ -60,8 +60,13 @@ export class Island extends Phaser.Scene {
   // active pointers at the start of a pinch so we can scale relative to it.
   private pinchStartDist = 0;
   private pinchStartZoom = 1;
-  private readonly MIN_ZOOM = 0.4;
+  // MIN_ZOOM is relaxed at runtime to whatever framing fits the current
+  // viewport (so portrait phones can still see the whole island + neighbours).
+  private MIN_ZOOM = 0.4;
   private readonly MAX_ZOOM = 2.4;
+
+  // Debounce handle for viewport resize / orientation-change relayouts.
+  private resizeTimer?: Phaser.Time.TimerEvent;
 
   // Pan/zoom state for the flat 2D build overlay (independent of the camera,
   // applied directly to the overlay's inner "world" container).
@@ -120,7 +125,13 @@ export class Island extends Phaser.Scene {
       (world.maxY - world.minY) + PAD * 2,
     );
     this.cameras.main.centerOn(ISLAND_CENTER.x, ISLAND_CENTER.y);
-    this.cameras.main.setZoom(1);
+    // Pick a zoom that frames the world like the old FIT scaling, but since the
+    // canvas now fills the whole viewport (RESIZE) the surrounding sky fills any
+    // leftover space instead of black bars. Relax MIN_ZOOM so portrait phones
+    // can still pinch out to the full archipelago.
+    const fit = this.computeFitZoom();
+    this.MIN_ZOOM = Math.min(this.MIN_ZOOM, fit * 0.7);
+    this.cameras.main.setZoom(Phaser.Math.Clamp(fit, this.MIN_ZOOM, this.MAX_ZOOM));
     this.applyCameraFX();
 
     // Spawn pre-placed buildings + their residents.
@@ -229,6 +240,10 @@ export class Island extends Phaser.Scene {
     EventBus.on(GameEvents.START_BATTLE, this.onStartBattle, this);
     EventBus.on(GameEvents.ISLAND_CHANGED, this.onIslandChanged, this);
     EventBus.on(GameEvents.HATCH_EGG_ANIMATE, this.onHatchAnimate, this);
+
+    // Reframe when the viewport changes size (orientation flip / window resize)
+    // so the game always fills the screen in both portrait and landscape.
+    this.scale.on('resize', this.onResize, this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.onShutdown());
   }
@@ -587,6 +602,23 @@ export class Island extends Phaser.Scene {
     return Phaser.Math.Clamp(z, this.MIN_ZOOM, this.MAX_ZOOM);
   }
 
+  // Zoom factor that frames the 1280×720 design space inside the live viewport
+  // (the same factor the old Scale.FIT used), so the island looks correctly
+  // sized on phones, tablets and desktop alike.
+  private computeFitZoom(): number {
+    return Math.min(this.scale.width / 1280, this.scale.height / 720);
+  }
+
+  // Viewport changed (orientation flip / browser resize). Rebuild the scene once
+  // the size settles so the sky, camera framing and layout match the new size.
+  private onResize = () => {
+    this.resizeTimer?.remove();
+    // Skip mid-placement: the 2D overlay rebuilds itself on the next open.
+    this.resizeTimer = this.time.delayedCall(180, () => {
+      if (this.scene.isActive() && !this.placementMode) this.scene.restart();
+    });
+  };
+
   // Zoom the iso camera by a multiplicative factor, keeping the point under
   // the pointer fixed on screen (focal zoom, Monster-Legends style).
   private zoomCameraBy(factor: number, pointer: Phaser.Input.Pointer) {
@@ -698,9 +730,11 @@ export class Island extends Phaser.Scene {
     this.neighborRegions = [];
     const others = Object.values(ISLAND_DEFS).filter(d => d.id !== state.currentIslandId);
 
-    // Ring radius: comfortably clear of the active island's iso footprint.
-    const RX = (GRID_COLS + GRID_ROWS) * (TILE_W / 2) + 240;
-    const RY = (GRID_COLS + GRID_ROWS) * (TILE_H / 2) + 260;
+    // Ring radius: kept tight so neighbour islands sit CLOSE to the active one
+    // with short connecting bridges (Monster-Legends style), not scattered far
+    // across empty sky.
+    const RX = (GRID_COLS + GRID_ROWS) * (TILE_W / 2) * 0.7 + 20;
+    const RY = (GRID_COLS + GRID_ROWS) * (TILE_H / 2) * 0.7 + 30;
 
     // Track the bounding box of the whole world (start with the active island).
     let worldMinX = project(0, GRID_ROWS).x - TILE_W;
@@ -1185,11 +1219,14 @@ export class Island extends Phaser.Scene {
   };
 
   private exitPlacementMode() {
+    if (!this.placementMode) return; // guard against re-entry from PANEL_CLOSED
     this.placementMode = false;
     this.placementDefId = '';
     this.placementHighlight?.destroy();
     this.placementHighlight = undefined;
     this.hideBuildOverlay();
+    // Notify React to restore the floating HUD / rails (covers ESC-cancel too).
+    EventBus.emit(GameEvents.PANEL_CLOSED, {});
   }
 
   // ---- 2D top-down build overlay ----------------------------------------
@@ -1208,8 +1245,8 @@ export class Island extends Phaser.Scene {
     const cell = this.BUILD_CELL;
     const W2 = GRID_COLS * cell;
     const H2 = GRID_ROWS * cell;
-    const ringX = W2 + 130; // 2D spacing between island blocks
-    const ringY = H2 + 130;
+    const ringX = W2 + 40; // 2D spacing between island blocks (kept tight)
+    const ringY = H2 + 40;
 
     // Root (screen-fixed) overlay container.
     const root = this.add.container(0, 0).setDepth(5000).setScrollFactor(0);
@@ -1403,8 +1440,7 @@ export class Island extends Phaser.Scene {
     if (!valid) { this.flashPlacement(col, row, def.tilesW, def.tilesH, 0xff3333); return; }
 
     useGameStore.getState().placeBuilding(this.placementDefId, islandId, col, row);
-    this.exitPlacementMode();
-    EventBus.emit(GameEvents.PANEL_CLOSED, {});
+    this.exitPlacementMode(); // emits PANEL_CLOSED → React restores the chrome
   }
 
   private canPlace(
@@ -1448,6 +1484,8 @@ export class Island extends Phaser.Scene {
 
   private onShutdown() {
     this.unsubscribe?.();
+    this.resizeTimer?.remove();
+    this.scale.off('resize', this.onResize, this);
     EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
     EventBus.off(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.off(GameEvents.START_BATTLE, this.onStartBattle, this);

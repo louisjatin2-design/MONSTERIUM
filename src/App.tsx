@@ -50,6 +50,9 @@ export type ActivePanel =
 export default function App() {
   const phaserRef = useRef<Phaser.Game | null>(null);
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
+  // True while the flat 2D build overlay is up — hide the floating HUD/rails so
+  // the build "tab" is clean (the overlay has its own title + hint bar).
+  const [placementActive, setPlacementActive] = useState(false);
   const tickTimers = useGameStore((s) => s.tickTimers);
   const tutorialStep = useGameStore((s) => s.tutorialStep);
   const [tutorialDismissed, setTutorialDismissed] = useState(false);
@@ -81,7 +84,12 @@ export default function App() {
     const onOpenTeamSelect = (d: BattlePayload) => setActivePanel({ type: 'teamSelect', battlePayload: d });
     const onBattleStart    = () => setActivePanel({ type: 'battle' });
     const onBattleEnd    = () => setActivePanel(null);
+    // Build-overlay (2D placement) lifecycle → toggle the chrome on/off.
+    const onEnterPlacement = () => setPlacementActive(true);
+    const onPlacementDone  = () => setPlacementActive(false);
 
+    EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
+    EventBus.on(GameEvents.PANEL_CLOSED,         onPlacementDone);
     EventBus.on(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
     EventBus.on(GameEvents.OPEN_FARM_PANEL,    onOpenFarm);
     EventBus.on(GameEvents.OPEN_BUILD_MENU, onOpenBuild);
@@ -102,6 +110,8 @@ export default function App() {
     EventBus.on(GameEvents.BATTLE_ENDED,       onBattleEnd);
 
     return () => {
+      EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
+      EventBus.off(GameEvents.PANEL_CLOSED,         onPlacementDone);
       EventBus.off(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
       EventBus.off(GameEvents.OPEN_FARM_PANEL,    onOpenFarm);
       EventBus.off(GameEvents.OPEN_BUILD_MENU, onOpenBuild);
@@ -130,6 +140,8 @@ export default function App() {
 
   const isBattleActive = activePanel?.type === 'battle';
   const hasPanelOpen   = activePanel !== null && !isBattleActive;
+  // Hide the floating chrome during battle AND during 2D build placement.
+  const hideChrome     = isBattleActive || placementActive;
 
   return (
     <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' }}>
@@ -150,9 +162,9 @@ export default function App() {
         />
       )}
 
-      {/* Floating top HUD + side action rails — hidden during battle so only
-          the fight screen shows (no shop/resource access mid-fight). */}
-      {!isBattleActive && (
+      {/* Floating top HUD + side action rails — hidden during battle (so only
+          the fight screen shows) and during 2D build placement (clean build tab). */}
+      {!hideChrome && (
         <>
           <HUD />
           <SideRail />
