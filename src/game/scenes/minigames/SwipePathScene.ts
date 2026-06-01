@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
 import type { MoveDef } from '@gtypes/game';
 
 interface SwipeData {
@@ -33,11 +34,14 @@ export class SwipePathScene extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     this.nodeCount = 4 + this.rarityRank;
     this.timeLimitMs = Math.max(2500, 5000 - this.rarityRank * 250);
 
-    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8);
+    // Fit to the live viewport (re-fits on orientation flip). Oversized overlay
+    // so the dim covers any letterbox margin around the design space.
+    setupFixedViewport(this);
+    this.add.rectangle(width / 2, height / 2, width * 3, height * 3, 0x000000, 0.8);
     this.add.text(width / 2, 60, this.moveDef.name, {
       fontSize: '28px', color: '#ffd700', fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -60,13 +64,19 @@ export class SwipePathScene extends Phaser.Scene {
       this.nodes.push({ x, y, hit: false, gfx });
     }
 
+    // The camera is zoomed/letterboxed to fit, so convert the screen-space
+    // pointer into design-space world coordinates before hit-testing nodes.
+    const checkAt = (p: Phaser.Input.Pointer) => {
+      const wp = this.cameras.main.getWorldPoint(p.x, p.y);
+      this.checkNode(wp.x, wp.y);
+    };
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!this.armed || this.completed || !p.isDown) return;
-      this.checkNode(p.x, p.y);
+      checkAt(p);
     });
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (!this.armed || this.completed) return;
-      this.checkNode(p.x, p.y);
+      checkAt(p);
     });
 
     const ready = this.add.text(width / 2, height - 70, 'Bereit…', {
@@ -113,7 +123,7 @@ export class SwipePathScene extends Phaser.Scene {
     this.completed = true;
     const hits = this.nodes.filter(n => n.hit).length;
     const score = Math.floor((hits / this.nodes.length) * 100);
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const label = score >= 100 ? 'PERFECT!' : score >= 60 ? 'GREAT!' : score >= 30 ? 'OK' : 'MISS!';
     const color = score >= 80 ? '#44ff44' : score >= 40 ? '#ffaa00' : '#ff4444';
     this.add.text(width / 2, height - 60, `${label} (${score}%)`, {

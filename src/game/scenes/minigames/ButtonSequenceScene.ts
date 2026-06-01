@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
 import type { MoveDef } from '@gtypes/game';
 
 interface SequenceData {
@@ -35,7 +36,7 @@ export class ButtonSequenceScene extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     this.sequenceLength = Math.min(8, 3 + this.rarityRank);
 
     // Generate random sequence
@@ -43,8 +44,10 @@ export class ButtonSequenceScene extends Phaser.Scene {
       KEYS[Math.floor(Math.random() * KEYS.length)]
     );
 
-    // Overlay
-    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8);
+    // Fit to the live viewport (re-fits on orientation flip). Oversized overlay
+    // so the dim covers any letterbox margin around the design space.
+    setupFixedViewport(this);
+    this.add.rectangle(width / 2, height / 2, width * 3, height * 3, 0x000000, 0.8);
 
     // Title
     this.add.text(width / 2, 80, this.moveDef.name, {
@@ -67,7 +70,7 @@ export class ButtonSequenceScene extends Phaser.Scene {
   }
 
   private drawSequence() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const keySize = 56;
     const spacing = 10;
     const totalW = this.sequenceLength * (keySize + spacing) - spacing;
@@ -91,7 +94,7 @@ export class ButtonSequenceScene extends Phaser.Scene {
   }
 
   private showInputPhase() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
 
     this.add.text(width / 2, height / 2 + 80, 'Now press the sequence!', {
       fontSize: '18px', color: '#ffffff',
@@ -169,7 +172,7 @@ export class ButtonSequenceScene extends Phaser.Scene {
     const correct = this.inputIndicators.filter(ind => ind.fillColor === 0x44ff44).length;
     const score = Math.floor((correct / this.sequenceLength) * 100);
 
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const label = score >= 90 ? 'PERFECT!' : score >= 70 ? 'GREAT!' : score >= 40 ? 'OK' : 'MISS!';
     const color = score >= 80 ? '#44ff44' : score >= 50 ? '#ffaa00' : '#ff4444';
 

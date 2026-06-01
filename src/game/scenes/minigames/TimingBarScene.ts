@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
 import type { MoveDef } from '@gtypes/game';
 
 interface TimingData {
@@ -31,12 +32,14 @@ export class TimingBarScene extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     this.barX = width / 2 - this.barWidth / 2;
     this.barY = height / 2;
 
-    // Semi-transparent overlay
-    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.75);
+    // Fit to the live viewport (re-fits on orientation flip). Oversized overlay
+    // so the dim covers any letterbox margin around the design space.
+    setupFixedViewport(this);
+    this.add.rectangle(width / 2, height / 2, width * 3, height * 3, 0x000000, 0.75);
 
     // Title
     this.add.text(width / 2, height / 2 - 120, this.moveDef.name, {
@@ -88,7 +91,7 @@ export class TimingBarScene extends Phaser.Scene {
     if (this.completed) return;
     this.completed = true;
 
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const greenW = Math.max(30, 80 - this.rarityRank * 8);
     const greenLeft = width / 2 - greenW / 2 - this.barX;
     const greenRight = width / 2 + greenW / 2 - this.barX;

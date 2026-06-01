@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
 import type { MoveDef } from '@gtypes/game';
 
 interface AimData {
@@ -30,14 +31,16 @@ export class AimClickScene extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
 
     this.timeLimit = Math.max(600, 2000 - this.rarityRank * 200);
     this.initialRadius = Math.max(25, 80 - this.rarityRank * 5);
     this.currentRadius = this.initialRadius;
 
-    // Overlay
-    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.75);
+    // Fit to the live viewport (re-fits on orientation flip). Oversized overlay
+    // so the dim covers any letterbox margin around the design space.
+    setupFixedViewport(this);
+    this.add.rectangle(width / 2, height / 2, width * 3, height * 3, 0x000000, 0.75);
 
     // Title
     this.add.text(width / 2, 80, this.moveDef.name, {
@@ -79,7 +82,10 @@ export class AimClickScene extends Phaser.Scene {
     // Click anywhere to try
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (!this.armed || this.completed) return;
-      const dist = Phaser.Math.Distance.Between(p.x, p.y, this.targetX, this.targetY);
+      // The camera is zoomed/letterboxed to fit, so convert the screen-space
+      // pointer into design-space world coordinates before hit-testing.
+      const wp = this.cameras.main.getWorldPoint(p.x, p.y);
+      const dist = Phaser.Math.Distance.Between(wp.x, wp.y, this.targetX, this.targetY);
       if (dist <= this.currentRadius) {
         this.onHit(dist);
       } else {
@@ -103,7 +109,7 @@ export class AimClickScene extends Phaser.Scene {
   private onHit(dist: number) {
     if (this.completed) return;
     this.completed = true;
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const ratio = this.currentRadius / this.initialRadius;
     const score = Math.floor(40 + ratio * 60); // 40–100
 
@@ -123,7 +129,7 @@ export class AimClickScene extends Phaser.Scene {
   private onMiss() {
     if (this.completed) return;
     this.completed = true;
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     this.add.text(width / 2, height / 2, 'MISS! (0%)', {
       fontSize: '32px', color: '#ff2222', fontStyle: 'bold',
     }).setOrigin(0.5);

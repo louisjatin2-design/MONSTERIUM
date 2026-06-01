@@ -1,12 +1,19 @@
 import Phaser from 'phaser';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { MonsterSprite } from '@game/objects/MonsterSprite';
+import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
 
 export class MainMenu extends Phaser.Scene {
   constructor() { super('MainMenu'); }
 
   create() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
+
+    // Lay out in the fixed design space and fit it to the screen so the menu
+    // stays centred and fully reachable in both portrait and landscape, and
+    // re-fits cleanly on an orientation flip.
+    this.cameras.main.setBackgroundColor(0x8fd6f5);
+    setupFixedViewport(this);
 
     // Warm sky gradient (layered translucent bands).
     this.add.rectangle(width / 2, height / 2, width, height, 0x8fd6f5);

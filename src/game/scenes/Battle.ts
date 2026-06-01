@@ -14,6 +14,7 @@ import {
   getMoveCooldown, tickMoveCooldowns, addStatusEffect,
   earlyCampaignDamageBonus, campaignRewardMultiplier,
 } from '@systems/BattleSystem';
+import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
 import type { BattleCombatant, MoveDef, MinigameType } from '@gtypes/game';
 
 // Which Phaser scene drives each minigame type.
@@ -85,7 +86,15 @@ export class Battle extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
+
+    // Lay the whole fight out in the fixed 1280×720 design space and fit it to
+    // the screen, re-fitting on every orientation flip so cards / attack
+    // buttons never end up stranded off-screen (which made fights impossible).
+    // An opaque camera background fills any letterbox margin so the paused
+    // Island scene behind us stays hidden.
+    this.cameras.main.setBackgroundColor(0x1a0a3c);
+    setupFixedViewport(this);
 
     // Themed battle arena background.
     this.drawBackground();
@@ -137,7 +146,7 @@ export class Battle extends Phaser.Scene {
 
   // A short "VS" splash that slides in from both sides before combat begins.
   private playIntro() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const cy = height / 2;
 
     const left = this.add.text(-200, cy, 'DEIN TEAM', {
@@ -164,7 +173,7 @@ export class Battle extends Phaser.Scene {
   }
 
   private drawBackground() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const g = this.add.graphics();
 
     // Sky gradient (deep purple → dusky magenta).
@@ -240,7 +249,7 @@ export class Battle extends Phaser.Scene {
   }
 
   private drawMonsterCards() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const cardW = 156, cardH = 84;
     const margin = 16;
     const leftX = margin + cardW / 2;
@@ -402,15 +411,16 @@ export class Battle extends Phaser.Scene {
     this.detailOverlay?.destroy();
     this.detailOverlay = null;
 
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const def = MONSTER_DEFS[c.defId];
     if (!def) return;
 
     const panelW = 320, panelH = 360;
     const cx = width / 2, cy = height / 2;
 
-    // Backdrop (tap to close)
-    const backdrop = this.add.rectangle(cx, cy, width, height, 0x000000, 0.6)
+    // Backdrop (tap to close) — oversized so it also covers any letterbox
+    // margin around the design space.
+    const backdrop = this.add.rectangle(cx, cy, width * 3, height * 3, 0x000000, 0.6)
       .setInteractive();
     backdrop.on('pointerdown', () => { this.detailOverlay?.destroy(); this.detailOverlay = null; });
 
@@ -715,7 +725,7 @@ export class Battle extends Phaser.Scene {
 
   private showAttackButtons(attacker: BattleCombatant) {
     this.clearAttackButtons();
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const def = MONSTER_DEFS[attacker.defId];
     const moves = attacker.equippedMoveIds;
 
@@ -1052,8 +1062,8 @@ export class Battle extends Phaser.Scene {
     });
 
     // Screen flash + a hefty shake to sell the ultimate.
-    const { width, height } = this.scale;
-    const flash = this.add.rectangle(width / 2, height / 2, width, height, 0xffd700, 0.55).setDepth(500);
+    const width = DESIGN_W, height = DESIGN_H;
+    const flash = this.add.rectangle(width / 2, height / 2, width * 3, height * 3, 0xffd700, 0.55).setDepth(500);
     this.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
     this.cameras.main.shake(320, 0.014);
 
@@ -1232,7 +1242,7 @@ export class Battle extends Phaser.Scene {
     this.detailOverlay = null;
     EventBus.off(GameEvents.MINIGAME_COMPLETE, this.onMinigameResult, this);
 
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const resultColor = victory ? 0x226622 : 0x662222;
     const resultText = victory ? 'VICTORY!' : 'DEFEAT';
 
