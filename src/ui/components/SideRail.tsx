@@ -67,8 +67,11 @@ function RailButton({
 
   return (
     <button
+      // Activate on native click (touch-reliable); pointer events are visual only.
+      onClick={onClick}
       onPointerDown={() => setPressed(true)}
-      onPointerUp={() => { setPressed(false); onClick(); }}
+      onPointerUp={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
       title={label}
       style={{
