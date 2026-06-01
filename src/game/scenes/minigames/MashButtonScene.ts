@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
 import type { MoveDef } from '@gtypes/game';
 
 interface MashData {
@@ -33,11 +34,14 @@ export class MashButtonScene extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     this.target = 16 + this.rarityRank * 4;
     this.timeLimitMs = 4000;
 
-    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8);
+    // Fit to the live viewport (re-fits on orientation flip). Oversized overlay
+    // so the dim covers any letterbox margin around the design space.
+    setupFixedViewport(this);
+    this.add.rectangle(width / 2, height / 2, width * 3, height * 3, 0x000000, 0.8);
     this.add.text(width / 2, 70, this.moveDef.name, {
       fontSize: '28px', color: '#ffd700', fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -98,7 +102,7 @@ export class MashButtonScene extends Phaser.Scene {
     this.completed = true;
     const ratio = Math.min(1, this.taps / this.target);
     const score = Math.floor(ratio * 100);
-    const { width, height } = this.scale;
+    const width = DESIGN_W, height = DESIGN_H;
     const label = score >= 90 ? 'PERFECT!' : score >= 60 ? 'GREAT!' : score >= 30 ? 'OK' : 'WEAK!';
     const color = score >= 80 ? '#44ff44' : score >= 40 ? '#ffaa00' : '#ff4444';
     this.add.text(width / 2, height / 2 - 60, `${label} (${score}%)`, {
