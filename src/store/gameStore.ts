@@ -79,6 +79,7 @@ interface GameStoreState {
     buildingsBuilt: number;
   };
   claimedQuests: string[]; // quest ids already collected
+  redeemedCheatCodes: string[]; // one-time cheat codes already used
 }
 
 interface GameStoreActions {
@@ -265,6 +266,7 @@ const INITIAL_STATE: GameStoreState = {
   pendingLevelRewards: [],
   stats: { feeds: 0, breeds: 0, hatches: 0, collects: 0, battlesWon: 0, buildingsBuilt: 0 },
   claimedQuests: [],
+  redeemedCheatCodes: [],
 };
 
 export const useGameStore = create<GameStore>()(
@@ -960,22 +962,39 @@ export const useGameStore = create<GameStore>()(
       // resources and reveals every monster in the Pokedex.
       redeemCheatCode: (code) => {
         const normalized = code.trim();
-        if (normalized !== 'Iiwnddehb') return false;
-        const INF = 999_999_999;
-        set((s) => {
-          s.gold = INF;
-          s.diamonds = INF;
-          s.food = INF;
-          // Reveal the whole Pokedex.
-          for (const defId of Object.keys(MONSTER_DEFS)) {
-            if (!s.pokedexSeen.includes(defId)) s.pokedexSeen.push(defId);
-          }
-          // Unlock every island.
-          for (const islandId of Object.keys(ISLAND_DEFS)) {
-            if (!s.unlockedIslands.includes(islandId)) s.unlockedIslands.push(islandId);
-          }
-        });
-        return true;
+
+        // "Iiwnddehb" — repeatable god-mode code.
+        if (normalized === 'Iiwnddehb') {
+          const INF = 999_999_999;
+          set((s) => {
+            s.gold = INF;
+            s.diamonds = INF;
+            s.food = INF;
+            // Reveal the whole Pokedex.
+            for (const defId of Object.keys(MONSTER_DEFS)) {
+              if (!s.pokedexSeen.includes(defId)) s.pokedexSeen.push(defId);
+            }
+            // Unlock every island.
+            for (const islandId of Object.keys(ISLAND_DEFS)) {
+              if (!s.unlockedIslands.includes(islandId)) s.unlockedIslands.push(islandId);
+            }
+          });
+          return true;
+        }
+
+        // "GEM25" — one-time gift: 25 Diamanten (Gema) + 10.000 Gold.
+        // Each player may redeem it only once.
+        if (normalized === 'GEM25') {
+          if (get().redeemedCheatCodes.includes('GEM25')) return false;
+          set((s) => {
+            s.diamonds += 25;
+            s.gold += 10_000;
+            s.redeemedCheatCodes.push('GEM25');
+          });
+          return true;
+        }
+
+        return false;
       },
     })),
     {
@@ -1011,6 +1030,10 @@ export const useGameStore = create<GameStore>()(
           }
           if (!Array.isArray(persisted.claimedQuests)) {
             persisted.claimedQuests = [];
+          }
+          // One-time cheat-code redemption tracking.
+          if (!Array.isArray(persisted.redeemedCheatCodes)) {
+            persisted.redeemedCheatCodes = [];
           }
           // Egg storage (Lager). Existing incubating eggs keep running.
           if (!Array.isArray(persisted.storedEggs)) {
