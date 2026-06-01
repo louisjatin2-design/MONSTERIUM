@@ -27,6 +27,10 @@ const ISLAND_THEMES: Record<string, IslandTheme> = {
   emerald_isle:  { emoji: '🌿', grass1: 0x5a9e44, grass2: 0x64a84c, cliff: 0x4a3a22, path: 0xccaa66 },
   volcanic_peak: { emoji: '🌋', grass1: 0x8a3320, grass2: 0x9e4326, cliff: 0x3a1810, path: 0xdd7744 },
   ocean_depths:  { emoji: '🌊', grass1: 0x2a7a9e, grass2: 0x3290b0, cliff: 0x143a4a, path: 0x66ccdd },
+  whispering_woods: { emoji: '🌲', grass1: 0x2f7a2f, grass2: 0x399139, cliff: 0x2a3a18, path: 0x9ec46a },
+  sky_sanctuary:    { emoji: '☁️', grass1: 0x8fc8d8, grass2: 0xa6dce8, cliff: 0x5a7a8a, path: 0xeaf7ff },
+  crystal_caverns:  { emoji: '💎', grass1: 0x5fa6c4, grass2: 0x78c2dc, cliff: 0x2a5a6e, path: 0xd6f7ff },
+  void_rift:        { emoji: '🌌', grass1: 0x2a2450, grass2: 0x352d66, cliff: 0x14102a, path: 0x6a5ab6 },
 };
 const DEFAULT_ISLAND_THEME: IslandTheme = { emoji: '🏝️', grass1: 0x5a9e44, grass2: 0x64a84c, cliff: 0x4a3a22, path: 0xccaa66 };
 

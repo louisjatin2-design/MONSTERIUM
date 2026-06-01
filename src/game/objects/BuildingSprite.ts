@@ -25,6 +25,19 @@ const HABITAT_GROUND: Record<string, { soil: number; soil2: number; accent: numb
   Light:    { soil: 0xd9cd84, soil2: 0xe8df9e, accent: 0xfff2a0 },
   Metal:    { soil: 0x8b929c, soil2: 0xa2a9b3, accent: 0xc7ccd2 },
   Poison:   { soil: 0x5a7a32, soil2: 0x6e9140, accent: 0xa6e34a },
+  Plant:    { soil: 0x356b28, soil2: 0x448335, accent: 0x7ed957 },
+  Combat:   { soil: 0x7a3a2a, soil2: 0x944836, accent: 0xff7a52 },
+  Sand:     { soil: 0xc9a05a, soil2: 0xdcb874, accent: 0xf4e2a8 },
+  Sound:    { soil: 0x8a3a6a, soil2: 0xa6487f, accent: 0xff8ad0 },
+  Crystal:  { soil: 0x6fb6c4, soil2: 0x88d4e2, accent: 0xd6f7ff },
+  Magic:    { soil: 0x6a3a8a, soil2: 0x8248a6, accent: 0xd98aff },
+  Psycho:   { soil: 0x8a4a9a, soil2: 0xa65ab6, accent: 0xf0a0ff },
+  Angel:    { soil: 0xb8a86a, soil2: 0xd2c488, accent: 0xfff6c8 },
+  Demon:    { soil: 0x5a1414, soil2: 0x781e1e, accent: 0xff4848 },
+  Time:     { soil: 0x4a5460, soil2: 0x606c7a, accent: 0xbac6d4 },
+  Glitch:   { soil: 0x0a3a1a, soil2: 0x0f5226, accent: 0x00ff66 },
+  Cosmos:   { soil: 0x1a1f4a, soil2: 0x282e6a, accent: 0x6a78d8 },
+  Void:     { soil: 0x14102a, soil2: 0x1f193f, accent: 0x5a3f9a },
 };
 const DEFAULT_GROUND = { soil: 0x5fb23e, soil2: 0x6ec24a, accent: 0x8fd96a };
 
