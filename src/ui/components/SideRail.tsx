@@ -25,13 +25,7 @@ export function SideRail() {
   });
 
   return (
-    <div style={{
-      position: 'absolute',
-      right: 8, top: '50%', transform: 'translateY(-50%)',
-      display: 'flex', flexDirection: 'column', gap: 10,
-      zIndex: 140,
-      pointerEvents: 'none',
-    }}>
+    <div className="floating-rail floating-rail--right">
       <RailButton
         icon="🎪" label="Events"
         from="#7a3fd0" to="#4a1f96"

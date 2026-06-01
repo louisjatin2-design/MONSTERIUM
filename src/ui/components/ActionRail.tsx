@@ -31,13 +31,7 @@ const BUTTONS: Array<{
 // the buttons themselves catch input; the gaps pass through to the world.
 export function ActionRail(props: ActionRailProps) {
   return (
-    <div style={{
-      position: 'absolute',
-      left: 8, top: '50%', transform: 'translateY(-50%)',
-      display: 'flex', flexDirection: 'column', gap: 9,
-      zIndex: 140,
-      pointerEvents: 'none',
-    }}>
+    <div className="floating-rail floating-rail--left">
       {BUTTONS.map(btn => (
         <RailButton
           key={btn.key}
