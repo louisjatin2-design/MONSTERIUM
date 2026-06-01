@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useGameStore } from '@store/gameStore';
-import { MONSTER_DEFS } from '@data/monsters';
+import { MONSTER_DEFS, ALL_MONSTER_IDS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_COLORS, RARITY_RANK } from '@data/rarities';
 import { BUILDING_DEFS, BUILDABLE_BUILDING_IDS } from '@data/buildings';
@@ -42,7 +42,25 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
       action: (s) => { if (s.spendDiamonds(5)) s.addFood(500); } },
     { id: 'food_large', name: '🌾 5.000 Futter', description: 'Ein riesiger Futtervorrat.', diamondCost: 40,
       action: (s) => { if (s.spendDiamonds(40)) s.addFood(5000); } },
-    ...(['flameling', 'aquapup', 'voltkit', 'shadowfox', 'luminos'] as const).map(id => {
+    // Common eggs — buyable with GOLD. Priced by roster order: the later a
+    // common appears, the pricier its egg.
+    ...ALL_MONSTER_IDS
+      .filter(id => MONSTER_DEFS[id]?.rarity === 'Common')
+      .map((id, i) => {
+        const def = MONSTER_DEFS[id]!;
+        const cost = 500 + i * 350;
+        return {
+          id: 'egg_common_' + id,
+          name: `🥚 ${def.name} Ei`,
+          description: `Ein Common ${def.elements.join('/')} Monster-Ei. Landet im Lager.`,
+          goldCost: cost,
+          action: (s: ReturnType<typeof useGameStore.getState>) => {
+            if (s.spendGold(cost)) s.addEgg(id, 30);
+          },
+        } as ShopItem;
+      }),
+    // Premium eggs (Rare and up) — bought with diamonds.
+    ...(['shadowfox', 'luminos', 'venomscale', 'ironhide'] as const).map(id => {
       const def = MONSTER_DEFS[id]!;
       const cost = 20 + RARITY_RANK[def.rarity] * 15;
       return {

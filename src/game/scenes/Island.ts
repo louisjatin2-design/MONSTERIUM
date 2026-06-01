@@ -13,6 +13,21 @@ import {
 } from '@game/iso';
 import type { BuildingInstance } from '@gtypes/game';
 
+// Per-island colour theme so each landmass in the world reads distinctly
+// (Monster-Legends style: lush, volcanic, oceanic, …).
+interface IslandTheme {
+  emoji: string;
+  grass1: number; grass2: number; // top checkerboard
+  cliff: number;                  // underside rock
+  path: number;                   // bridge rope colour
+}
+const ISLAND_THEMES: Record<string, IslandTheme> = {
+  emerald_isle:  { emoji: '🌿', grass1: 0x5a9e44, grass2: 0x64a84c, cliff: 0x4a3a22, path: 0xccaa66 },
+  volcanic_peak: { emoji: '🌋', grass1: 0x8a3320, grass2: 0x9e4326, cliff: 0x3a1810, path: 0xdd7744 },
+  ocean_depths:  { emoji: '🌊', grass1: 0x2a7a9e, grass2: 0x3290b0, cliff: 0x143a4a, path: 0x66ccdd },
+};
+const DEFAULT_ISLAND_THEME: IslandTheme = { emoji: '🏝️', grass1: 0x5a9e44, grass2: 0x64a84c, cliff: 0x4a3a22, path: 0xccaa66 };
+
 export class Island extends Phaser.Scene {
   private tiles: GridTile[][] = [];
   private buildingSprites: Map<string, BuildingSprite> = new Map();
@@ -487,75 +502,129 @@ export class Island extends Phaser.Scene {
   // space right edge so the camera bounds can include the neighbours.
   private drawNeighborIslands(state: ReturnType<typeof useGameStore.getState>): number {
     this.neighborRegions = [];
-    const ISLAND_SPAN = GRID_COLS * (TILE_W / 2) + GRID_COLS * (TILE_W / 2); // full diamond width
-    const GAP = 260;
+    const ISLAND_SPAN = GRID_COLS * TILE_W; // full diamond width across the grid
+    const GAP = 200;
     const others = Object.values(ISLAND_DEFS).filter(d => d.id !== state.currentIslandId);
     let rightEdge = CONTENT_W;
 
+    // Anchor point of the ACTIVE island, so bridges start from it.
+    const activeCenter = { x: ISLAND_CENTER.x, y: ISLAND_CENTER.y };
+    let prevAnchor = { x: CONTENT_W - 120, y: activeCenter.y };
+
     others.forEach((island, i) => {
       const offsetX = CONTENT_W + GAP + i * (ISLAND_SPAN + GAP);
+      // Stagger vertically so the world winds like Monster Legends instead of
+      // sitting in a straight row.
+      const offsetY = Math.sin(i * 0.9) * 150;
       const locked = !state.unlockedIslands.includes(island.id);
       const cost = island.goldCost ?? 0;
+      const theme = ISLAND_THEMES[island.id] ?? DEFAULT_ISLAND_THEME;
 
-      const g = this.add.graphics();
-      g.setDepth(-50);
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
-      // Draw the island's land tiles as flat dimmed diamonds.
+      // Compute the projected centre of every land tile first (also gives bounds).
+      const tiles: { cx: number; cy: number; col: number; row: number }[] = [];
       for (let row = 0; row < GRID_ROWS; row++) {
         for (let col = 0; col < GRID_COLS; col++) {
           if (!island.tileMask[row]?.[col]) continue;
           const c = project(col + 0.5, row + 0.5);
-          const cx = c.x + offsetX, cy = c.y;
-          const top    = { x: cx, y: cy - TILE_H / 2 };
-          const right  = { x: cx + TILE_W / 2, y: cy };
-          const bottom = { x: cx, y: cy + TILE_H / 2 };
-          const left   = { x: cx - TILE_W / 2, y: cy };
-          const checker = (col + row) % 2 === 0;
-          // Locked islands desaturated to grey; unlocked keep a muted green.
-          const fill = locked
-            ? (checker ? 0x6b6b6b : 0x767676)
-            : (checker ? 0x5a9e44 : 0x64a84c);
-          g.fillStyle(fill, locked ? 0.7 : 0.92);
-          g.fillPoints([top, right, bottom, left], true);
-          g.lineStyle(1, 0x000000, 0.15);
-          g.strokePoints([top, right, bottom, left], true, true);
-          minX = Math.min(minX, left.x); maxX = Math.max(maxX, right.x);
-          minY = Math.min(minY, top.y);  maxY = Math.max(maxY, bottom.y);
+          const cx = c.x + offsetX, cy = c.y + offsetY;
+          tiles.push({ cx, cy, col, row });
+          minX = Math.min(minX, cx - TILE_W / 2); maxX = Math.max(maxX, cx + TILE_W / 2);
+          minY = Math.min(minY, cy - TILE_H / 2); maxY = Math.max(maxY, cy + TILE_H / 2);
         }
       }
-      if (minX === Infinity) return; // empty mask, skip
-
+      if (tiles.length === 0) return; // empty mask, skip
       const midX = (minX + maxX) / 2;
+      const islandCenter = { x: midX, y: (minY + maxY) / 2 };
 
-      // Name label.
-      this.add.text(midX, minY - 26, island.name, {
-        fontSize: '18px', color: locked ? '#cccccc' : '#ffffff', fontStyle: 'bold',
-        stroke: '#000000', strokeThickness: 4,
+      // 1) Connecting bridge from the previous island to this one (drawn under).
+      this.drawBridge(prevAnchor, { x: minX + 40, y: islandCenter.y }, theme.path, locked);
+      prevAnchor = { x: maxX - 40, y: islandCenter.y };
+
+      // 2) Cliff underside — one dark band beneath each tile for floating depth.
+      const cliff = this.add.graphics();
+      cliff.setDepth(-60);
+      const thickness = 26;
+      for (const t of tiles) {
+        const left  = { x: t.cx - TILE_W / 2, y: t.cy };
+        const bottom = { x: t.cx, y: t.cy + TILE_H / 2 };
+        const right = { x: t.cx + TILE_W / 2, y: t.cy };
+        cliff.fillStyle(locked ? 0x3a3a3a : theme.cliff, locked ? 0.6 : 0.95);
+        cliff.fillPoints([
+          left, bottom, right,
+          { x: right.x, y: right.y + thickness },
+          { x: bottom.x, y: bottom.y + thickness },
+          { x: left.x, y: left.y + thickness },
+        ], true);
+      }
+
+      // 3) Grass tops, coloured per the island's theme.
+      const g = this.add.graphics();
+      g.setDepth(-50);
+      for (const t of tiles) {
+        const top    = { x: t.cx, y: t.cy - TILE_H / 2 };
+        const right  = { x: t.cx + TILE_W / 2, y: t.cy };
+        const bottom = { x: t.cx, y: t.cy + TILE_H / 2 };
+        const left   = { x: t.cx - TILE_W / 2, y: t.cy };
+        const checker = (t.col + t.row) % 2 === 0;
+        const fill = locked
+          ? (checker ? 0x6b6b6b : 0x767676)
+          : (checker ? theme.grass1 : theme.grass2);
+        g.fillStyle(fill, locked ? 0.7 : 0.95);
+        g.fillPoints([top, right, bottom, left], true);
+        g.lineStyle(1, 0x000000, 0.12);
+        g.strokePoints([top, right, bottom, left], true, true);
+      }
+
+      // 4) Labels.
+      this.add.text(midX, minY - 30, `${theme.emoji} ${island.name}`, {
+        fontSize: '20px', color: locked ? '#cccccc' : '#ffffff', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 5,
       }).setOrigin(0.5).setDepth(40);
 
       if (locked) {
-        // Lock badge + price.
-        this.add.text(midX, (minY + maxY) / 2 - 16, '🔒', { fontSize: '48px' })
+        this.add.text(islandCenter.x, islandCenter.y - 16, '🔒', { fontSize: '52px' })
           .setOrigin(0.5).setDepth(40);
-        this.add.text(midX, (minY + maxY) / 2 + 30, `🪙 ${cost}`, {
-          fontSize: '20px', color: '#ffd700', fontStyle: 'bold',
+        this.add.text(islandCenter.x, islandCenter.y + 34, `🪙 ${cost}`, {
+          fontSize: '22px', color: '#ffd700', fontStyle: 'bold',
           stroke: '#000000', strokeThickness: 4,
         }).setOrigin(0.5).setDepth(40);
-        this.add.text(midX, maxY + 6, 'Tippen zum Freischalten', {
+        this.add.text(midX, maxY + 10, 'Tippen zum Freischalten', {
           fontSize: '12px', color: '#dddddd', stroke: '#000000', strokeThickness: 3,
         }).setOrigin(0.5).setDepth(40);
       } else {
-        this.add.text(midX, maxY + 6, 'Tippen zum Besuchen', {
+        this.add.text(midX, maxY + 10, 'Tippen zum Besuchen', {
           fontSize: '12px', color: '#bff5a8', stroke: '#000000', strokeThickness: 3,
         }).setOrigin(0.5).setDepth(40);
       }
 
-      this.neighborRegions.push({ islandId: island.id, locked, cost, minX, maxX, minY: minY - 30, maxY: maxY + 24 });
+      this.neighborRegions.push({ islandId: island.id, locked, cost, minX, maxX, minY: minY - 34, maxY: maxY + 28 });
       rightEdge = Math.max(rightEdge, maxX + GAP);
     });
 
     return rightEdge;
+  }
+
+  // A rope-and-plank bridge connecting two island anchors, so the world reads
+  // as one connected archipelago rather than detached tiles.
+  private drawBridge(from: { x: number; y: number }, to: { x: number; y: number }, color: number, dim: boolean) {
+    const g = this.add.graphics();
+    g.setDepth(-70);
+    const alpha = dim ? 0.4 : 0.85;
+    // Two rope lines.
+    g.lineStyle(3, color, alpha);
+    g.lineBetween(from.x, from.y - 6, to.x, to.y - 6);
+    g.lineBetween(from.x, from.y + 6, to.x, to.y + 6);
+    // Planks.
+    const steps = Math.max(4, Math.floor(Math.abs(to.x - from.x) / 26));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const px = from.x + (to.x - from.x) * t;
+      const py = from.y + (to.y - from.y) * t;
+      g.fillStyle(0x8a5a2a, alpha);
+      g.fillRect(px - 6, py - 8, 12, 16);
+    }
   }
 
   // Did the player tap a neighbour island? Handle switch / unlock if so.

@@ -9,7 +9,7 @@ import { TRAITS } from '@data/traits';
 import { STATUS_EFFECTS } from '@data/statusEffects';
 import {
   buildTurnQueue, calculateDamage, generateAiAttack,
-  processStatusTick, buildCombatant, gainUltCharge,
+  processStatusTick, buildCombatant, gainUltCharge, ultChargeCostFor,
   getMoveCooldown, tickMoveCooldowns, addStatusEffect,
 } from '@systems/BattleSystem';
 import type { BattleCombatant, MoveDef, MinigameType } from '@gtypes/game';
@@ -407,7 +407,8 @@ export class Battle extends Phaser.Scene {
   private updateUltBar(c: BattleCombatant) {
     const ub = this.ultBars.get(c.instanceId);
     if (!ub) return;
-    const ratio = Math.min(1, c.ultCharge / 100);
+    const cost = ultChargeCostFor(c.attackStat);
+    const ratio = Math.min(1, c.ultCharge / cost);
     ub.bar.width = ub.bg.width * ratio;
     const ready = ratio >= 1;
     ub.bar.setFillStyle(ready ? 0xffffff : 0xffd700);
@@ -508,7 +509,7 @@ export class Battle extends Phaser.Scene {
     this.statusText.setText(`${attacker.name}'s turn — choose an attack:`);
 
     // ── ULTIMA button (only when fully charged) ──────────────────────────────
-    if (attacker.ultCharge >= 100) {
+    if (attacker.ultCharge >= ultChargeCostFor(attacker.attackStat)) {
       const ux = width / 2, uy = height - 116;
       const ubtn = this.add.rectangle(ux, uy, 280, 36, 0x664400)
         .setStrokeStyle(3, 0xffd700)
@@ -662,7 +663,7 @@ export class Battle extends Phaser.Scene {
 
   private doAiTurn(attacker: BattleCombatant) {
     // AI uses ult when charged (70% chance so it's not always predictable)
-    if (attacker.ultCharge >= 100 && Math.random() < 0.7) {
+    if (attacker.ultCharge >= ultChargeCostFor(attacker.attackStat) && Math.random() < 0.7) {
       const aiScore1 = 50 + Math.random() * 40;
       const aiScore2 = 50 + Math.random() * 40;
       this.applyUlt(attacker, aiScore1, aiScore2);
