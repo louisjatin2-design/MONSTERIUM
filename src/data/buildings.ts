@@ -227,21 +227,21 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     id: 'farm_basic', name: 'Basic Farm', category: 'Farm',
     tilesW: 2, tilesH: 2,
     goldCost: 300, buildTimeSec: 5,
-    levels: makeFarmLevels(300, 120),
+    levels: makeFarmLevels(300, 3600), // 3600/h = 1 food per second at level 1
     description: 'Produces food slowly. Converts gold to food over time.',
   },
   farm_advanced: {
     id: 'farm_advanced', name: 'Advanced Farm', category: 'Farm',
     tilesW: 2, tilesH: 2,
     goldCost: 1500, buildTimeSec: 60,
-    levels: makeFarmLevels(1500, 400),
+    levels: makeFarmLevels(1500, 7200), // 7200/h = 2 food per second at level 1
     description: 'Produces food quickly. Requires more gold investment.',
   },
   farm_mythic: {
     id: 'farm_mythic', name: 'Mythic Farm', category: 'Farm',
     tilesW: 3, tilesH: 2,
     goldCost: 10000, buildTimeSec: 600,
-    levels: makeFarmLevels(10000, 1000),
+    levels: makeFarmLevels(10000, 18000), // 18000/h = 5 food per second at level 1
     description: 'Massive food production for end-game feeding needs.',
   },
   // --- Special ---
