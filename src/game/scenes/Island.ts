@@ -253,6 +253,7 @@ export class Island extends Phaser.Scene {
     this.refreshEggs(state);
 
     // EventBus wiring.
+    EventBus.on(GameEvents.OPEN_BUILD_OVERLAY, this.onOpenBuildOverlay, this);
     EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
     EventBus.on(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.on(GameEvents.START_BATTLE, this.onStartBattle, this);
@@ -1223,6 +1224,16 @@ export class Island extends Phaser.Scene {
     this.showBuildOverlay();
   };
 
+  // BAUEN tab → open the 2D top-down island view with NO building chosen yet
+  // (browse mode). Tapping an empty land tile opens the building list for that
+  // spot, which then enters per-building placement via ENTER_PLACEMENT_MODE.
+  private onOpenBuildOverlay = () => {
+    this.placementMode = true;
+    this.placementDefId = ''; // empty → browse mode (tap a tile to pick a building)
+    this.input.keyboard?.once('keydown-ESC', () => this.exitPlacementMode());
+    this.showBuildOverlay();
+  };
+
   private onPanelClosed = () => {
     if (this.placementMode) this.exitPlacementMode();
   };
@@ -1354,7 +1365,14 @@ export class Island extends Phaser.Scene {
           if (this.dragMoved) return; // it was a pan, not a placement tap
           // Guard the trailing iso-layer pointerup from this same click.
           this.suppressTapUntil = Date.now() + 350;
-          this.tryPlaceBuilding(col, row);
+          // Browse mode (no building chosen yet): tapping a tile opens the
+          // build menu for that spot; picking a building then re-enters the
+          // overlay in placement mode. Otherwise place the selected building.
+          if (this.placementDefId === '') {
+            EventBus.emit(GameEvents.OPEN_BUILD_MENU, { tileX: col, tileY: row });
+          } else {
+            this.tryPlaceBuilding(col, row);
+          }
         });
         world.add(rect);
         this.buildOverlayCells[row][col] = rect;
@@ -1389,14 +1407,20 @@ export class Island extends Phaser.Scene {
     }
 
     // Fixed UI: title + hint (added last so they stay on top, screen-fixed).
+    // Browse mode (no building chosen) shows a "pick a tile" prompt instead.
+    const browsing = this.placementDefId === '';
     const def = BUILDING_DEFS[this.placementDefId];
-    const title = this.add.text(width / 2, 26,
-      `🏗️ 2D-Baumodus — ${def?.name ?? ''}  (${def?.tilesW ?? 1}×${def?.tilesH ?? 1})`,
+    const titleText = browsing
+      ? '🏗️ 2D-Baumodus — Feld zum Bauen antippen'
+      : `🏗️ 2D-Baumodus — ${def?.name ?? ''}  (${def?.tilesW ?? 1}×${def?.tilesH ?? 1})`;
+    const title = this.add.text(width / 2, 26, titleText,
       { fontSize: '16px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 })
       .setOrigin(0.5);
     root.add(title);
-    const hint = this.add.text(width / 2, height - 20,
-      'Ziehen = Karte bewegen · Mausrad / Pinch = Zoom · Grün = baubar · ESC = Abbrechen',
+    const hintText = browsing
+      ? 'Ziehen = Karte bewegen · Mausrad / Pinch = Zoom · Grün = freies Feld · ESC = Abbrechen'
+      : 'Ziehen = Karte bewegen · Mausrad / Pinch = Zoom · Grün = baubar · ESC = Abbrechen';
+    const hint = this.add.text(width / 2, height - 20, hintText,
       { fontSize: '12px', color: '#aabbcc' }).setOrigin(0.5);
     root.add(hint);
 
@@ -1508,6 +1532,7 @@ export class Island extends Phaser.Scene {
     this.unsubscribe?.();
     this.resizeTimer?.remove();
     this.scale.off('resize', this.onResize, this);
+    EventBus.off(GameEvents.OPEN_BUILD_OVERLAY, this.onOpenBuildOverlay, this);
     EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, this.onEnterPlacement, this);
     EventBus.off(GameEvents.PANEL_CLOSED, this.onPanelClosed, this);
     EventBus.off(GameEvents.START_BATTLE, this.onStartBattle, this);
