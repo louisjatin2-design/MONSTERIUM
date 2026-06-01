@@ -360,3 +360,18 @@ button, .btn, .monster-card, .close-btn {
     max-height: calc(var(--vh, 1vh) * 100 - 16px);
   }
 }
+
+/* Landscape phones: the viewport is short, so a centred modal capped at a
+   fraction of the height would collapse its content into a thin, unusable
+   sliver. Stretch modals to nearly the full height (small top/bottom margins)
+   instead — their flex body then has real room and scrolls if needed. This
+   only targets short (phone) landscape; taller tablets keep the centred look. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .panel.panel-modal {
+    top:        calc(8px + env(safe-area-inset-top, 0px))    !important;
+    bottom:     calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    transform:  translateX(-50%) !important;
+    max-height: none !important;
+    overflow-y: auto;
+  }
+}

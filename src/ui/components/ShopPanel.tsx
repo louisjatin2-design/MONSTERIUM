@@ -92,7 +92,7 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
         </div>
       </div>
 
-      <div style={{ overflowY: 'auto', padding: 14, maxHeight: 'calc(min(88vh, 100vh - 150px) - 180px)' }}>
+      <div style={{ overflowY: 'auto', padding: 14, flex: 1, minHeight: 0 }}>
         {tab === 'items' ? (
           SHOP_ITEMS.map(item => {
             // Items are priced in either diamonds or gold. Read whichever this

@@ -57,7 +57,12 @@ export function TutorialOverlay({ onClose }: Props) {
       pointerEvents: 'auto', background: 'rgba(0,0,0,0.35)',
     }}>
       <div className="panel" style={{
-        position: 'relative', margin: '0 0 110px', width: 440, maxWidth: '92vw',
+        position: 'relative',
+        // Sit near the bottom (thumb reach) but never taller than the viewport —
+        // on short landscape phones it would otherwise clip off the top edge.
+        margin: '0 0 24px',
+        maxHeight: 'calc(var(--vh, 1vh) * 100 - 32px)', overflowY: 'auto',
+        width: 440, maxWidth: '92vw',
         padding: 20, border: '2px solid #ffd700',
       }}>
         <div className="panel-title" style={{ borderBottom: 'none', marginBottom: 8 }}>
