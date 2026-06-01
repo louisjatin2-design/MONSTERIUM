@@ -31,8 +31,8 @@ export function HUD(_props: HUDProps) {
     if (code == null) return;
     const ok = redeemCheatCode(code);
     window.alert(ok
-      ? '✨ Cheat aktiviert! Unendlich Gold, Diamanten & Futter + alles freigeschaltet!'
-      : '❌ Ungültiger Code.');
+      ? '✨ Cheat aktiviert! Deine Belohnung wurde gutgeschrieben.'
+      : '❌ Ungültiger oder bereits eingelöster Code.');
   };
 
   return (
