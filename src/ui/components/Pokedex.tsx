@@ -16,11 +16,15 @@ const RARITY_ORDER: RarityType[] = [
 
 export function Pokedex({ onClose }: PokedexProps) {
   const pokedexSeen = useGameStore(s => s.pokedexSeen);
-  const ownedDefIds = useGameStore(s => new Set(Object.values(s.monsters).map(m => m.defId)));
+  const monsters = useGameStore(s => s.monsters);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [rarityFilter, setRarityFilter] = useState<RarityType | 'All'>('All');
 
+  // Derive these from stable store references — never build a new Set/Map
+  // directly inside a zustand selector, or useSyncExternalStore sees a fresh
+  // snapshot on every render and throws into an infinite re-render loop.
+  const ownedDefIds = useMemo(() => new Set(Object.values(monsters).map(m => m.defId)), [monsters]);
   const seenSet = useMemo(() => new Set(pokedexSeen), [pokedexSeen]);
 
   const filtered = useMemo(() => {
