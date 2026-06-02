@@ -20,6 +20,11 @@ export function gridToWorld(col: number, row: number, grid: Grid) {
   return { x: col - grid.cols / 2, z: row - grid.rows / 2 };
 }
 
+// Inverse: a world (x,z) back to floored tile (col,row).
+export function worldToGrid(x: number, z: number, grid: Grid) {
+  return { col: Math.floor(x + grid.cols / 2), row: Math.floor(z + grid.rows / 2) };
+}
+
 export function islandGrid(def: IslandDef): Grid {
   return { cols: def.tileMask[0].length, rows: def.tileMask.length };
 }

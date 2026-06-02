@@ -24,6 +24,7 @@ import { StoragePanel } from '@ui/components/StoragePanel';
 import { CompendiumPanel } from '@ui/components/CompendiumPanel';
 import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
 import { LoginScreen } from '@ui/components/LoginScreen';
+import { World3D } from '@game/world3d/World3D';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
 import { useAuthStore } from '@store/authStore';
@@ -161,6 +162,11 @@ function Game() {
     EventBus.emit(GameEvents.PANEL_CLOSED, {});
   };
 
+  // Real 3D overworld (Three.js) is the default. It renders above the Phaser
+  // canvas and routes clicks through the same EventBus events; Phaser is kept
+  // underneath for battles. Set ?world3d=0 to fall back to the 2D Phaser island.
+  const world3dEnabled = typeof location === 'undefined' || new URLSearchParams(location.search).get('world3d') !== '0';
+
   const isBattleActive = activePanel?.type === 'battle';
   const hasPanelOpen   = activePanel !== null && !isBattleActive;
   // Hide the floating chrome during battle AND during 2D build placement.
@@ -169,6 +175,10 @@ function Game() {
   return (
     <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' }}>
       <PhaserGame ref={phaserRef} />
+
+      {/* Real 3D overworld (opt-in via ?world3d=1). Sits above Phaser and hides
+          while a battle is active so the Phaser battle screen shows through. */}
+      {world3dEnabled && <World3D hidden={isBattleActive} />}
 
       {/* Backdrop: dims Phaser (and the floating rails) when a panel is open,
           and closes the panel when the empty area is tapped. */}
