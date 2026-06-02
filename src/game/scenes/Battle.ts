@@ -14,7 +14,7 @@ import {
   getMoveCooldown, tickMoveCooldowns, addStatusEffect,
   earlyCampaignDamageBonus, campaignRewardMultiplier,
   effectiveDefense, getMoveEnergyCost, canAffordMove, spendEnergy, regenEnergy,
-  incomingDamageMultiplier, applyShield, findTaunter,
+  rechargeEnergy, incomingDamageMultiplier, applyShield, findTaunter,
 } from '@systems/BattleSystem';
 import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
 import type { BattleCombatant, MoveDef, MinigameType, StatusEffect } from '@gtypes/game';
@@ -52,7 +52,15 @@ interface BattleData {
   rewardDiamonds?: number;
   rewardMonsterDefId?: string;
   storyIndex?: number;    // index into STORY_BATTLES, if this is a story fight
+  isBoss?: boolean;       // boss fight — the lead enemy is drawn oversized
+  // Multi-wave fight: each entry is one enemy line-up faced back-to-back. When
+  // present it supersedes enemyTeam/enemyLevels (which describe a single wave).
+  waves?: Array<{ enemyTeam: string[]; enemyLevels: number[] }>;
 }
+
+// Reduces every diamond payout from a victory. Diamonds are meant to stay a
+// scarce premium currency, so battle rewards only hand out a fraction.
+const DIAMOND_REWARD_SCALE = 0.4;
 
 export class Battle extends Phaser.Scene {
   private playerCombatants: BattleCombatant[] = [];
@@ -60,6 +68,14 @@ export class Battle extends Phaser.Scene {
   private state: BattleState = 'INTRO';
   private turnOrder: BattleCombatant[] = [];
   private turnIndex = 0;
+
+  // Multi-wave fights: each wave is one enemy line-up faced in sequence. waveIndex
+  // tracks which one is currently on the field.
+  private waves: Array<{ enemyTeam: string[]; enemyLevels: number[] }> = [];
+  private waveIndex = 0;
+  // Every Phaser object that makes up a combatant's card, so a defeated wave's
+  // enemy cards can be torn down cleanly before the next wave is drawn.
+  private cardObjects: Map<string, Phaser.GameObjects.GameObject[]> = new Map();
   private selectedMoveId = '';
   private currentAttacker: BattleCombatant | null = null;
   private data_!: BattleData;
@@ -147,15 +163,21 @@ export class Battle extends Phaser.Scene {
       return buildCombatant(inst.instanceId, inst.defId, inst.level, inst.equippedMoveIds, true, inst.name);
     }).filter(Boolean) as BattleCombatant[];
 
-    this.enemyCombatants = this.data_.enemyTeam.slice(0, 3).map((defId, i) => {
-      const level = this.data_.enemyLevels?.[i] ?? 5;
-      const def = MONSTER_DEFS[defId];
-      if (!def) return null;
-      return buildCombatant('enemy_' + i, defId, level, def.availableMoveIds.slice(0, 4), false, def.name);
-    }).filter(Boolean) as BattleCombatant[];
+    // Resolve the wave line-up: an explicit waves[] (boss gauntlets) wins,
+    // otherwise the flat enemyTeam/enemyLevels make a single wave.
+    this.waves = (this.data_.waves && this.data_.waves.length > 0)
+      ? this.data_.waves
+      : [{ enemyTeam: this.data_.enemyTeam, enemyLevels: this.data_.enemyLevels ?? [] }];
+    this.waveIndex = 0;
+    this.enemyCombatants = this.buildWaveEnemies(this.waveIndex);
 
     // Draw monster cards
     this.drawMonsterCards();
+
+    // Announce the first wave when there's more than one to come.
+    if (this.waves.length > 1) {
+      this.time.delayedCall(1150, () => this.showWaveBanner());
+    }
 
     // Status + log text
     this.statusText = this.add.text(width / 2, height - 178, '', {
@@ -283,48 +305,143 @@ export class Battle extends Phaser.Scene {
     }
   }
 
+  // Card layout constants, shared by the initial draw and per-wave enemy redraws.
+  private static readonly CARD_W = 156;
+  private static readonly CARD_H = 84;
+  private static readonly CARD_MARGIN = 16;
+  private static readonly CARD_START_Y = 90;
+  private get cardGapY() { return Battle.CARD_H + 22; }
+  private get enemyColumnX() { return DESIGN_W - Battle.CARD_MARGIN - Battle.CARD_W / 2; }
+
+  // Builds the combatants for a given wave. Each wave's enemies get unique
+  // instance IDs so their cards never collide with a previous wave's.
+  private buildWaveEnemies(waveIdx: number): BattleCombatant[] {
+    const wave = this.waves[waveIdx];
+    if (!wave) return [];
+    return wave.enemyTeam.slice(0, 3).map((defId, i) => {
+      const level = wave.enemyLevels?.[i] ?? 5;
+      const def = MONSTER_DEFS[defId];
+      if (!def) return null;
+      return buildCombatant(`enemy_${waveIdx}_${i}`, defId, level, def.availableMoveIds.slice(0, 4), false, def.name);
+    }).filter(Boolean) as BattleCombatant[];
+  }
+
   private drawMonsterCards() {
-    const width = DESIGN_W, height = DESIGN_H;
-    const cardW = 156, cardH = 84;
-    const margin = 16;
-    const leftX = margin + cardW / 2;
-    const rightX = width - margin - cardW / 2;
-    const startY = 90;
-    const gapY = cardH + 22;
+    const cardW = Battle.CARD_W, cardH = Battle.CARD_H;
+    const leftX = Battle.CARD_MARGIN + cardW / 2;
+    const startY = Battle.CARD_START_Y;
+    const gapY = this.cardGapY;
 
     // Column headers
     this.add.text(leftX, startY - 26, '◀ DEINE MONSTER', {
       fontSize: '13px', color: '#66ff88', fontStyle: 'bold',
     }).setOrigin(0.5);
-    this.add.text(rightX, startY - 26, 'GEGNER ▶', {
+    this.add.text(this.enemyColumnX, startY - 26, 'GEGNER ▶', {
       fontSize: '13px', color: '#ff7777', fontStyle: 'bold',
     }).setOrigin(0.5);
 
     // Player column (left)
     this.playerCombatants.forEach((c, i) => {
-      this.drawCard(c, leftX, startY + i * gapY, cardW, cardH, true);
+      this.drawCard(c, leftX, startY + i * gapY, cardW, cardH, true, false);
     });
 
     // Enemy column (right)
+    this.drawEnemyCards();
+  }
+
+  // Draws the current wave's enemy cards on the right column. In a boss fight the
+  // lead enemy of the final wave is the boss and is drawn oversized.
+  private drawEnemyCards() {
+    const cardW = Battle.CARD_W, cardH = Battle.CARD_H;
+    const startY = Battle.CARD_START_Y;
+    const gapY = this.cardGapY;
+    const finalWave = this.waveIndex >= this.waves.length - 1;
     this.enemyCombatants.forEach((c, i) => {
-      this.drawCard(c, rightX, startY + i * gapY, cardW, cardH, false);
+      const isBossUnit = !!this.data_.isBoss && finalWave && i === 0;
+      this.drawCard(c, this.enemyColumnX, startY + i * gapY, cardW, cardH, false, isBossUnit);
     });
   }
 
-  private drawCard(c: BattleCombatant, x: number, y: number, w: number, h: number, isPlayer: boolean) {
+  // Tears down the current wave's enemy cards (objects, tweens and map entries)
+  // so the next wave can be drawn cleanly.
+  private destroyEnemyCards() {
+    for (const c of this.enemyCombatants) {
+      const objs = this.cardObjects.get(c.instanceId);
+      if (objs) for (const o of objs) { this.tweens.killTweensOf(o); o.destroy(); }
+      this.cardObjects.delete(c.instanceId);
+      this.hpBars.delete(c.instanceId);
+      this.ultBars.delete(c.instanceId);
+      this.energyBars.delete(c.instanceId);
+      this.ultReadyIcons.delete(c.instanceId);
+      this.nameLabels.delete(c.instanceId);
+      this.hpLabels.delete(c.instanceId);
+      this.statusContainers.delete(c.instanceId);
+      this.cardCenters.delete(c.instanceId);
+      this.avatars.delete(c.instanceId);
+      this.avatarHomes.delete(c.instanceId);
+      this.cardBgs.delete(c.instanceId);
+    }
+  }
+
+  // Advances to the next enemy wave: clears the beaten line-up and spawns the
+  // next, keeping the player's monsters (and their current HP/energy) on field.
+  private startNextWave() {
+    if (this.state === 'VICTORY' || this.state === 'DEFEAT') return;
+    this.waveIndex++;
+    this.destroyEnemyCards();
+    this.enemyCombatants = this.buildWaveEnemies(this.waveIndex);
+    this.drawEnemyCards();
+    this.showWaveBanner();
+    this.currentAttacker = null;
+    this.turnIndex = 0;
+    this.turnOrder = [];
+    this.time.delayedCall(950, () => this.startRound());
+  }
+
+  // Either kicks off the next wave or ends the battle in victory, depending on
+  // whether enemy waves remain.
+  private finishOrNextWave() {
+    if (this.waveIndex < this.waves.length - 1) this.startNextWave();
+    else this.endBattle(true);
+  }
+
+  // Big centred "WELLE x / N" splash announcing the current wave.
+  private showWaveBanner() {
+    const width = DESIGN_W, height = DESIGN_H;
+    const total = this.waves.length;
+    const label = this.data_.isBoss && this.waveIndex >= total - 1
+      ? '👑  BOSS  👑'
+      : `WELLE ${this.waveIndex + 1} / ${total}`;
+    const txt = this.add.text(width / 2, height / 2 - 40, label, {
+      fontSize: '44px', color: '#ffce54', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 7,
+    }).setOrigin(0.5).setDepth(1200).setScale(0.4);
+    this.tweens.add({ targets: txt, scale: 1, duration: 320, ease: 'Back.out' });
+    this.tweens.add({
+      targets: txt, alpha: 0, duration: 350, delay: 900, ease: 'Quad.in',
+      onComplete: () => txt.destroy(),
+    });
+  }
+
+  private drawCard(c: BattleCombatant, x: number, y: number, w: number, h: number, isPlayer: boolean, boss = false) {
     const def = MONSTER_DEFS[c.defId];
     if (!def) return;
+
+    // Every object created here is tracked so a beaten wave's cards can be torn
+    // down before the next wave is drawn.
+    const objs: Phaser.GameObjects.GameObject[] = [];
 
     this.cardCenters.set(c.instanceId, { x, y });
 
     const bg = this.add.rectangle(x, y, w, h, isPlayer ? 0x1c3a1c : 0x3a1c1c)
-      .setStrokeStyle(2, isPlayer ? 0x44ff44 : 0xff4444)
+      .setStrokeStyle(boss ? 3 : 2, boss ? 0xffcc44 : (isPlayer ? 0x44ff44 : 0xff4444))
       .setInteractive({ useHandCursor: true });
+    objs.push(bg);
     this.cardBgs.set(c.instanceId, bg);
     // Tapping a card opens its detail view (level, stats, attacks).
     bg.on('pointerdown', () => this.showCombatantDetail(c));
     bg.on('pointerover', () => bg.setStrokeStyle(3, 0xffffff));
-    bg.on('pointerout', () => bg.setStrokeStyle(2, isPlayer ? 0x44ff44 : 0xff4444));
+    bg.on('pointerout', () => bg.setStrokeStyle(boss ? 3 : 2, boss ? 0xffcc44 : (isPlayer ? 0x44ff44 : 0xff4444)));
 
     // Monster avatar — a glowing element-coloured disc with the creature's emoji,
     // wrapped in a container so it can lunge, recoil and bob during combat.
@@ -337,6 +454,9 @@ export class Battle extends Phaser.Scene {
     const disc = this.add.circle(0, 0, 20, elColor).setStrokeStyle(2, 0xffffff);
     const glyph = this.add.text(0, 0, emoji, { fontSize: '24px' }).setOrigin(0.5);
     const avatar = this.add.container(avX, avY, [glow, disc, glyph]).setDepth(50);
+    // Boss enemies tower over the rest of the field.
+    if (boss) avatar.setScale(1.85);
+    objs.push(glow, disc, glyph, avatar);
     this.avatars.set(c.instanceId, avatar);
     this.avatarHomes.set(c.instanceId, { x: avX, y: avY });
 
@@ -360,62 +480,80 @@ export class Battle extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
+    // A crown floats over a boss so it reads instantly as the main threat.
+    if (boss) {
+      const crown = this.add.text(avX, avY - 34, '👑', { fontSize: '22px' }).setOrigin(0.5).setDepth(52);
+      objs.push(crown);
+      this.tweens.add({ targets: crown, y: avY - 40, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
+
     const textLeft = x - w / 2 + 48;
 
     // Name + level
-    const nameLabel = this.add.text(textLeft, y - h / 2 + 6, c.name, {
-      fontSize: '12px', color: '#ffffff', fontStyle: 'bold',
+    const nameLabel = this.add.text(textLeft, y - h / 2 + 6, boss ? `👑 ${c.name}` : c.name, {
+      fontSize: '12px', color: boss ? '#ffd766' : '#ffffff', fontStyle: 'bold',
     }).setOrigin(0, 0);
+    objs.push(nameLabel);
     this.nameLabels.set(c.instanceId, nameLabel);
 
-    this.add.text(x + w / 2 - 6, y - h / 2 + 6, `Lv ${c.level}`, {
+    const lvLabel = this.add.text(x + w / 2 - 6, y - h / 2 + 6, `Lv ${c.level}`, {
       fontSize: '11px', color: '#ffd700', fontStyle: 'bold',
     }).setOrigin(1, 0);
+    objs.push(lvLabel);
 
     // Trait
     const traitName = c.trait !== 'None' ? (TRAITS[c.trait]?.name ?? c.trait) : '';
-    this.add.text(textLeft, y - h / 2 + 22, traitName ? `✦ ${traitName}` : '', {
+    const traitLabel = this.add.text(textLeft, y - h / 2 + 22, traitName ? `✦ ${traitName}` : '', {
       fontSize: '10px', color: '#bb99ff',
     }).setOrigin(0, 0);
+    objs.push(traitLabel);
 
     // Status effect badges (icon + remaining rounds, updated each turn).
     const statusContainer = this.add.container(textLeft, y + 4);
+    objs.push(statusContainer);
     this.statusContainers.set(c.instanceId, statusContainer);
 
     // Info hint
-    this.add.text(x + w / 2 - 6, y - 2, 'ℹ️', { fontSize: '11px' }).setOrigin(1, 0.5);
+    const infoHint = this.add.text(x + w / 2 - 6, y - 2, 'ℹ️', { fontSize: '11px' }).setOrigin(1, 0.5);
+    objs.push(infoHint);
 
     // HP bar background
     const hpBarBg = this.add.rectangle(x, y + h / 2 - 20, w - 10, 12, 0x330000).setOrigin(0.5);
     // HP bar
     const hpBar = this.add.rectangle(x - (w - 10) / 2, y + h / 2 - 20, w - 10, 12, 0x44ff44).setOrigin(0, 0.5);
+    objs.push(hpBarBg, hpBar);
     this.hpBars.set(c.instanceId, { bar: hpBar, bg: hpBarBg });
 
     // HP text
     const hpLabel = this.add.text(x, y + h / 2 - 20, `${c.currentHp}/${c.maxHp}`, {
       fontSize: '10px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
+    objs.push(hpLabel);
     this.hpLabels.set(c.instanceId, hpLabel);
 
-    // Ult charge bar
+    // Ult charge bar — fills outward from the centre of the card (origin 0.5).
     const ultBg = this.add.rectangle(x, y + h / 2 - 6, w - 10, 7, 0x332200).setOrigin(0.5);
-    const ultBar = this.add.rectangle(x - (w - 10) / 2, y + h / 2 - 6, 0, 7, 0xffd700).setOrigin(0, 0.5);
+    const ultBar = this.add.rectangle(x, y + h / 2 - 6, 0, 7, 0xffd700).setOrigin(0.5);
+    objs.push(ultBg, ultBar);
     this.ultBars.set(c.instanceId, { bar: ultBar, bg: ultBg });
     // "⚡" ready icon (hidden until ult is full)
     const ultIcon = this.add.text(x, y + h / 2 - 6, '', {
       fontSize: '10px',
     }).setOrigin(0.5).setDepth(5);
+    objs.push(ultIcon);
     this.ultReadyIcons.set(c.instanceId, ultIcon);
 
-    // Energy bar — a thin cyan gauge between the trait line and the status
-    // badges. Drains when costly moves are used, refilling over a few rounds.
+    // Energy bar — a thin cyan gauge that, like the ult bar, fills outward from
+    // the centre of the card so the two "Ladebalken" read as a matched pair.
     const enBg = this.add.rectangle(x, y - 9, w - 10, 5, 0x0b2733).setOrigin(0.5);
-    const enBar = this.add.rectangle(x - (w - 10) / 2, y - 9, w - 10, 5, 0x33ccff).setOrigin(0, 0.5);
+    const enBar = this.add.rectangle(x, y - 9, w - 10, 5, 0x33ccff).setOrigin(0.5);
     const enLabel = this.add.text(x + w / 2 - 6, y - 9, `⚡${c.energy}`, {
       fontSize: '9px', color: '#aaf0ff', fontStyle: 'bold',
     }).setOrigin(1, 0.5);
+    objs.push(enBg, enBar, enLabel);
     this.energyBars.set(c.instanceId, { bar: enBar, bg: enBg, label: enLabel });
 
+    this.cardObjects.set(c.instanceId, objs);
     this.updateStatusDisplay(c);
   }
 
@@ -737,7 +875,9 @@ export class Battle extends Phaser.Scene {
     // Apply status DOT before turn
     const checkVictory = () => {
       if (this.enemyCombatants.every(c => c.currentHp <= 0)) {
-        this.time.delayedCall(600, () => this.endBattle(true));
+        // More waves to come? Spawn the next instead of ending the fight.
+        const delay = this.waveIndex < this.waves.length - 1 ? 700 : 600;
+        this.time.delayedCall(delay, () => this.finishOrNextWave());
         return true;
       }
       if (this.playerCombatants.every(c => c.currentHp <= 0)) {
@@ -912,6 +1052,54 @@ export class Battle extends Phaser.Scene {
         btn.on('pointerout', () => btn.setFillStyle(baseColor));
       }
     });
+
+    // ── "Aufladen" button ─────────────────────────────────────────────────────
+    // Every attack now costs energy, so the player always needs a way back: this
+    // button spends the turn to fully refill the attacker's energy bar. It sits
+    // in the bottom-right corner, clear of the centred attack row, and is always
+    // available (even when every move is too expensive to use).
+    const rx = width - 92, ry = height - 56;
+    const full = attacker.energy >= attacker.maxEnergy;
+    const rBtn = this.add.rectangle(rx, ry, 152, btnH, full ? 0x2a2a33 : 0x144a55)
+      .setStrokeStyle(3, full ? 0x555566 : 0x33ccff);
+    const rTxt = this.add.text(rx, ry - 14, '🔋 Aufladen', {
+      fontSize: '18px', color: full ? '#777788' : '#bff0ff', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 3, align: 'center',
+    }).setOrigin(0.5);
+    const rSub = this.add.text(rx, ry + 18, full ? 'voll' : `⚡${Math.round(attacker.energy)}/${attacker.maxEnergy}`, {
+      fontSize: '15px', color: full ? '#777788' : '#aaccff', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5);
+    const rContainer = this.add.container(0, 0, [rBtn, rTxt, rSub]);
+    this.attackButtons.push(rContainer);
+    if (!full) {
+      rBtn.setInteractive({ useHandCursor: true });
+      rBtn.on('pointerdown', () => this.onRechargeSelected(attacker));
+      rBtn.on('pointerover', () => rBtn.setFillStyle(0x1d6678));
+      rBtn.on('pointerout', () => rBtn.setFillStyle(0x144a55));
+    }
+  }
+
+  // Resolves the "Aufladen" action: spends the whole turn to fully refill the
+  // attacker's energy bar, then hands the turn on.
+  private onRechargeSelected(attacker: BattleCombatant) {
+    this.awaitingPlayerInput = false;
+    this.clearAttackButtons();
+    rechargeEnergy(attacker);
+    this.updateEnergyBar(attacker);
+    this.statusText.setText(`🔋 ${attacker.name} lädt Energie auf!`);
+
+    // A quick cyan pop over the attacker so the recharge is felt, not just read.
+    const home = this.avatarHomes.get(attacker.instanceId);
+    if (home) {
+      const fx = this.add.text(home.x, home.y - 26, '⚡ Aufgeladen', {
+        fontSize: '15px', color: '#7fe8ff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(900);
+      this.tweens.add({ targets: fx, y: home.y - 56, alpha: 0, duration: 800, ease: 'Quad.out', onComplete: () => fx.destroy() });
+    }
+
+    this.turnIndex++;
+    this.time.delayedCall(700, () => this.nextTurn());
   }
 
   // A compact descriptor for a support move shown on its attack button.
@@ -1262,7 +1450,7 @@ export class Battle extends Phaser.Scene {
       const def = MONSTER_DEFS[attacker.defId];
       const target = this.pickBestTarget(attacker, def.elements[0], 2.5)
         ?? this.enemyCombatants.find(c => c.currentHp > 0) ?? null;
-      if (!target) { this.endBattle(true); return; }
+      if (!target) { this.finishOrNextWave(); return; }
       this.selectedTarget = target;
       this.state = 'PLAYER_TURN';
       this.statusText.setText(`⏩ ${attacker.name} entfesselt die ULTIMA!`);
@@ -1906,7 +2094,8 @@ export class Battle extends Phaser.Scene {
           const seg = segments[landed];
           const gold = Math.round(baseGold * seg.gold);
           const xp = Math.round(baseXp * seg.xp);
-          const dia = baseDiamonds + seg.dia;
+          // Diamonds are kept scarce: scale the combined payout down.
+          const dia = Math.round((baseDiamonds + seg.dia) * DIAMOND_REWARD_SCALE);
 
           const store = useGameStore.getState();
           if (gold > 0) store.addGold(gold);

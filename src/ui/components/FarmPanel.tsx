@@ -31,7 +31,7 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
   const nextLevel = def.levels[building.level];
   const accumulated = Math.floor(building.goldAccumulated);
   const refund = Math.floor(def.goldCost * 0.5);
-  const gemSkipCost = (endMs: number) => Math.max(1, Math.ceil((endMs - Date.now()) / 60000));
+  const gemSkipCost = (endMs: number) => Math.max(1, Math.ceil((endMs - Date.now()) / 3600000));
 
   const handleMove = () => {
     onClose();

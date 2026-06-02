@@ -52,11 +52,12 @@ function pickEggForRarity(rarity: RarityType, level: number): string | undefined
 export function getLevelReward(level: number): LevelReward {
   const gold = 500 + level * 250;
   const food = 200 + level * 80;
-  // Diamonds every 5 levels, larger at round milestones.
+  // Diamonds every 5 levels, larger at round milestones. Kept deliberately lean
+  // so diamonds stay a scarce premium currency.
   let diamonds = 0;
-  if (level % 25 === 0) diamonds = 100;
-  else if (level % 10 === 0) diamonds = 40;
-  else if (level % 5 === 0) diamonds = 15;
+  if (level % 25 === 0) diamonds = 40;
+  else if (level % 10 === 0) diamonds = 15;
+  else if (level % 5 === 0) diamonds = 5;
 
   const reward: LevelReward = { gold, diamonds, food };
 

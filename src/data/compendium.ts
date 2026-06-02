@@ -26,6 +26,24 @@ export interface CompendiumGroup {
 // ── Traits ────────────────────────────────────────────────────────────────
 export const COMPENDIUM_TRAITS: CompendiumGroup[] = [
   {
+    id: 'trait_ingame',
+    title: 'Spiel-Traits (aktiv im Kampf)',
+    icon: '🧬',
+    color: '#bb99ff',
+    entries: [
+      { name: 'Mania', description: 'Bei einem negativen Statuseffekt erhält das Monster für 2 Runden einen kleinen ATK/DEF-Buff, beginnt dann aber zu zerfallen und stirbt innerhalb von 2 Runden.' },
+      { name: 'Tough', description: 'Erleidet 20% weniger physischen Schaden.' },
+      { name: 'Swift', description: 'Geschwindigkeit ist um 20% erhöht.' },
+      { name: 'Berserk', description: 'Angriff verdoppelt sich, sobald die HP unter 30% fallen.' },
+      { name: 'Guardian', description: 'Leitet 30% des Schadens, der Verbündeten zugefügt wird, auf sich selbst um.' },
+      { name: 'Echo', description: 'Angriffe treffen zweimal und richten jeweils 60% des normalen Schadens an.' },
+      { name: 'Undead', description: 'Wiederbelebt sich nach der ersten Niederlage einmalig mit 30% HP.' },
+      { name: 'Fireproof', description: 'Immun gegen Verbrennung und feuerbasierte Statuseffekte.' },
+      { name: 'Lucky', description: 'Senkt die Schwierigkeit der Minispiele um eine Stufe.' },
+      { name: 'None', description: 'Kein besonderer Trait.' },
+    ],
+  },
+  {
     id: 'trait_immunity',
     title: 'Immunitäten & Resistenzen',
     icon: '🛡️',
@@ -143,6 +161,30 @@ export const COMPENDIUM_TRAITS: CompendiumGroup[] = [
 
 // ── Battle effects ──────────────────────────────────────────────────────────
 export const COMPENDIUM_EFFECTS: CompendiumGroup[] = [
+  {
+    id: 'fx_ingame',
+    title: 'Kampf-Effekte (aktiv im Spiel)',
+    icon: '⚔️',
+    color: '#ffd700',
+    entries: [
+      { name: 'Verbrennung (Burn)', description: 'Verliert 5% der maximalen HP pro Runde.', turns: '3' },
+      { name: 'Vergiftung (Poison)', description: 'Verliert 7% der maximalen HP pro Runde.', turns: '3' },
+      { name: 'Einfrieren (Freeze)', description: 'Kann in der nächsten Runde nicht handeln.', turns: '1' },
+      { name: 'Betäubung (Stun)', description: 'Kann in der nächsten Runde nicht handeln.', turns: '1' },
+      { name: 'Lähmung (Paralyze)', description: 'Geschwindigkeit ist um 50% reduziert.', turns: '3' },
+      { name: 'Blindheit (Blind)', description: '30% Chance, Angriffe zu verfehlen.', turns: '2' },
+      { name: 'Verteidigung ↓ (DefDown)', description: 'Verteidigung ist um 25% gesenkt.', turns: '3' },
+      { name: 'Angriff ↓ (AtkDown)', description: 'Angriff ist um 25% gesenkt.', turns: '3' },
+      { name: 'Angriff ↑ (AtkUp)', description: 'Angriff ist um 35% erhöht.', turns: '3' },
+      { name: 'Verteidigung ↑ (DefUp)', description: 'Verteidigung ist um 40% erhöht.', turns: '3' },
+      { name: 'Blutung (Bleed)', description: 'Verliert 10% der maximalen HP pro Runde und richtet 20% weniger Schaden an.', turns: '3' },
+      { name: 'Verwundbar (Vulnerable)', description: 'Erleidet 50% mehr Schaden durch Angriffe.', turns: '3' },
+      { name: 'Schild (Shield)', description: 'Absorbiert eingehenden Schaden, bis der Schild aufgebraucht ist.', turns: '2' },
+      { name: 'Spott (Taunt)', description: 'Zieht alle Einzelziel-Angriffe der Gegner auf sich.', turns: '2' },
+      { name: 'Regeneration (Regen)', description: 'Heilt 10% der maximalen HP pro Runde.', turns: '3' },
+      { name: 'Zerfall (Decay)', description: 'Verliert 50% der maximalen HP pro Runde und stirbt so innerhalb von 2 Runden.', turns: '2' },
+    ],
+  },
   {
     id: 'fx_control',
     title: 'Kontrolle (Zugverlust)',

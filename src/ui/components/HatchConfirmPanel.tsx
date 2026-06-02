@@ -32,7 +32,7 @@ export function HatchConfirmPanel({ eggId, onClose }: HatchConfirmPanelProps) {
   const remaining = Math.max(0, egg.hatchEndMs - now);
   const isReady = remaining === 0;
   const secondsLeft = Math.ceil(remaining / 1000);
-  const diamondCost = Math.ceil(secondsLeft / 60);
+  const diamondCost = Math.max(1, Math.ceil(secondsLeft / 3600));
   const progress = Math.min(100, Math.max(0,
     (1 - remaining / Math.max(1, egg.hatchEndMs - egg.hatchStartMs)) * 100,
   ));

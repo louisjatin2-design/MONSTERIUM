@@ -21,6 +21,29 @@ function b(
   };
 }
 
+// Boss variant: same signature as b(), but flags the fight as a boss (the lead
+// enemy e1 is drawn oversized) and turns it into a two-wave gauntlet — a wave of
+// guards first, then the boss line-up. The player's HP/energy carry between
+// waves, so a boss is a genuine multi-fight endurance test.
+function boss(
+  id: string, name: string, desc: string,
+  e1: string, e2: string, e3: string,
+  l1: number, l2: number, l3: number,
+  gold: number, xp: number,
+  diamonds?: number, monsterDefId?: string,
+): StoryBattle {
+  return {
+    ...b(id, name, desc, e1, e2, e3, l1, l2, l3, gold, xp, diamonds, monsterDefId),
+    isBoss: true,
+    waves: [
+      // Wave 1 — the boss's guards, a notch below full strength.
+      { enemyMonsterDefs: [e2, e3, e3], enemyLevels: [Math.max(1, l2 - 2), Math.max(1, l3 - 2), Math.max(1, l3 - 3)] },
+      // Wave 2 — the boss itself (e1) flanked by its elite escort.
+      { enemyMonsterDefs: [e1, e2, e3], enemyLevels: [l1, l2, l3] },
+    ],
+  };
+}
+
 // ── World definitions ──────────────────────────────────────────────────────────
 export interface StoryWorld {
   name: string;
@@ -99,7 +122,7 @@ export const STORY_BATTLES: StoryBattle[] = [
     'cosmolord','glitchfiend','timewyrm', 30,26,24, 10000,12000, 100,'cosmolord'),
 
   // ── World 1 BOSS: Der Eiserne Koloss (physical) ──────────────────────────
-  b('sb_b1','Stage-Boss — Der Eiserne Koloss',
+  boss('sb_b1','Stage-Boss — Der Eiserne Koloss',
     'Der Riss spuckt einen Kriegstitan aus, der seit Anbeginn der Zeit kämpft. Kein Echo, kein Glitch — nur rohe, brachiale Gewalt aus Eisen und Stein.',
     'ironbreaker','ironhide','pebblor', 32,30,28, 12000,13000, 80,'ironbreaker'),
 
@@ -149,7 +172,7 @@ export const STORY_BATTLES: StoryBattle[] = [
     'cosmolord','cosmolord','timewyrm', 48,47,46, 28000,14500, 65),
 
   // ── World 2 BOSS: Der Lavachampion (physical) ────────────────────────────
-  b('sb_b2','Stage-Boss — Der Lavachampion',
+  boss('sb_b2','Stage-Boss — Der Lavachampion',
     'Aus dem Krater steigt ein Faustkämpfer aus geschmolzenem Gestein. Er trägt keine Magie in sich — nur Muskeln, Feuer und einen Kinnhaken, der Felsen spaltet.',
     'blazechamp','ironchamp','blazecroc', 50,48,46, 32000,16000, 70,'blazechamp'),
 
@@ -199,7 +222,7 @@ export const STORY_BATTLES: StoryBattle[] = [
     'cosmolord','timewyrm','voidspecter', 60,59,58, 75000,32000, 85,'stormbeak'),
 
   // ── World 3 BOSS: Der Tiefendruck-Koloss (physical) ──────────────────────
-  b('sb_b3','Stage-Boss — Der Tiefendruck-Koloss',
+  boss('sb_b3','Stage-Boss — Der Tiefendruck-Koloss',
     'Im lichtlosen Abgrund wuchs ein Golem aus Eis und Stein, geformt vom Druck der ganzen See. Er bewegt sich langsam — aber jeder Schlag zermalmt wie eine Tiefseegrube.',
     'icegolem','voidtitan','glaciara', 62,60,58, 85000,36000, 95,'icegolem'),
 
@@ -249,7 +272,7 @@ export const STORY_BATTLES: StoryBattle[] = [
     'cosmolord','timewyrm','glitchfiend', 71,70,69, 150000,66000, 110),
 
   // ── World 4 BOSS: Terraemperor, der lebende Berg (physical) ──────────────
-  b('sb_b4','Stage-Boss — Der lebende Berg',
+  boss('sb_b4','Stage-Boss — Der lebende Berg',
     'Die Kristallhöhle war nie eine Höhle. Sie war sein Rücken. Terraemperor erwacht, und der ganze Stollen ist sein Körper — eine wandelnde Gebirgskette aus Erz und Kristall.',
     'terraemperor','crystaldrake','marbleguard', 73,71,69, 165000,72000, 120,'terraemperor'),
 
@@ -299,7 +322,7 @@ export const STORY_BATTLES: StoryBattle[] = [
     'cosmolord','cosmolord','timewyrm', 81,80,79, 255000,113000, 140),
 
   // ── World 5 BOSS: Der Metallkönig (physical) ─────────────────────────────
-  b('sb_b5','Stage-Boss — Der Metallkönig',
+  boss('sb_b5','Stage-Boss — Der Metallkönig',
     'Auf dem höchsten Grat steht ein Titan, geschmiedet aus jedem Erz des Gebirges. Der Sturm prallt an ihm ab. Metalking hat noch nie ein Duell verloren — und will, dass es so bleibt.',
     'metalking','ironbreaker','ironchamp', 83,81,79, 280000,124000, 150,'metalking'),
 
@@ -349,7 +372,7 @@ export const STORY_BATTLES: StoryBattle[] = [
     'cosmolord','timewyrm','glitchfiend', 89,88,87, 410000,178000, 175),
 
   // ── World 6 BOSS: Der Leerkoloss (physical) ──────────────────────────────
-  b('sb_b6','Stage-Boss — Der Leerkoloss',
+  boss('sb_b6','Stage-Boss — Der Leerkoloss',
     'Drei Kräfte, die sich auslöschen sollten — Erde, Stahl und Leere — taten es nicht. Voidgiant stapft durch das Schattenreich, und der Boden, den er berührt, zerfällt zu nichts.',
     'voidgiant','voidtitan','ironbreaker', 90,89,88, 450000,196000, 190,'voidgiant'),
 
@@ -399,7 +422,7 @@ export const STORY_BATTLES: StoryBattle[] = [
     'cosmolord','cosmolord','timewyrm', 95,94,94, 615000,269000, 200),
 
   // ── World 7 BOSS: Der Heilige Champion (physical) ────────────────────────
-  b('sb_b7','Stage-Boss — Der Heilige Champion',
+  boss('sb_b7','Stage-Boss — Der Heilige Champion',
     'Der Tempelhüter braucht keine Strahlen oder Sprüche. Holychampion segnet seine Fäuste mit dem Licht jedes Ordens und schlägt zu, bis selbst Dämonen es sich anders überlegen.',
     'holychampion','terraangel','metalangel', 96,95,94, 660000,290000, 215,'holychampion'),
 
@@ -449,7 +472,7 @@ export const STORY_BATTLES: StoryBattle[] = [
     'timewyrm','cosmolord','cosmolord', 99,98,98, 894000,391000, 245),
 
   // ── World 8 BOSS: Der Eiserne Souverän (physical) ────────────────────────
-  b('sb_b8','Stage-Boss — Der Eiserne Souverän',
+  boss('sb_b8','Stage-Boss — Der Eiserne Souverän',
     'Tief in der Frostöde wartet der Souverän aller physischen Kraft. Ironsovereign hielt einst einen Meteor mit der Handfläche auf — aus Verärgerung. Das Eis bricht an seiner Rüstung.',
     'ironsovereign','icegolem','voidgiant', 100,99,98, 960000,420000, 270,'ironsovereign'),
 
@@ -499,7 +522,7 @@ export const STORY_BATTLES: StoryBattle[] = [
     'cosmolord','cosmolord','cosmolord', 100,100,100, 2000000,1000000, 500),
 
   // ── World 9 BOSS: URKRAFT — Allmight (physical, final) ────────────────────
-  b('sb_b9','Stage-Boss — URKRAFT',
+  boss('sb_b9','Stage-Boss — URKRAFT',
     'Jenseits aller Echos und jeden Glitches steht das erste Monster, das je existierte: die Vereinigung von Erde, Feuer und Meer. Allmight braucht keine Magie. Es IST die rohe Kraft, aus der alles entstand — und es will sehen, ob du würdig bist.',
     'allmight','worldshatter','ironsovereign', 100,100,100, 2500000,1250000, 600,'allmight'),
 ];

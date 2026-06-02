@@ -463,12 +463,12 @@ export const useGameStore = create<GameStore>()(
       },
 
       // Pay Gems to finish a running build instantly. Mirrors speedUpEgg's
-      // pricing: 1 💎 per remaining minute (rounded up, min 1).
+      // pricing: 1 💎 per remaining hour (rounded up, min 1).
       skipConstruction: (instanceId) => {
         const b = get().buildings[instanceId];
         if (!b || !b.constructionEndMs) return;
         const secondsLeft = Math.max(0, (b.constructionEndMs - Date.now()) / 1000);
-        const diamondCost = Math.max(1, Math.ceil(secondsLeft / 60));
+        const diamondCost = Math.max(1, Math.ceil(secondsLeft / 3600));
         if (!get().spendDiamonds(diamondCost)) return;
         set((s) => {
           const bb = s.buildings[instanceId];
@@ -481,7 +481,7 @@ export const useGameStore = create<GameStore>()(
         const b = get().buildings[instanceId];
         if (!b || !b.upgradeEndMs) return;
         const secondsLeft = Math.max(0, (b.upgradeEndMs - Date.now()) / 1000);
-        const diamondCost = Math.max(1, Math.ceil(secondsLeft / 60));
+        const diamondCost = Math.max(1, Math.ceil(secondsLeft / 3600));
         if (!get().spendDiamonds(diamondCost)) return;
         set((s) => {
           const bb = s.buildings[instanceId];
@@ -879,7 +879,7 @@ export const useGameStore = create<GameStore>()(
         const egg = get().eggs.find(e => e.id === eggId);
         if (!egg) return;
         const secondsLeft = Math.max(0, (egg.hatchEndMs - Date.now()) / 1000);
-        const diamondCost = Math.ceil(secondsLeft / 60);
+        const diamondCost = Math.max(1, Math.ceil(secondsLeft / 3600));
         if (!get().spendDiamonds(diamondCost)) return;
         set((s) => {
           const e = s.eggs.find(x => x.id === eggId);
@@ -950,7 +950,7 @@ export const useGameStore = create<GameStore>()(
         const ab = get().activeBreedings.find(b => b.id === id);
         if (!ab) return;
         const secondsLeft = Math.max(0, (ab.endMs - Date.now()) / 1000);
-        const diamondCost = Math.ceil(secondsLeft / 60);
+        const diamondCost = Math.max(1, Math.ceil(secondsLeft / 3600));
         if (diamondCost > 0 && !get().spendDiamonds(diamondCost)) return;
         set((s) => {
           const b = s.activeBreedings.find(x => x.id === id);

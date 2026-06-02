@@ -50,6 +50,8 @@ export function StoryMap({ onClose }: StoryMapProps) {
       rewardDiamonds: battle.rewards.diamonds,
       rewardMonsterDefId: battle.rewards.monsterDefId,
       storyIndex: index,
+      isBoss: battle.isBoss,
+      waves: battle.waves?.map(w => ({ enemyTeam: w.enemyMonsterDefs, enemyLevels: w.enemyLevels })),
     });
   };
 
@@ -274,6 +276,16 @@ function BattleDetail({ index, world, onClose, onStart }: {
         <div style={{ fontSize: 12, color: '#cbb6e8', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 12 }}>
           {battle.description}
         </div>
+
+        {battle.waves && battle.waves.length > 1 && (
+          <div style={{
+            fontSize: 12, fontWeight: 800, color: '#ffce54', marginBottom: 12,
+            padding: '6px 10px', borderRadius: 8, textAlign: 'center',
+            background: 'rgba(255,206,84,0.12)', border: '1px solid rgba(255,206,84,0.4)',
+          }}>
+            🌊 {battle.waves.length} Wellen — mehrere Kämpfe hintereinander!
+          </div>
+        )}
 
         {/* Enemy line-up */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>

@@ -15,6 +15,8 @@ export interface BattlePayload {
   rewardDiamonds?: number;
   rewardMonsterDefId?: string;
   storyIndex?: number;
+  isBoss?: boolean;
+  waves?: Array<{ enemyTeam: string[]; enemyLevels: number[] }>;
 }
 
 interface Props {
@@ -28,7 +30,8 @@ export function TeamSelectPanel({ battlePayload, onClose }: Props) {
   const monsters = useGameStore(s => s.monsters);
   const [selected, setSelected] = useState<string[]>([]);
 
-  const allMonsters = Object.values(monsters);
+  // Highest-level monsters first so the strongest options are at the top.
+  const allMonsters = Object.values(monsters).sort((a, b) => b.level - a.level);
 
   const toggle = (id: string) => {
     setSelected(prev => {
