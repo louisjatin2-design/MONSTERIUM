@@ -21,12 +21,15 @@ export const GameConfig: Phaser.Types.Core.GameConfig = {
   parent: 'game-container',
   scene: [Boot, Preload, MainMenu, Island, Battle, TimingBarScene, AimClickScene, ButtonSequenceScene, MashButtonScene, SwipePathScene],
   scale: {
-    // RESIZE: the canvas always fills its parent (the full screen) in BOTH
-    // portrait and landscape — no letterbox bars. Scenes lay themselves out
-    // from this.scale.width/height, and the Island camera picks a fit-zoom so
-    // the world frames nicely at any aspect ratio.
-    mode: Phaser.Scale.RESIZE,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    // NONE: we drive the canvas size ourselves (see PhaserInit.fitToDevice) so we
+    // can render the backing buffer at the FULL device-pixel resolution — RESIZE
+    // mode only ever sizes the canvas to CSS pixels, which on a high-DPR phone
+    // (devicePixelRatio 2–3×) the browser then upscales, leaving the battle and
+    // every sprite looking blurry / pixelated. We instead make the buffer
+    // width = cssWidth × DPR and CSS-scale it back down, so it stays razor-sharp
+    // while still filling the whole screen in BOTH portrait and landscape.
+    mode: Phaser.Scale.NONE,
+    autoCenter: Phaser.Scale.NO_CENTER,
     width: 1280,
     height: 720,
   },

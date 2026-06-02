@@ -72,8 +72,12 @@ export class Island extends Phaser.Scene {
   private pinchStartZoom = 1;
   // MIN_ZOOM is relaxed at runtime to whatever framing fits the current
   // viewport (so portrait phones can still see the whole island + neighbours).
+  // Both bounds are multiplied by the device-pixel ratio in create() — the game
+  // size is now DPR-scaled (for crisp HiDPI rendering), so a raw zoom of 2.4 on a
+  // 3× phone would otherwise only be 0.8× of the old visual zoom and you could no
+  // longer pinch in close to a building.
   private MIN_ZOOM = 0.4;
-  private readonly MAX_ZOOM = 2.4;
+  private MAX_ZOOM = 2.4;
   // How far a pointer may move and still count as a tap (not a pan). Fingers
   // wobble several px during a normal tap, so this must be generous on touch —
   // a too-small value made buildings feel un-tappable on phones.
@@ -153,6 +157,12 @@ export class Island extends Phaser.Scene {
     // canvas now fills the whole viewport (RESIZE) the surrounding sky fills any
     // leftover space instead of black bars. Relax MIN_ZOOM so portrait phones
     // can still pinch out to the full archipelago.
+    // Scale the absolute zoom bounds by the live render scale (≈ devicePixelRatio)
+    // so pinch-in / pinch-out feel identical on every device despite the now
+    // DPR-scaled game size.
+    const rs = this.renderScale();
+    this.MAX_ZOOM = 2.4 * rs;
+    this.MIN_ZOOM = 0.4 * rs;
     const fit = this.computeFitZoom();
     this.MIN_ZOOM = Math.min(this.MIN_ZOOM, fit * 0.7);
     this.cameras.main.setZoom(Phaser.Math.Clamp(fit, this.MIN_ZOOM, this.MAX_ZOOM));
@@ -684,6 +694,15 @@ export class Island extends Phaser.Scene {
   // sized on phones, tablets and desktop alike.
   private computeFitZoom(): number {
     return Math.min(this.scale.width / 1280, this.scale.height / 720);
+  }
+
+  // Ratio of the (DPR-scaled) game buffer size to the displayed CSS size — i.e.
+  // the effective device-pixel ratio we are rendering at. Used to keep the zoom
+  // bounds consistent regardless of how sharp the buffer is.
+  private renderScale(): number {
+    const disp = this.scale.displaySize.width;
+    if (disp > 0) return this.scale.gameSize.width / disp;
+    return Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
   }
 
   // Viewport changed (orientation flip / browser resize). Rebuild the scene once

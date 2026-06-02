@@ -34,6 +34,11 @@
       /* The Phaser surface owns every touch inside it (drag-pan, pinch-zoom),
          so block the browser from interpreting those gestures itself. */
       #game-container, #game-container canvas { touch-action: none; }
+      /* The WebGL backing buffer is rendered at full device resolution, then
+         displayed at the screen's CSS size — force the canvas to always fill the
+         container so the high-res buffer maps 1:1 to physical pixels (sharp), in
+         both portrait and landscape. */
+      #game-container canvas { display: block; width: 100% !important; height: 100% !important; }
     </style>
     <script>
       // Fix iOS Safari 100vh bug — set CSS variable to real viewport height.
