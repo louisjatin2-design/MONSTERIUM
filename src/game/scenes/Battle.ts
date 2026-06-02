@@ -531,9 +531,9 @@ export class Battle extends Phaser.Scene {
     objs.push(hpLabel);
     this.hpLabels.set(c.instanceId, hpLabel);
 
-    // Ult charge bar — fills outward from the centre of the card (origin 0.5).
+    // Ult charge bar — fills left→right along the bottom of the card.
     const ultBg = this.add.rectangle(x, y + h / 2 - 6, w - 10, 7, 0x332200).setOrigin(0.5);
-    const ultBar = this.add.rectangle(x, y + h / 2 - 6, 0, 7, 0xffd700).setOrigin(0.5);
+    const ultBar = this.add.rectangle(x - (w - 10) / 2, y + h / 2 - 6, 0, 7, 0xffd700).setOrigin(0, 0.5);
     objs.push(ultBg, ultBar);
     this.ultBars.set(c.instanceId, { bar: ultBar, bg: ultBg });
     // "⚡" ready icon (hidden until ult is full)
@@ -543,10 +543,13 @@ export class Battle extends Phaser.Scene {
     objs.push(ultIcon);
     this.ultReadyIcons.set(c.instanceId, ultIcon);
 
-    // Energy bar — a thin cyan gauge that, like the ult bar, fills outward from
-    // the centre of the card so the two "Ladebalken" read as a matched pair.
-    const enBg = this.add.rectangle(x, y - 9, w - 10, 5, 0x0b2733).setOrigin(0.5);
-    const enBar = this.add.rectangle(x, y - 9, w - 10, 5, 0x33ccff).setOrigin(0.5);
+    // Energy bar — a thin cyan gauge sitting to the RIGHT of the avatar so it no
+    // longer overlaps the monster artwork. Fills left→right; the numeric label
+    // sits at the card's right edge.
+    const enLeft = x - w / 2 + 48;
+    const enW = (x + w / 2 - 34) - enLeft;
+    const enBg = this.add.rectangle(enLeft + enW / 2, y - 9, enW, 5, 0x0b2733).setOrigin(0.5);
+    const enBar = this.add.rectangle(enLeft, y - 9, enW, 5, 0x33ccff).setOrigin(0, 0.5);
     const enLabel = this.add.text(x + w / 2 - 6, y - 9, `⚡${c.energy}`, {
       fontSize: '9px', color: '#aaf0ff', fontStyle: 'bold',
     }).setOrigin(1, 0.5);
