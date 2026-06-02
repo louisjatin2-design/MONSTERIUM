@@ -10,20 +10,27 @@ export function calculateFeedCost(level: number): number {
   return Math.floor(10 + level * 8);
 }
 
+// Unique ("✨") monsters are special and sell for more than their regular
+// counterparts. The same multiplier applies to eggs and monsters alike so the
+// egg-vs-monster relationship below always holds.
+export const UNIQUE_SELL_MULTIPLIER = 2;
+
 // Gold earned when selling a monster from a habitat.
 // Scales with rarity (the dominant factor) and a clear per-level bonus — a
 // higher-level monster is worth noticeably more, so leveling before selling pays
 // off (+25% of the base value per level above 1).
-export function calculateSellValue(rarityRank: number, level: number): number {
+export function calculateSellValue(rarityRank: number, level: number, isUnique = false): number {
   const base = 80 + rarityRank * 220;
-  return Math.floor(base * (1 + (level - 1) * 0.25));
+  const value = base * (1 + (level - 1) * 0.25);
+  return Math.floor(value * (isUnique ? UNIQUE_SELL_MULTIPLIER : 1));
 }
 
 // Gold earned when selling a stored (un-hatched) egg. Deliberately kept BELOW
-// the value of the level-1 baby that would hatch from it, so hatching first and
-// selling the baby is always the more rewarding choice.
-export function calculateEggSellValue(rarityRank: number): number {
-  return Math.floor(calculateSellValue(rarityRank, 1) * 0.6);
+// the value of the level-1 baby that would hatch from it (60%), so hatching
+// first and selling the baby is ALWAYS the more rewarding choice — even for
+// unique eggs, since the unique bonus is applied to both sides identically.
+export function calculateEggSellValue(rarityRank: number, isUnique = false): number {
+  return Math.floor(calculateSellValue(rarityRank, 1, isUnique) * 0.6);
 }
 
 export function calculateAccumulatedGold(

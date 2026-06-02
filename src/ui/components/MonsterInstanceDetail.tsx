@@ -89,7 +89,7 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const stats = instanceStats(monster);
   const feedCost = calculateFeedCost(monster.level);
   const canFeed = food >= feedCost && monster.level < 100;
-  const sellValue = calculateSellValue(RARITY_RANK[def.rarity], monster.level);
+  const sellValue = calculateSellValue(RARITY_RANK[def.rarity], monster.level, monster.isUnique);
   const accent = ELEMENT_CSS_COLORS[def.elements[0]];
 
   // 4 feed-cycle steps to the next level.
