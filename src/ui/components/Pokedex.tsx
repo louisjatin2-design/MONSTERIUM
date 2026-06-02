@@ -6,6 +6,7 @@ import { RARITY_COLORS, RARITY_RANK, RARITY_STARS, RARITY_SYMBOLS, rarityGlow } 
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import type { RarityType } from '@gtypes/game';
 import { MonsterDetail } from './MonsterDetail';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface PokedexProps { onClose: () => void; }
@@ -20,6 +21,8 @@ export function Pokedex({ onClose }: PokedexProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [rarityFilter, setRarityFilter] = useState<RarityType | 'All'>('All');
+  // When on, the grid only shows monsters the player currently owns.
+  const [ownedOnly, setOwnedOnly] = useState(false);
 
   // Derive these from stable store references — never build a new Set/Map
   // directly inside a zustand selector, or useSyncExternalStore sees a fresh
@@ -34,6 +37,7 @@ export function Pokedex({ onClose }: PokedexProps) {
         const def = MONSTER_DEFS[id];
         if (!def) return false;
         if (rarityFilter !== 'All' && def.rarity !== rarityFilter) return false;
+        if (ownedOnly && !ownedDefIds.has(id)) return false;
         if (!q) return true;
         return def.name.toLowerCase().includes(q)
           || def.elements.some(e => e.toLowerCase().includes(q))
@@ -44,7 +48,7 @@ export function Pokedex({ onClose }: PokedexProps) {
         const r = RARITY_RANK[da.rarity] - RARITY_RANK[db.rarity];
         return r !== 0 ? r : da.name.localeCompare(db.name);
       });
-  }, [search, rarityFilter]);
+  }, [search, rarityFilter, ownedOnly, ownedDefIds]);
 
   const discovered = pokedexSeen.length;
   const total = ALL_MONSTER_IDS.length;
@@ -57,6 +61,15 @@ export function Pokedex({ onClose }: PokedexProps) {
   return (
     <div className="panel panel-modal panel-w-xl" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <button className="close-btn" onClick={onClose} style={{ zIndex: 5 }}>✕</button>
+      <HelpButton
+        title="Monsterpedia"
+        tips={[
+          'Hier siehst du jedes Monster im Spiel — entdeckte sind farbig, unbekannte als ❓ ausgegraut.',
+          'Tippe ein Monster an, um Details, Werte und Lore zu sehen.',
+          'Filtere mit der Suche nach Name, Element oder Seltenheit, oder über die Seltenheits-Symbole.',
+          'Der Schalter „Im Besitz" blendet alle Monster aus, die du gerade nicht besitzt — ein ✓ markiert deine eigenen.',
+        ]}
+      />
 
       {/* Header with completion bar */}
       <div style={{
@@ -88,13 +101,17 @@ export function Pokedex({ onClose }: PokedexProps) {
         />
 
         {/* Rarity filter chips */}
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
           <Chip label="Alle" active={rarityFilter === 'All'} color="#bb88ff" onClick={() => setRarityFilter('All')} />
           {RARITY_ORDER.map(r => (
             <Chip key={r} label={`${RARITY_SYMBOLS[r]}`} title={r}
               active={rarityFilter === r} color={RARITY_COLORS[r]}
               onClick={() => setRarityFilter(rarityFilter === r ? 'All' : r)} />
           ))}
+          {/* Owned-only toggle — sits with the filter chips, clearly on/off. */}
+          <Chip label="✓ Im Besitz" title="Nur Monster anzeigen, die du besitzt"
+            active={ownedOnly} color="#44dd88"
+            onClick={() => setOwnedOnly(o => !o)} />
         </div>
       </div>
 

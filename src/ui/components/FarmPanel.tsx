@@ -2,6 +2,7 @@ import React from 'react';
 import { useGameStore } from '@store/gameStore';
 import { BUILDING_DEFS } from '@data/buildings';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface FarmPanelProps {
@@ -49,6 +50,15 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
   return (
     <div className="panel panel-side panel-side-xs" style={{ padding: 16 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Farm"
+        tips={[
+          'Farmen produzieren mit der Zeit Futter — tippe „Ernten", um das gesammelte Futter abzuholen.',
+          'Mit den Umwandeln-Knöpfen tauschst du Gold direkt gegen Futter, wenn es mal knapp wird.',
+          'Höhere Farm-Level steigern die Futterproduktion deutlich.',
+          'Futter brauchst du, um Monster zu füttern und so hochzuleveln.',
+        ]}
+      />
       <div className="panel-title">🌾 {def.name}</div>
       <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
         Level {building.level} · {levelData?.foodPerHour ?? 0} 🌾/Std.

@@ -4,6 +4,7 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { BUILDING_DEFS } from '@data/buildings';
 import { RARITY_COLORS } from '@data/rarities';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface HatcheryPanelProps { onClose: () => void; }
@@ -32,6 +33,15 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
   return (
     <div className="panel panel-modal panel-w-sm" style={{ padding: 20 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Brutplatz"
+        tips={[
+          'Eier brüten hier mit der Zeit aus — seltenere Monster brauchen länger.',
+          'Mit 💎 Diamanten kannst du das Ausbrüten beschleunigen.',
+          'Ist ein Ei fertig, tippe es an, um das Monster zu schlüpfen und einem Lebensraum zuzuweisen.',
+          'Höhere Brutplatz-Level bieten mehr Ei-Slots gleichzeitig.',
+        ]}
+      />
       <div className="panel-title">🥚 Hatchery</div>
 
       {/* Egg storage shortcut */}

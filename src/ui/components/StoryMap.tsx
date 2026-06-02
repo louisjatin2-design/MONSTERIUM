@@ -5,6 +5,7 @@ import { MONSTER_DEFS, ALL_MONSTER_IDS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_RANK, RARITY_COLORS } from '@data/rarities';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface StoryMapProps { onClose: () => void; }
@@ -77,6 +78,15 @@ export function StoryMap({ onClose }: StoryMapProps) {
       display: 'flex', flexDirection: 'column',
     }}>
       <button className="close-btn" onClick={onClose} style={{ zIndex: 5 }}>✕</button>
+      <HelpButton
+        title="Story & Kämpfe"
+        tips={[
+          'Hier kämpfst du dich durch die Story-Karte — jeder Sieg schaltet den nächsten Kampf frei.',
+          'Vor dem Kampf stellst du dein Team aus deinen Monstern zusammen.',
+          'Im Kampf bestimmst du den Schaden über Minispiele — je besser dein Treffer, desto stärker der Angriff.',
+          'Siege bringen XP, Gold und manchmal neue Monster.',
+        ]}
+      />
 
       {/* ── World banner ─────────────────────────────────────────────── */}
       <div style={{

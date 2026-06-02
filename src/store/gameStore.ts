@@ -9,7 +9,7 @@ import { BUILDING_DEFS } from '@data/buildings';
 import { ISLAND_DEFS } from '@data/islands';
 import { OBSTACLE_DEFS } from '@data/obstacles';
 import { RARITY_HATCH_TIME_SEC, RARITY_BREED_TIME_SEC, RARITY_RANK } from '@data/rarities';
-import { calculateXpToLevel, calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
+import { calculateXpToLevel, calculateFeedCost, calculateSellValue, calculateEggSellValue } from '@systems/EconomySystem';
 import {
   getUnlockedMoves, getMaxAttackSlots, getNextEvolutionStage,
   pickRandomNewAttack, getTrainableAttacks, getAttackTrainCost,
@@ -309,6 +309,8 @@ export const useGameStore = create<GameStore>()(
       placeBuilding: (defId, islandId, tileX, tileY) => {
         const def = BUILDING_DEFS[defId];
         if (!def) return null;
+        // Gate buildings that require a higher player level.
+        if (def.unlockLevel && get().playerLevel < def.unlockLevel) return null;
         if (!get().spendGold(def.goldCost)) return null;
         const id = 'b_' + uid();
         const endMs = def.buildTimeSec > 0 ? Date.now() + def.buildTimeSec * 1000 : null;
@@ -707,7 +709,8 @@ export const useGameStore = create<GameStore>()(
         if (!egg) return 0;
         const def = MONSTER_DEFS[egg.monsterDefId];
         const rank = def ? RARITY_RANK[def.rarity] : 0;
-        const value = Math.floor(120 * Math.pow(2.1, rank)) * (egg.isUnique ? 2 : 1);
+        // Eggs sell for less than the baby they hatch into (see calculateEggSellValue).
+        const value = calculateEggSellValue(rank) * (egg.isUnique ? 2 : 1);
         set((s) => {
           s.storedEggs = s.storedEggs.filter(e => e.id !== eggId);
           s.gold += value;
@@ -737,8 +740,10 @@ export const useGameStore = create<GameStore>()(
           const levelData = bd.levels[b.level - 1];
           const cap = levelData?.monsterCapacity ?? 3;
           if (b.monsterIds.length >= cap) return false;
+          // Prestige habitats only accept monsters of a minimum rarity.
+          if (bd.minRarityRank != null && RARITY_RANK[def.rarity] < bd.minRarityRank) return false;
           if (bd.linkedElement) return def.elements.includes(bd.linkedElement);
-          return true; // legendary habitat
+          return true; // legendary / prestige habitat (any element)
         }).map(b => b.instanceId);
       },
 

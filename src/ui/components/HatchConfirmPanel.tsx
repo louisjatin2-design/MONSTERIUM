@@ -4,6 +4,7 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { RARITY_COLORS } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface HatchConfirmPanelProps {
@@ -45,6 +46,14 @@ export function HatchConfirmPanel({ eggId, onClose }: HatchConfirmPanelProps) {
   return (
     <div className="panel panel-modal panel-w-xs" style={{ padding: 20, textAlign: 'center' }}>
       <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Ei ausbrüten"
+        tips={[
+          'Der Fortschrittsbalken zeigt, wie weit das Ei ausgebrütet ist.',
+          'Mit 💎 Diamanten kannst du den Rest sofort überspringen.',
+          'Sobald das Ei fertig ist, wählst du beim Schlüpfen direkt einen passenden Lebensraum aus.',
+        ]}
+      />
       <div className="panel-title">{egg.isUnique ? '✨ ' : ''}{def.name} Ei</div>
 
       {/* Big egg emblem tinted to the element */}

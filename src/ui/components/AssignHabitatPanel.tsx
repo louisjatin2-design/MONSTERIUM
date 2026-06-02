@@ -4,6 +4,7 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { BUILDING_DEFS } from '@data/buildings';
 import { RARITY_COLORS } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface Props {
@@ -37,6 +38,14 @@ export function AssignHabitatPanel({ eggId, onClose }: Props) {
   return (
     <div className="panel panel-modal panel-w-sm" style={{ padding: 20 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Lebensraum zuweisen"
+        tips={[
+          'Ein geschlüpftes Monster muss sofort in einen passenden Lebensraum einziehen.',
+          'Es werden nur Lebensräume angezeigt, die zum Element des Monsters passen und noch Platz haben.',
+          'Ist keiner frei, baue zuerst einen passenden Lebensraum oder mache Platz — das Ei bleibt solange erhalten.',
+        ]}
+      />
       <div className="panel-title">🐣 {def.name} schlüpft!</div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>

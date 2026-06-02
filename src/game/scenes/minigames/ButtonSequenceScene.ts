@@ -90,7 +90,9 @@ export class ButtonSequenceScene extends Phaser.Scene {
   }
 
   private hideSequence() {
-    for (const c of this.keyDisplays) c.setAlpha(0.1);
+    // Fully hide the sequence — no faint letters lingering in the background
+    // while the player is typing it back.
+    for (const c of this.keyDisplays) c.setAlpha(0);
   }
 
   private showInputPhase() {

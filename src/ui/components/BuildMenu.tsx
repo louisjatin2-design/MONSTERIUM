@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useGameStore } from '@store/gameStore';
 import { BUILDING_DEFS, BUILDABLE_BUILDING_IDS } from '@data/buildings';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface BuildMenuProps {
@@ -26,6 +27,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 
 export function BuildMenu({ tileX, tileY, onClose, onStartPlacement }: BuildMenuProps) {
   const gold = useGameStore(s => s.gold);
+  const playerLevel = useGameStore(s => s.playerLevel);
   const [filter, setFilter] = useState<string>('All');
 
   const categories = ['All', 'Habitat', 'Temple', 'Farm'];
@@ -37,6 +39,7 @@ export function BuildMenu({ tileX, tileY, onClose, onStartPlacement }: BuildMenu
   const handleBuild = (defId: string) => {
     const def = BUILDING_DEFS[defId];
     if (gold < def.goldCost) return;
+    if (def.unlockLevel && playerLevel < def.unlockLevel) return;
     EventBus.emit(GameEvents.ENTER_PLACEMENT_MODE, { defId });
     onStartPlacement();
   };
@@ -44,6 +47,15 @@ export function BuildMenu({ tileX, tileY, onClose, onStartPlacement }: BuildMenu
   return (
     <div className="panel panel-side panel-side-narrow" style={{ padding: 16 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Baumenü"
+        tips={[
+          'Wähle ein Gebäude und platziere es anschließend in der 2D-Bauansicht auf einem freien Feld.',
+          'Lebensräume beherbergen Monster und werfen Gold ab, Farmen produzieren Futter, Tempel heben das Levellimit.',
+          'Ausgegraute Einträge kannst du dir noch nicht leisten oder sie sind erst ab einem höheren Spieler-Level 🔒 verfügbar.',
+          'Größere Lebensräume (Elite, Mythic, Transcendental) sind riesig, fassen aber nur ein einziges Monster.',
+        ]}
+      />
       <div className="panel-title">🏗️ Build Menu</div>
       <div style={{ fontSize: 12, color: '#aaa', marginBottom: 12 }}>
         {tileX != null && tileY != null && <>Tile ({tileX}, {tileY}) — </>}
@@ -64,14 +76,16 @@ export function BuildMenu({ tileX, tileY, onClose, onStartPlacement }: BuildMenu
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {filtered.map(id => {
           const def = BUILDING_DEFS[id];
+          const locked = !!def.unlockLevel && playerLevel < def.unlockLevel;
           const canAfford = gold >= def.goldCost;
+          const buildable = canAfford && !locked;
           return (
             <div key={id} className="monster-card"
-              onClick={() => canAfford && handleBuild(id)}
-              style={{ opacity: canAfford ? 1 : 0.5 }}>
+              onClick={() => buildable && handleBuild(id)}
+              style={{ opacity: buildable ? 1 : 0.5, cursor: buildable ? 'pointer' : 'not-allowed' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 'bold' }}>
-                  {CATEGORY_ICONS[def.category]} {def.name}
+                  {locked && '🔒 '}{CATEGORY_ICONS[def.category]} {def.name}
                 </span>
                 <span className="gold-text">🪙 {def.goldCost}</span>
               </div>
@@ -81,6 +95,11 @@ export function BuildMenu({ tileX, tileY, onClose, onStartPlacement }: BuildMenu
                 {def.buildTimeSec > 0 && ` · Build: ${def.buildTimeSec}s`}
                 {def.linkedElement && ` · Element: ${def.linkedElement}`}
               </div>
+              {locked && (
+                <div style={{ fontSize: 11, color: '#ff9955', marginTop: 4, fontWeight: 700 }}>
+                  🔒 Erst ab Spieler-Level {def.unlockLevel} (du bist Level {playerLevel})
+                </div>
+              )}
             </div>
           );
         })}

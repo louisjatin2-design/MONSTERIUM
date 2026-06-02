@@ -13,6 +13,7 @@ import {
   EVOLUTION_LEVELS, getTrainableAttacks, getAttackTrainCost,
 } from '@systems/ProgressionSystem';
 import type { MoveDef } from '@gtypes/game';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface Props {
@@ -114,6 +115,16 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
     <div className="mdetail">
       {/* Back to the habitat — this is its own screen, not a popup. */}
       <button className="mdetail-back" onClick={onClose} title="Zurück">←</button>
+      <HelpButton
+        title="Monster-Details"
+        tips={[
+          'Füttere dein Monster mit Futter, um XP zu sammeln und es aufzuleveln — vier Fütterungen pro Level.',
+          'Bei bestimmten Leveln kann das Monster sich entwickeln und neue Angriffs-Slots freischalten.',
+          'Über „Angriffe" trainierst und rüstest du die Attacken für den Kampf aus.',
+          'Beim Verkauf bekommst du für höhere Monster-Level deutlich mehr Gold.',
+        ]}
+        rightOffset={14}
+      />
 
       {/* ── LEFT: the monster itself ───────────────────────────────── */}
       <div className="mdetail-left">

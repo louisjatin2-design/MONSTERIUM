@@ -4,6 +4,7 @@ import { getLevelReward, nextEggMilestone } from '@data/levelRewards';
 import { MONSTER_DEFS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_COLORS } from '@data/rarities';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface LevelRewardPanelProps { onClose: () => void; }
@@ -25,6 +26,14 @@ export function LevelRewardPanel({ onClose }: LevelRewardPanelProps) {
   return (
     <div className="panel panel-modal panel-w-sm" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <button className="close-btn" onClick={onClose} style={{ zIndex: 5 }}>✕</button>
+      <HelpButton
+        title="Level-Belohnungen"
+        tips={[
+          'Mit jedem Spieler-Level-Aufstieg gibt es eine Belohnung — hier holst du sie ab.',
+          'Tippe „Alle abholen", um sämtliche offenen Belohnungen einzusammeln.',
+          'Höhere Spieler-Level schalten außerdem neue Gebäude und Inhalte frei.',
+        ]}
+      />
 
       {/* Banner */}
       <div style={{
