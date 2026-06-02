@@ -63,9 +63,9 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
           </div>
           {hatchery.upgradeEndMs ? (
             <button className="btn btn-info" style={{ padding: '4px 10px', fontSize: 12 }}
-              disabled={diamonds < Math.max(1, Math.ceil((hatchery.upgradeEndMs - now) / 60000))}
+              disabled={diamonds < Math.max(1, Math.ceil((hatchery.upgradeEndMs - now) / 3600000))}
               onClick={() => skipUpgrade(hatchery.instanceId)}>
-              💎 {Math.max(1, Math.ceil((hatchery.upgradeEndMs - now) / 60000))} · Überspringen
+              💎 {Math.max(1, Math.ceil((hatchery.upgradeEndMs - now) / 3600000))} · Überspringen
             </button>
           ) : nextLevel ? (
             <button className="btn btn-gold" style={{ padding: '4px 10px', fontSize: 12 }}
@@ -102,7 +102,7 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
           const remaining = Math.max(0, egg.hatchEndMs - now);
           const isReady = remaining === 0;
           const secondsLeft = Math.ceil(remaining / 1000);
-          const diamondCost = Math.ceil(secondsLeft / 60);
+          const diamondCost = Math.max(1, Math.ceil(secondsLeft / 3600));
 
           return (
             <div key={egg.id} className="monster-card">

@@ -296,8 +296,21 @@ export function gainUltCharge(c: BattleCombatant, damageDealt: number): void {
 // expensive moves can be used again after a short pause.
 export const ENERGY_REGEN_FRACTION = 0.4;
 
-export function getMoveEnergyCost(move: { energyCost?: number }): number {
-  return typeof move.energyCost === 'number' ? Math.max(0, move.energyCost) : 0;
+// Every attack drains energy. An explicit MoveDef.energyCost always wins (AoE
+// blasts and support moves set their own); otherwise the cost is derived from
+// the move's power so even basic strikes spend something. With the per-round
+// regen and the in-battle "Aufladen" action, the bar refills quickly enough
+// that costs read as a light tactical tax rather than a hard gate.
+export function getMoveEnergyCost(move: { energyCost?: number; power?: number }): number {
+  if (typeof move.energyCost === 'number') return Math.max(0, move.energyCost);
+  const power = typeof move.power === 'number' ? move.power : 1;
+  return Math.max(6, Math.round(power * 12));
+}
+
+// Fully recharges a combatant's energy. Used by the in-battle "Aufladen" button,
+// which spends the monster's whole turn to top its energy bar back up.
+export function rechargeEnergy(c: BattleCombatant): void {
+  c.energy = c.maxEnergy;
 }
 
 export function canAffordMove(c: BattleCombatant, move: { energyCost?: number }): boolean {

@@ -264,6 +264,12 @@ export interface StoryBattle {
   enemyMonsterDefs: string[];
   enemyLevels: number[];
   rewards: { xp: number; gold: number; diamonds?: number; monsterDefId?: string };
+  // Marks a boss encounter — the lead enemy is drawn oversized in battle.
+  isBoss?: boolean;
+  // Optional multi-wave fight: the player faces each wave back-to-back (HP and
+  // energy carry over) before the battle is won. When present it supersedes the
+  // single enemyMonsterDefs/enemyLevels line-up above.
+  waves?: Array<{ enemyMonsterDefs: string[]; enemyLevels: number[] }>;
 }
 
 export interface LeagueInfo {

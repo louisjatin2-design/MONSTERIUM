@@ -14,7 +14,8 @@ interface BreedingPanelProps { onClose: () => void; }
 
 export function BreedingPanel({ onClose }: BreedingPanelProps) {
   const monstersRecord  = useGameStore(s => s.monsters);
-  const monsters        = Object.values(monstersRecord);
+  // Sorted by level descending so the strongest parents surface first.
+  const monsters        = Object.values(monstersRecord).sort((a, b) => b.level - a.level);
   const eggs            = useGameStore(s => s.eggs);
   const activeBreedings = useGameStore(s => s.activeBreedings);
   const buildings       = useGameStore(s => s.buildings);
@@ -87,9 +88,9 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
           </div>
           {station.upgradeEndMs ? (
             <button className="btn btn-info" style={{ padding: '4px 10px', fontSize: 12 }}
-              disabled={diamonds < Math.max(1, Math.ceil((station.upgradeEndMs - Date.now()) / 60000))}
+              disabled={diamonds < Math.max(1, Math.ceil((station.upgradeEndMs - Date.now()) / 3600000))}
               onClick={() => skipUpgrade(station.instanceId)}>
-              💎 {Math.max(1, Math.ceil((station.upgradeEndMs - Date.now()) / 60000))} · Überspringen
+              💎 {Math.max(1, Math.ceil((station.upgradeEndMs - Date.now()) / 3600000))} · Überspringen
             </button>
           ) : nextLevel ? (
             <button className="btn btn-gold" style={{ padding: '4px 10px', fontSize: 12 }}
@@ -199,7 +200,7 @@ function BreedingSlot({ breeding, onCollect, onSpeedUp }: {
   const total = Math.max(1, breeding.endMs - breeding.startMs);
   const progress = Math.min(100, ((total - remaining) / total) * 100);
   const secondsLeft = Math.ceil(remaining / 1000);
-  const diamondCost = Math.ceil(secondsLeft / 60);
+  const diamondCost = Math.max(1, Math.ceil(secondsLeft / 3600));
   const uniqueOutcome = breeding.outcomes.find(o => o.isHybrid);
 
   return (

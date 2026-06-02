@@ -54,7 +54,7 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   const def = BUILDING_DEFS[building.defId];
   const levelData = def.levels[building.level - 1];
   const nextLevel = def.levels[building.level];
-  const gemSkipCost = (endMs: number) => Math.max(1, Math.ceil((endMs - Date.now()) / 60000));
+  const gemSkipCost = (endMs: number) => Math.max(1, Math.ceil((endMs - Date.now()) / 3600000));
   const canDemolish = def.category === 'Habitat';
   const refund = Math.floor(def.goldCost * 0.5);
 
@@ -77,7 +77,7 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
     if (def.minRarityRank != null && RARITY_RANK[mDef.rarity] < def.minRarityRank) return false;
     if (def.linkedElement) return mDef.elements.includes(def.linkedElement);
     return true;
-  });
+  }).sort((a, b) => b.level - a.level); // highest level first
 
   return (
     <div className="panel panel-side">
