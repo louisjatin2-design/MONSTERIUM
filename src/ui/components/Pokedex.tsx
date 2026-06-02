@@ -4,6 +4,7 @@ import { MONSTER_DEFS, ALL_MONSTER_IDS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_COLORS, RARITY_RANK, RARITY_STARS, RARITY_SYMBOLS, rarityGlow } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
+import { getMonsterRoles, ROLE_COLORS } from '@data/monsterRoles';
 import type { RarityType } from '@gtypes/game';
 import { MonsterDetail } from './MonsterDetail';
 import { HelpButton } from './HelpButton';
@@ -158,6 +159,20 @@ export function Pokedex({ onClose }: PokedexProps) {
               <div style={{ fontSize: 9, color, letterSpacing: '-1px', lineHeight: 1 }}>
                 {'★'.repeat(RARITY_STARS[def.rarity])}
               </div>
+              {/* Role badges — only shown for discovered monsters */}
+              {unlocked && (
+                <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center', marginTop: 4 }}>
+                  {getMonsterRoles(id).map(role => (
+                    <span key={role} style={{
+                      fontSize: 8, fontWeight: 'bold', padding: '1px 4px',
+                      borderRadius: 3, lineHeight: 1.4,
+                      background: ROLE_COLORS[role] + '22',
+                      border: `1px solid ${ROLE_COLORS[role]}60`,
+                      color: ROLE_COLORS[role],
+                    }}>{role}</span>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
