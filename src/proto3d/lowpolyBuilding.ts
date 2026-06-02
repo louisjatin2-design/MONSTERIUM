@@ -229,33 +229,58 @@ function buildTemple(g: THREE.Group, W: number, H: number, elc: number) {
   finial.position.y = y + 0.2; g.add(finial);
 }
 
-// --- Farm: field + barn + spinning windmill --------------------------------
+// --- Farm: tilled field + barn + a proper animated windmill -----------------
 function buildFarm(g: THREE.Group, W: number, H: number, rng: () => number) {
   g.add(box(W * 0.92, 0.12, H * 0.92, 0.08, 0x9c6b3f, { roughness: 1 }));
-  // Crop rows.
+  // Crop rows with little green tufts.
   for (let i = 0; i < 5; i++) {
-    const row = box(W * 0.8, 0.06, 0.1, 0.18, 0x4eb24e);
-    row.position.z = (i / 4 - 0.5) * H * 0.7; g.add(row);
+    const z = (i / 4 - 0.5) * H * 0.62;
+    const row = box(W * 0.5, 0.05, 0.08, 0.18, 0x6b4a2a); row.position.set(-W * 0.16, 0, z); g.add(row);
+    for (let k = 0; k < 4; k++) { const tuft = new THREE.Mesh(CONE(0.04, 0.14, 4), mat(0x4eb24e)); tuft.position.set(-W * 0.36 + k * (W * 0.4 / 3), 0.24, z); g.add(tuft); }
   }
-  // Barn (front-left) with pyramid roof.
-  const bx = -W * 0.22, bz = H * 0.22;
-  const barn = box(W * 0.34, 0.5, H * 0.34, 0.14, 0xc24233); barn.position.set(bx, 0, bz); g.add(barn);
-  const roof = pyramid(W * 0.42, H * 0.42, 0.32, 0.64, 0x5a4030); roof.position.x = bx; roof.position.z = bz; g.add(roof);
-  // Windmill (back-right): tower + cap + spinning sails.
-  const mx = W * 0.26, mz = -H * 0.26;
-  const tower = new THREE.Mesh(new THREE.CylinderGeometry(W * 0.1, W * 0.13, 0.9, 7), mat(0xd8c6a4));
-  tower.position.set(mx, 0.45 + 0.08, mz); g.add(tower);
-  const sails = new THREE.Group();
+
+  const base = 0.2; // top of the field surface
+
+  // --- Barn (front-left): body + gable roof + door ---
+  const bx = -W * 0.24, bz = H * 0.24;
+  const barnW = W * 0.32, barnD = H * 0.3, barnH = 0.42;
+  const barn = box(barnW, barnH, barnD, base, 0xc24233); barn.position.x = bx; barn.position.z = bz; g.add(barn);
+  const roof = pyramid(barnW * 1.12, barnD * 1.12, 0.26, base + barnH, 0x5a4030);
+  roof.position.x = bx; roof.position.z = bz; g.add(roof);
+  const door = box(barnW * 0.34, barnH * 0.7, 0.03, base, 0x3a241a); door.position.x = bx; door.position.z = bz + barnD / 2; g.add(door);
+
+  // --- Windmill (back-right): the animated centrepiece ---
+  const mx = W * 0.26, mz = -H * 0.22;
+  const towerH = 0.95, topR = W * 0.11, botR = W * 0.15;
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(topR, botR, towerH, 8), mat(0xe6d8b8, { roughness: 0.9 }));
+  tower.position.set(mx, base + towerH / 2, mz); tower.castShadow = true; g.add(tower);
+  // Wooden bands.
+  for (const by of [0.35, 0.7]) { const band = new THREE.Mesh(new THREE.CylinderGeometry(topR + 0.02, botR + 0.02, 0.05, 8), mat(0x8a6a3a)); band.position.set(mx, base + by, mz); g.add(band); }
+  // Conical cap.
+  const cap = new THREE.Mesh(CONE(topR + 0.06, 0.32, 8), mat(0x7a3a24)); cap.position.set(mx, base + towerH + 0.12, mz); cap.castShadow = true; g.add(cap);
+
+  // Sail wheel — 4 sails on arms, mounted on the FRONT of the cap, spinning.
+  const hubY = base + towerH - 0.02;
+  const hubZ = mz + topR + 0.12;
+  const wheel = new THREE.Group();
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 8), mat(0x5a3a20));
+  hub.rotation.x = Math.PI / 2; wheel.add(hub);
   for (let i = 0; i < 4; i++) {
-    const blade = box(0.5, 0.12, 0.04, -0.06, 0xf3ecda);
-    blade.position.x = 0.28; blade.rotation.z = (i / 4) * Math.PI * 2;
-    const arm = new THREE.Group(); arm.rotation.z = (i / 4) * Math.PI * 2; arm.add(blade); sails.add(arm);
+    const arm = new THREE.Group(); arm.rotation.z = (i / 4) * Math.PI * 2;
+    const spar = box(0.04, 0.62, 0.04, 0, 0x6b4a2a); spar.position.y = 0.31; arm.add(spar);
+    // Sail cloth offset to one side of the spar (classic windmill look).
+    const sail = box(0.17, 0.42, 0.02, 0, 0xf3ecda, { roughness: 0.8 });
+    sail.position.set(0.13, 0.34, 0); arm.add(sail);
+    wheel.add(arm);
   }
-  sails.position.set(mx, 0.98, mz - W * 0.14); tag(sails, 'spin'); g.add(sails);
-  // Hay bales.
+  wheel.position.set(mx, hubY, hubZ);
+  wheel.traverse((o) => { (o as THREE.Mesh).castShadow = true; });
+  tag(wheel, 'spin'); g.add(wheel);
+
+  // Hay bales for flavour.
   for (let i = 0; i < 2; i++) {
-    const hay = box(0.22, 0.2, 0.3, 0.08, 0xe0c050);
-    hay.position.set(W * 0.28 + i * 0.05, 0, H * 0.3); g.add(hay);
+    const hay = box(0.2, 0.18, 0.28, 0.08, 0xe0c050); hay.position.set(W * 0.3, 0, H * 0.28 - i * 0.34);
+    hay.rotation.y = rng(); g.add(hay);
   }
 }
 
