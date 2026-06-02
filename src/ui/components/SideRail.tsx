@@ -48,6 +48,11 @@ export function SideRail() {
         from="#d09a3f" to="#9a6a1f"
         onClick={() => EventBus.emit(GameEvents.OPEN_STORAGE, {})}
       />
+      <RailButton
+        icon="📚" label="Kompendium"
+        from="#3f6fd0" to="#1f3a96"
+        onClick={() => EventBus.emit(GameEvents.OPEN_COMPENDIUM, {})}
+      />
     </div>
   );
 }
