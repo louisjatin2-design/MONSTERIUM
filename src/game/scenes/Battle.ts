@@ -653,18 +653,47 @@ export class Battle extends Phaser.Scene {
     });
   }
 
-  // Fade + spin-out for a defeated combatant's avatar.
+  // Fade out a defeated combatant's avatar completely, then raise a skull.
   private playFaint(instanceId: string) {
     const avatar = this.avatars.get(instanceId);
     if (!avatar || avatar.getData('fainted')) return;
     avatar.setData('fainted', true);
+
+    const ax = avatar.x;
+    const ay = avatar.y;
+
     this.tweens.add({
       targets: avatar,
-      alpha: 0.25,
-      scale: 0.7,
-      angle: 25,
-      duration: 500,
+      alpha: 0,
+      scale: 0.5,
+      angle: 20,
+      duration: 600,
       ease: 'Quad.in',
+      onComplete: () => {
+        const skull = this.add.text(ax, ay, '💀', { fontSize: '40px' })
+          .setOrigin(0.5, 0.5).setDepth(900).setAlpha(0);
+
+        // Rise and appear
+        this.tweens.add({
+          targets: skull,
+          y: ay - 70,
+          alpha: 1,
+          duration: 500,
+          ease: 'Back.out',
+          onComplete: () => {
+            // Drift upward and vanish
+            this.tweens.add({
+              targets: skull,
+              y: ay - 140,
+              alpha: 0,
+              duration: 900,
+              delay: 300,
+              ease: 'Quad.in',
+              onComplete: () => skull.destroy(),
+            });
+          },
+        });
+      },
     });
   }
 

@@ -5,6 +5,7 @@ import { ATTACKS } from '@data/attacks';
 import { RARITY_COLORS, RARITY_STARS, rarityGlow } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { TRAITS } from '@data/traits';
+import { getMonsterRoles, ROLE_COLORS, ROLE_ICONS } from '@data/monsterRoles';
 import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
@@ -52,7 +53,7 @@ export function MonsterDetail({ defId, isUnlocked, onClose }: MonsterDetailProps
           <div style={{ fontSize: 13, color: RARITY_COLORS[def.rarity], letterSpacing: '-1px', marginTop: 2 }}>
             {'★'.repeat(RARITY_STARS[def.rarity])}
           </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
             {def.elements.map(el => (
               <span key={el} style={{
                 padding: '2px 8px', borderRadius: 4, fontSize: 12,
@@ -60,6 +61,17 @@ export function MonsterDetail({ defId, isUnlocked, onClose }: MonsterDetailProps
                 border: `1px solid ${ELEMENT_CSS_COLORS[el]}`,
                 color: ELEMENT_CSS_COLORS[el],
               }}>{el}</span>
+            ))}
+          </div>
+          {/* Role badges */}
+          <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap' }}>
+            {getMonsterRoles(defId).map(role => (
+              <span key={role} style={{
+                padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 'bold',
+                background: ROLE_COLORS[role] + '22',
+                border: `1px solid ${ROLE_COLORS[role]}`,
+                color: ROLE_COLORS[role],
+              }}>{ROLE_ICONS[role]} {role}</span>
             ))}
           </div>
         </div>
