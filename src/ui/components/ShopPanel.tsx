@@ -5,6 +5,7 @@ import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_COLORS, RARITY_RANK } from '@data/rarities';
 import { BUILDING_DEFS, BUILDABLE_BUILDING_IDS } from '@data/buildings';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface ShopPanelProps {
@@ -77,6 +78,15 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
   return (
     <div className="panel panel-modal panel-w-sm" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <button className="close-btn" onClick={onClose} style={{ zIndex: 5 }}>✕</button>
+      <HelpButton
+        title="Shop"
+        tips={[
+          'Im Reiter „Artikel" kaufst du Gold, Futter und Monster-Eier — manche mit 🪙 Gold, andere mit 💎 Diamanten.',
+          'Gekaufte Eier landen im Lager und müssen erst zum Brutplatz gebracht werden, um auszubrüten.',
+          'Im Reiter „Bauen" wählst du Gebäude und platzierst sie danach auf der Insel.',
+          'Mit 🔒 markierte Gebäude werden erst ab einem höheren Spieler-Level freigeschaltet.',
+        ]}
+      />
 
       {/* Header + tabs */}
       <div style={{ padding: '14px 18px 0', background: 'linear-gradient(135deg, #2a1e08, #160f04)', borderBottom: '2px solid #cc9944' }}>
@@ -126,6 +136,7 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
 }
 
 function BuildTab({ gold, onStartPlacement }: { gold: number; onStartPlacement: () => void }) {
+  const playerLevel = useGameStore(s => s.playerLevel);
   const [filter, setFilter] = useState<string>('All');
   const categories = ['All', 'Habitat', 'Temple', 'Farm'];
   const filtered = BUILDABLE_BUILDING_IDS.filter(id => {
@@ -136,6 +147,7 @@ function BuildTab({ gold, onStartPlacement }: { gold: number; onStartPlacement: 
   const startBuild = (defId: string) => {
     const def = BUILDING_DEFS[defId];
     if (gold < def.goldCost) return;
+    if (def.unlockLevel && playerLevel < def.unlockLevel) return;
     // Enter the 2D placement mode on the island, then close the shop WITHOUT
     // emitting PANEL_CLOSED (which would instantly cancel placement).
     EventBus.emit(GameEvents.ENTER_PLACEMENT_MODE, { defId });
@@ -159,14 +171,16 @@ function BuildTab({ gold, onStartPlacement }: { gold: number; onStartPlacement: 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {filtered.map(id => {
           const def = BUILDING_DEFS[id];
+          const locked = !!def.unlockLevel && playerLevel < def.unlockLevel;
           const canAfford = gold >= def.goldCost;
+          const buildable = canAfford && !locked;
           return (
             <div key={id} className="monster-card"
-              onClick={() => canAfford && startBuild(id)}
-              style={{ opacity: canAfford ? 1 : 0.5 }}>
+              onClick={() => buildable && startBuild(id)}
+              style={{ opacity: buildable ? 1 : 0.5, cursor: buildable ? 'pointer' : 'not-allowed' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 'bold' }}>
-                  {CATEGORY_ICONS[def.category]} {def.name}
+                  {locked && '🔒 '}{CATEGORY_ICONS[def.category]} {def.name}
                 </span>
                 <span className="gold-text">🪙 {def.goldCost}</span>
               </div>
@@ -176,6 +190,11 @@ function BuildTab({ gold, onStartPlacement }: { gold: number; onStartPlacement: 
                 {def.buildTimeSec > 0 && ` · Bauzeit: ${def.buildTimeSec}s`}
                 {def.linkedElement && ` · Element: ${def.linkedElement}`}
               </div>
+              {locked && (
+                <div style={{ fontSize: 11, color: '#ff9955', marginTop: 4, fontWeight: 700 }}>
+                  🔒 Erst ab Spieler-Level {def.unlockLevel} (du bist Level {playerLevel})
+                </div>
+              )}
             </div>
           );
         })}

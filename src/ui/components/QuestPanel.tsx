@@ -7,6 +7,7 @@ import {
 import { MONSTER_DEFS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_RANK } from '@data/rarities';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface QuestPanelProps { onClose: () => void; }
@@ -54,6 +55,14 @@ export function QuestPanel({ onClose }: QuestPanelProps) {
   return (
     <div className="panel panel-modal panel-w-lg" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <button className="close-btn" onClick={onClose} style={{ zIndex: 5 }}>✕</button>
+      <HelpButton
+        title="Quests"
+        tips={[
+          'Quests geben dir Ziele wie Züchten, Kämpfen oder Bauen — der Balken zeigt deinen Fortschritt.',
+          'Ist eine Quest erfüllt, tippe „Abholen", um die Belohnung zu kassieren.',
+          'Quests sind nach Kategorien sortiert; erledige sie für Gold, XP und Diamanten.',
+        ]}
+      />
 
       {/* Banner */}
       <div style={{

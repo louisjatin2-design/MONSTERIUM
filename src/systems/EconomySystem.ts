@@ -11,10 +11,19 @@ export function calculateFeedCost(level: number): number {
 }
 
 // Gold earned when selling a monster from a habitat.
-// Scales with rarity (the dominant factor) and a small per-level bonus.
+// Scales with rarity (the dominant factor) and a clear per-level bonus — a
+// higher-level monster is worth noticeably more, so leveling before selling pays
+// off (+25% of the base value per level above 1).
 export function calculateSellValue(rarityRank: number, level: number): number {
   const base = 80 + rarityRank * 220;
-  return Math.floor(base * (1 + (level - 1) * 0.12));
+  return Math.floor(base * (1 + (level - 1) * 0.25));
+}
+
+// Gold earned when selling a stored (un-hatched) egg. Deliberately kept BELOW
+// the value of the level-1 baby that would hatch from it, so hatching first and
+// selling the baby is always the more rewarding choice.
+export function calculateEggSellValue(rarityRank: number): number {
+  return Math.floor(calculateSellValue(rarityRank, 1) * 0.6);
 }
 
 export function calculateAccumulatedGold(

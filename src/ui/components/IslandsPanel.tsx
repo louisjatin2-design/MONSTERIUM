@@ -2,6 +2,7 @@ import React from 'react';
 import { useGameStore } from '@store/gameStore';
 import { ISLAND_DEFS } from '@data/islands';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface IslandsPanelProps { onClose: () => void; }
@@ -32,6 +33,14 @@ export function IslandsPanel({ onClose }: IslandsPanelProps) {
   return (
     <div className="panel panel-modal panel-w-md" style={{ padding: 20, display: 'flex', flexDirection: 'column' }}>
       <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Inseln"
+        tips={[
+          'Jede Insel ist ein eigener Bauplatz mit eigenem Platz für Gebäude und Monster.',
+          'Tippe eine freigeschaltete Insel an, um zu ihr zu wechseln.',
+          'Neue Inseln schaltest du mit Gold frei und gewinnst so mehr Baufläche.',
+        ]}
+      />
       <div className="panel-title">🏝️ Inseln</div>
       <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
         Gold: <span className="gold-text">🪙 {gold}</span>

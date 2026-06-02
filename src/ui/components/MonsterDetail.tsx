@@ -5,6 +5,7 @@ import { ATTACKS } from '@data/attacks';
 import { RARITY_COLORS, RARITY_STARS, rarityGlow } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { TRAITS } from '@data/traits';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface MonsterDetailProps {
@@ -20,6 +21,14 @@ export function MonsterDetail({ defId, isUnlocked, onClose }: MonsterDetailProps
   return (
     <div className="panel panel-modal panel-w-md" style={{ padding: 20, overflowY: 'auto' }}>
       <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Monster-Info"
+        tips={[
+          'Hier siehst du Element(e), Seltenheit, Basiswerte und Lore eines Monsters.',
+          'Die aufgelisteten Angriffe lernt das Monster im Laufe seiner Level.',
+          'Das Talent (Trait) gibt dem Monster im Kampf eine besondere Fähigkeit.',
+        ]}
+      />
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>

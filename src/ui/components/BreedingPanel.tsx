@@ -7,6 +7,7 @@ import { calculateBreedOutcomes, getRelationScore } from '@systems/BreedingSyste
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { EventBus, GameEvents } from '@game/EventBus';
 import type { ActiveBreeding } from '@gtypes/game';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface BreedingPanelProps { onClose: () => void; }
@@ -62,6 +63,15 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
   return (
     <div className="panel panel-modal panel-w-lg" style={{ padding: 20, overflowY: 'auto' }}>
       <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Brutstation"
+        tips={[
+          'Wähle zwei Eltern-Monster aus, um sie zu verpaaren — die Elemente bestimmen, welche Nachkommen möglich sind.',
+          'Vor dem Start siehst du eine Wahrscheinlichkeitstabelle der möglichen Ergebnisse.',
+          'Nach der Zuchtzeit holst du das Ei ab; seltenere Kombinationen dauern länger.',
+          'Höhere Stufen der Brutstation schalten zusätzliche Zucht-Slots frei.',
+        ]}
+      />
       <div className="panel-title">🧬 Brutstation</div>
 
       {/* Station level + upgrade */}

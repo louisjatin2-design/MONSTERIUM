@@ -20,6 +20,15 @@ function makeTempleLevels(baseGold: number) {
   }));
 }
 
+// Prestige habitats (Elite / Mythic / Transcendent) are single-tier: they exist
+// only at level 1 and house exactly ONE monster, no matter what. They make up
+// for the tiny capacity with a very high passive gold rate and a large footprint.
+function makePrestigeHabitatLevels(goldPerHour: number) {
+  return [
+    { level: 1, upgradeCost: 0, upgradeTimeSec: 0, goldPerHour, monsterCapacity: 1 },
+  ];
+}
+
 function makeFarmLevels(baseGold: number, baseFoodPerHour: number) {
   return Array.from({ length: 5 }, (_, i) => ({
     level: i + 1,
@@ -149,56 +158,93 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     tilesW: 2, tilesH: 2, linkedElement: 'Psycho',
     goldCost: 1600, buildTimeSec: 60,
     levels: makeHabitatLevels(1200, 3),
-    description: 'Houses Psycho-type monsters.',
+    unlockLevel: 6,
+    description: 'Houses Psycho-type monsters. Freigeschaltet ab Level 6.',
   },
   habitat_angel: {
     id: 'habitat_angel', name: 'Angel Habitat', category: 'Habitat',
     tilesW: 2, tilesH: 2, linkedElement: 'Angel',
     goldCost: 1800, buildTimeSec: 70,
     levels: makeHabitatLevels(1300, 3),
-    description: 'Houses Angel-type monsters.',
+    unlockLevel: 7,
+    description: 'Houses Angel-type monsters. Freigeschaltet ab Level 7.',
   },
   habitat_demon: {
     id: 'habitat_demon', name: 'Demon Habitat', category: 'Habitat',
     tilesW: 2, tilesH: 2, linkedElement: 'Demon',
     goldCost: 1800, buildTimeSec: 70,
     levels: makeHabitatLevels(1300, 3),
-    description: 'Houses Demon-type monsters.',
+    unlockLevel: 7,
+    description: 'Houses Demon-type monsters. Freigeschaltet ab Level 7.',
   },
   habitat_time: {
     id: 'habitat_time', name: 'Time Habitat', category: 'Habitat',
     tilesW: 2, tilesH: 2, linkedElement: 'Time',
     goldCost: 2200, buildTimeSec: 90,
     levels: makeHabitatLevels(1500, 3),
-    description: 'Houses Time-type monsters.',
+    unlockLevel: 10,
+    description: 'Houses Time-type monsters. Freigeschaltet ab Level 10.',
   },
   habitat_glitch: {
     id: 'habitat_glitch', name: 'Glitch Habitat', category: 'Habitat',
     tilesW: 2, tilesH: 2, linkedElement: 'Glitch',
     goldCost: 2500, buildTimeSec: 100,
     levels: makeHabitatLevels(1600, 3),
-    description: 'Houses Glitch-type monsters.',
+    unlockLevel: 12,
+    description: 'Houses Glitch-type monsters. Freigeschaltet ab Level 12.',
   },
   habitat_cosmos: {
     id: 'habitat_cosmos', name: 'Cosmos Habitat', category: 'Habitat',
     tilesW: 2, tilesH: 2, linkedElement: 'Cosmos',
     goldCost: 3000, buildTimeSec: 120,
     levels: makeHabitatLevels(1800, 3),
-    description: 'Houses Cosmos-type monsters.',
+    unlockLevel: 14,
+    description: 'Houses Cosmos-type monsters. Freigeschaltet ab Level 14.',
   },
   habitat_void: {
     id: 'habitat_void', name: 'Void Habitat', category: 'Habitat',
     tilesW: 2, tilesH: 2, linkedElement: 'Void',
     goldCost: 3000, buildTimeSec: 120,
     levels: makeHabitatLevels(1800, 3),
-    description: 'Houses Void-type monsters.',
+    unlockLevel: 14,
+    description: 'Houses Void-type monsters. Freigeschaltet ab Level 14.',
   },
   habitat_legendary: {
     id: 'habitat_legendary', name: 'Legendary Habitat', category: 'Habitat',
     tilesW: 3, tilesH: 3,
     goldCost: 5000, buildTimeSec: 600,
     levels: makeHabitatLevels(3000, 2),
-    description: 'Houses Legendary and above monsters.',
+    unlockLevel: 8,
+    minRarityRank: 4, // Legendary+
+    description: 'Houses Legendary and above monsters. Freigeschaltet ab Level 8.',
+  },
+  // --- Prestige habitats: ever larger, hold a single monster, level 1 only ---
+  habitat_elite: {
+    id: 'habitat_elite', name: 'Elite Habitat', category: 'Habitat',
+    tilesW: 4, tilesH: 4,
+    goldCost: 12000, buildTimeSec: 1200,
+    levels: makePrestigeHabitatLevels(2500),
+    unlockLevel: 15,
+    minRarityRank: 5, // Elite+
+    description: 'Riesiger Prestige-Lebensraum für ein einziges Elite-Monster. Bleibt auf Level 1. Freigeschaltet ab Level 15.',
+  },
+  habitat_mythic: {
+    id: 'habitat_mythic', name: 'Mythic Habitat', category: 'Habitat',
+    tilesW: 5, tilesH: 5,
+    goldCost: 30000, buildTimeSec: 2400,
+    levels: makePrestigeHabitatLevels(5000),
+    unlockLevel: 25,
+    minRarityRank: 6, // Mythic+
+    description: 'Noch größerer Prestige-Lebensraum für ein einziges Mythic-Monster. Bleibt auf Level 1. Freigeschaltet ab Level 25.',
+  },
+  habitat_transcendent: {
+    id: 'habitat_transcendent', name: 'Transcendental Habitat', category: 'Habitat',
+    tilesW: 6, tilesH: 6,
+    goldCost: 75000, buildTimeSec: 4800,
+    levels: makePrestigeHabitatLevels(10000),
+    unlockLevel: 35,
+    minRarityRank: 7, // Transcendent only
+    description: 'Der größte Lebensraum überhaupt — beherbergt ein einziges Transcendental-Monster. Bleibt auf Level 1. Freigeschaltet ab Level 35.',
   },
   // --- Temples ---
   temple_fire: {
@@ -220,7 +266,8 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     tilesW: 3, tilesH: 3,
     goldCost: 8000, buildTimeSec: 900,
     levels: makeTempleLevels(8000),
-    description: 'Extends level cap for any monster type.',
+    unlockLevel: 12,
+    description: 'Extends level cap for any monster type. Freigeschaltet ab Level 12.',
   },
   // --- Farms ---
   farm_basic: {
@@ -242,7 +289,8 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     tilesW: 3, tilesH: 2,
     goldCost: 10000, buildTimeSec: 600,
     levels: makeFarmLevels(10000, 18000), // 18000/h = 5 food per second at level 1
-    description: 'Massive food production for end-game feeding needs.',
+    unlockLevel: 18,
+    description: 'Massive food production for end-game feeding needs. Freigeschaltet ab Level 18.',
   },
   // --- Special ---
   breeding_station: {

@@ -158,6 +158,10 @@ export class Island extends Phaser.Scene {
     this.cameras.main.setZoom(Phaser.Math.Clamp(fit, this.MIN_ZOOM, this.MAX_ZOOM));
     this.applyCameraFX();
 
+    // Drifting clouds — added now that the camera frame is final so they can be
+    // placed in world space relative to the live view (see addClouds).
+    this.addClouds();
+
     // Spawn pre-placed buildings + their residents.
     for (const b of Object.values(state.buildings)) {
       if (b.islandId === state.currentIslandId) this.spawnBuilding(b);
@@ -474,8 +478,8 @@ export class Island extends Phaser.Scene {
     this.add.image(W * 0.82, H * 0.12, sunKey)
       .setScrollFactor(0).setDepth(-990).setScale(2.6).setAlpha(0.88);
 
-    // Drifting clouds above and below the island.
-    this.addClouds(W, H);
+    // Clouds are spawned later in create(), AFTER the camera has been centred
+    // and zoomed, so they can be laid out relative to the live world view.
 
     // Soft misty haze at the very bottom — horizon atmosphere.
     const hazeKey = 'fx-haze-float';
@@ -501,7 +505,7 @@ export class Island extends Phaser.Scene {
 
   // Realistic canvas-texture clouds using layered radial gradients.
   // Three shape variants are baked once and reused at different scales.
-  private addClouds(W: number, H: number) {
+  private addClouds() {
     // Bake cloud textures once (guarded by exists check).
     this.bakeCloudTexture('cld-a', 360, 180, 0); // classic puffy cumulus
     this.bakeCloudTexture('cld-b', 280, 140, 1); // wide flat cloud bank
@@ -510,38 +514,59 @@ export class Island extends Phaser.Scene {
     // Thin high-altitude cirrus streaks (separate horizontal stripes).
     this.bakeCirrusTexture('cld-ci', 420, 60);
 
-    const groups: { sx: number; sy: number; key: string; sc: number; al: number; depth: number; dur: number }[] = [
+    // Unlike the old screen-pinned clouds (scrollFactor 0, which dragged them
+    // along with the camera like a lens overlay), these live in WORLD space at
+    // the default scroll factor. They drift across the sky on their own timers,
+    // so the camera reveals them with natural parallax instead of carrying them
+    // — i.e. the clouds move independently of the camera. `fx`/`fy` are the
+    // spawn point as a fraction of the live world view.
+    const groups: { fx: number; fy: number; key: string; sc: number; al: number; depth: number; dur: number }[] = [
       // High cumulus — above the island
-      { sx: W * 0.04, sy: H * 0.09, key: 'cld-a', sc: 1.05, al: 0.88, depth: -870, dur: 84000 },
-      { sx: W * 0.40, sy: H * 0.06, key: 'cld-c', sc: 0.80, al: 0.75, depth: -876, dur: 61000 },
-      { sx: W * 0.76, sy: H * 0.17, key: 'cld-b', sc: 0.90, al: 0.80, depth: -882, dur: 73000 },
+      { fx: 0.04, fy: 0.09, key: 'cld-a', sc: 1.05, al: 0.88, depth: -870, dur: 84000 },
+      { fx: 0.40, fy: 0.06, key: 'cld-c', sc: 0.80, al: 0.75, depth: -876, dur: 61000 },
+      { fx: 0.76, fy: 0.17, key: 'cld-b', sc: 0.90, al: 0.80, depth: -882, dur: 73000 },
       // Cirrus high up — very light streaks
-      { sx: W * 0.20, sy: H * 0.04, key: 'cld-ci', sc: 1.30, al: 0.45, depth: -895, dur: 110000 },
-      { sx: W * 0.65, sy: H * 0.02, key: 'cld-ci', sc: 0.90, al: 0.38, depth: -898, dur: 130000 },
+      { fx: 0.20, fy: 0.04, key: 'cld-ci', sc: 1.30, al: 0.45, depth: -895, dur: 110000 },
+      { fx: 0.65, fy: 0.02, key: 'cld-ci', sc: 0.90, al: 0.38, depth: -898, dur: 130000 },
       // Low cumulus — below the island (sells the floating feel)
-      { sx: W * 0.10, sy: H * 0.71, key: 'cld-a', sc: 1.50, al: 0.70, depth: -848, dur: 96000 },
-      { sx: W * 0.50, sy: H * 0.79, key: 'cld-b', sc: 1.20, al: 0.65, depth: -853, dur: 70000 },
-      { sx: W * 0.80, sy: H * 0.67, key: 'cld-c', sc: 0.95, al: 0.72, depth: -857, dur: 80000 },
+      { fx: 0.10, fy: 0.71, key: 'cld-a', sc: 1.50, al: 0.70, depth: -848, dur: 96000 },
+      { fx: 0.50, fy: 0.79, key: 'cld-b', sc: 1.20, al: 0.65, depth: -853, dur: 70000 },
+      { fx: 0.80, fy: 0.67, key: 'cld-c', sc: 0.95, al: 0.72, depth: -857, dur: 80000 },
     ];
 
-    for (const d of groups) {
-      const img = this.add.image(d.sx, d.sy, d.key);
-      img.setScrollFactor(0).setDepth(d.depth).setScale(d.sc).setAlpha(d.al);
+    const cam = this.cameras.main;
+    // Spawn on the next tick: cam.worldView is only refreshed during the
+    // camera's preRender, so it isn't reliable in the same frame create() runs.
+    this.time.delayedCall(0, () => {
+      for (const d of groups) {
+        const img = this.add.image(0, 0, d.key);
+        img.setDepth(d.depth).setScale(d.sc).setAlpha(d.al); // scrollFactor stays 1 (world-anchored)
+        const view = cam.worldView;
+        img.x = view.x + d.fx * view.width;
+        img.y = view.y + d.fy * view.height;
 
-      const drift = () => {
-        this.tweens.add({
-          targets: img,
-          x: img.x + W + 500,
-          duration: d.dur * (0.88 + Math.random() * 0.24),
-          ease: 'Linear',
-          onComplete: () => {
-            img.x = -img.displayWidth - 30;
-            drift();
-          },
-        });
-      };
-      drift();
-    }
+        const drift = () => {
+          const v = cam.worldView;
+          this.tweens.add({
+            targets: img,
+            x: v.right + img.displayWidth,
+            duration: d.dur * (0.88 + Math.random() * 0.24),
+            ease: 'Linear',
+            onComplete: () => {
+              // Re-enter from the left edge of whatever the camera currently
+              // frames, and keep the cloud in its sky band — clouds therefore
+              // keep sweeping across the sky regardless of where the camera has
+              // panned.
+              const v2 = cam.worldView;
+              img.x = v2.x - img.displayWidth;
+              img.y = v2.y + d.fy * v2.height;
+              drift();
+            },
+          });
+        };
+        drift();
+      }
+    });
   }
 
   // Bakes a cumulus cloud as a canvas texture using layered radial gradients.

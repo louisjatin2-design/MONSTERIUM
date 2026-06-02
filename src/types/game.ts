@@ -132,6 +132,12 @@ export interface BuildingDef {
   buildTimeSec: number;
   levels: BuildingLevelData[];
   description: string;
+  // Minimum player (user) level required before this building can be built.
+  // Omitted means available from the start.
+  unlockLevel?: number;
+  // Minimum monster rarity rank this habitat will accept (e.g. Elite habitats
+  // only house Elite-and-above monsters). Omitted means any rarity is allowed.
+  minRarityRank?: number;
 }
 
 export interface BuildingInstance {

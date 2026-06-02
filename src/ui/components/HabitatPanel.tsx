@@ -14,6 +14,7 @@ import {
 import { getMoveCooldown } from '@systems/BattleSystem';
 import type { MonsterInstance } from '@gtypes/game';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface HabitatPanelProps {
@@ -69,6 +70,8 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
     if (m.habitatId) return false;
     const mDef = MONSTER_DEFS[m.defId];
     if (!mDef) return false;
+    // Prestige habitats only take monsters of a minimum rarity.
+    if (def.minRarityRank != null && RARITY_RANK[mDef.rarity] < def.minRarityRank) return false;
     if (def.linkedElement) return mDef.elements.includes(def.linkedElement);
     return true;
   });
@@ -76,6 +79,15 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   return (
     <div className="panel panel-side">
       <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Lebensraum"
+        tips={[
+          'Lebensräume beherbergen Monster und werfen mit der Zeit Gold ab — tippe „Gold sammeln", um es abzuholen.',
+          'Jeder Lebensraum passt nur zu Monstern seines Elements; höhere Level erhöhen Kapazität und Goldrate.',
+          'Über die Monster-Slots weist du Monster zu oder entfernst sie wieder.',
+          'Prestige-Lebensräume (Elite, Mythic, Transcendental) sind riesig, fassen aber nur ein einziges Monster und bleiben auf Level 1.',
+        ]}
+      />
       <div className="panel-title">🏠 {def.name}</div>
       <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
         Level {building.level} · {monsters.length}/{levelData?.monsterCapacity ?? 3} Monster

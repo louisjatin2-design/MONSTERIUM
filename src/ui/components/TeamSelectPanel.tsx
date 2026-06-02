@@ -4,6 +4,7 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { RARITY_COLORS } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 export interface BattlePayload {
@@ -53,6 +54,14 @@ export function TeamSelectPanel({ battlePayload, onClose }: Props) {
   return (
     <div className="panel panel-modal panel-w-lg" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Team auswählen"
+        tips={[
+          'Stelle dein Kampfteam aus deinen Monstern zusammen, bevor es losgeht.',
+          'Achte auf die Elemente: passende Typen haben im Kampf gegen den Gegner Vorteile.',
+          'Höher gelevelte Monster mit guten Werten machen den entscheidenden Unterschied.',
+        ]}
+      />
       <div className="panel-title">⚔️ Team auswählen</div>
 
       {/* Selected-team slots */}

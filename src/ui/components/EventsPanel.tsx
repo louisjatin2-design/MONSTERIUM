@@ -4,6 +4,7 @@ import { getActiveEvents, resolveOfferMonster, type EventOffer } from '@data/eve
 import { MONSTER_DEFS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_COLORS } from '@data/rarities';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface EventsPanelProps { onClose: () => void; }
@@ -42,6 +43,14 @@ export function EventsPanel({ onClose }: EventsPanelProps) {
   return (
     <div className="panel panel-modal panel-w-lg" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <button className="close-btn" onClick={onClose} style={{ zIndex: 5 }}>✕</button>
+      <HelpButton
+        title="Events"
+        tips={[
+          'Events sind zeitlich begrenzte Angebote — hol sie dir, bevor sie ablaufen.',
+          'Manche Events bieten besondere Monster oder Eier gegen Gold oder Diamanten.',
+          'Schau regelmäßig vorbei, denn das Angebot wechselt.',
+        ]}
+      />
 
       {/* Banner */}
       <div style={{

@@ -4,6 +4,7 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_COLORS, RARITY_RANK, RARITY_HATCH_TIME_SEC } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
+import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
 interface StoragePanelProps { onClose: () => void; }
@@ -27,6 +28,14 @@ export function StoragePanel({ onClose }: StoragePanelProps) {
   return (
     <div className="panel panel-modal panel-w-md" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <button className="close-btn" onClick={onClose} style={{ zIndex: 5 }}>✕</button>
+      <HelpButton
+        title="Lager"
+        tips={[
+          'Im Lager warten Eier, die noch nicht ausgebrütet werden — sie verbrauchen keinen Brutplatz-Slot.',
+          'Tippe „Zum Brutplatz", um ein Ei ins Ausbrüten zu schicken (sofern ein Slot frei ist).',
+          'Eier kannst du auch verkaufen — ein ausgebrütetes Baby bringt beim Verkauf aber mehr Gold als das Ei.',
+        ]}
+      />
 
       {/* Banner */}
       <div style={{
