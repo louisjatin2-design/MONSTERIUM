@@ -36,8 +36,8 @@ export function IslandsPanel({ onClose }: IslandsPanelProps) {
       <HelpButton
         title="Inseln"
         tips={[
-          'Jede Insel ist ein eigener Bauplatz mit eigenem Platz für Gebäude und Monster.',
-          'Tippe eine freigeschaltete Insel an, um zu ihr zu wechseln.',
+          'Alle freigeschalteten Inseln liegen jetzt zusammen auf einer großen Karte — du musst nicht mehr wechseln, sondern scrollst einfach hin und her.',
+          '„Besuchen" schwenkt die Kamera zu einer Insel; bauen kannst du direkt auf jeder Insel, indem du dort ein freies Feld antippst.',
           'Neue Inseln schaltest du mit Gold frei und gewinnst so mehr Baufläche.',
         ]}
       />

@@ -14,18 +14,36 @@ export const WATER_THICK = 6;    // unused — water tiles render as open sky
 export const ORIGIN_X = 520;
 export const ORIGIN_Y = 110;
 
+// Per-island world offset. The whole archipelago is drawn in one shared world
+// space; before drawing (or projecting for) a given island the scene sets this
+// offset so that island's tiles land at its geographic slot. project() and the
+// sprite classes that call it all pick this up automatically, so an island's
+// graphics, building silhouettes and depth all bake in its offset.
+let OFFSET_X = 0;
+let OFFSET_Y = 0;
+export function setIsoOffset(x: number, y: number): void { OFFSET_X = x; OFFSET_Y = y; }
+export function getIsoOffset(): { x: number; y: number } { return { x: OFFSET_X, y: OFFSET_Y }; }
+
 // Project a (fractional) grid coordinate to a world-space point.
 export function project(fx: number, fy: number): { x: number; y: number } {
   return {
-    x: ORIGIN_X + (fx - fy) * (TILE_W / 2),
-    y: ORIGIN_Y + (fx + fy) * (TILE_H / 2),
+    x: ORIGIN_X + OFFSET_X + (fx - fy) * (TILE_W / 2),
+    y: ORIGIN_Y + OFFSET_Y + (fx + fy) * (TILE_H / 2),
   };
 }
 
-// Inverse: world-space point → grid cell (floored col/row).
+// Inverse: world-space point → grid cell (floored col/row), using the currently
+// active iso offset.
 export function worldToGrid(wx: number, wy: number): { col: number; row: number } {
-  const a = (wx - ORIGIN_X) / (TILE_W / 2);
-  const b = (wy - ORIGIN_Y) / (TILE_H / 2);
+  return worldToGridWithOffset(wx, wy, OFFSET_X, OFFSET_Y);
+}
+
+// Inverse for a SPECIFIC island offset — used when hit-testing a world point
+// against every island's grid (the active offset alone can't tell us which
+// island a tap landed on).
+export function worldToGridWithOffset(wx: number, wy: number, ox: number, oy: number): { col: number; row: number } {
+  const a = (wx - ORIGIN_X - ox) / (TILE_W / 2);
+  const b = (wy - ORIGIN_Y - oy) / (TILE_H / 2);
   const fx = (a + b) / 2;
   const fy = (b - a) / 2;
   return { col: Math.floor(fx), row: Math.floor(fy) };
