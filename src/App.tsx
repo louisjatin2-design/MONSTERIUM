@@ -21,6 +21,7 @@ import { LevelRewardPanel } from '@ui/components/LevelRewardPanel';
 import { QuestPanel } from '@ui/components/QuestPanel';
 import { EventsPanel } from '@ui/components/EventsPanel';
 import { StoragePanel } from '@ui/components/StoragePanel';
+import { CompendiumPanel } from '@ui/components/CompendiumPanel';
 import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
 import { LoginScreen } from '@ui/components/LoginScreen';
 import { EventBus, GameEvents } from '@game/EventBus';
@@ -46,6 +47,7 @@ export type ActivePanel =
   | { type: 'quests' }
   | { type: 'events' }
   | { type: 'storage' }
+  | { type: 'compendium' }
   | { type: 'teamSelect'; battlePayload: BattlePayload }
   | { type: 'battle' };
 
@@ -93,6 +95,7 @@ function Game() {
     const onOpenQuests       = () => setActivePanel({ type: 'quests' });
     const onOpenEvents       = () => setActivePanel({ type: 'events' });
     const onOpenStorage      = () => setActivePanel({ type: 'storage' });
+    const onOpenCompendium   = () => setActivePanel({ type: 'compendium' });
     const onOpenTeamSelect = (d: BattlePayload) => setActivePanel({ type: 'teamSelect', battlePayload: d });
     const onBattleStart    = () => setActivePanel({ type: 'battle' });
     const onBattleEnd    = () => setActivePanel(null);
@@ -121,6 +124,7 @@ function Game() {
     EventBus.on(GameEvents.OPEN_QUESTS,        onOpenQuests);
     EventBus.on(GameEvents.OPEN_EVENTS,        onOpenEvents);
     EventBus.on(GameEvents.OPEN_STORAGE,       onOpenStorage);
+    EventBus.on(GameEvents.OPEN_COMPENDIUM,    onOpenCompendium);
     EventBus.on(GameEvents.OPEN_TEAM_SELECT,   onOpenTeamSelect);
     EventBus.on(GameEvents.BATTLE_STARTED,     onBattleStart);
     EventBus.on(GameEvents.BATTLE_ENDED,       onBattleEnd);
@@ -145,6 +149,7 @@ function Game() {
       EventBus.off(GameEvents.OPEN_QUESTS,        onOpenQuests);
       EventBus.off(GameEvents.OPEN_EVENTS,        onOpenEvents);
       EventBus.off(GameEvents.OPEN_STORAGE,       onOpenStorage);
+      EventBus.off(GameEvents.OPEN_COMPENDIUM,    onOpenCompendium);
       EventBus.off(GameEvents.OPEN_TEAM_SELECT,   onOpenTeamSelect);
       EventBus.off(GameEvents.BATTLE_STARTED,     onBattleStart);
       EventBus.off(GameEvents.BATTLE_ENDED,       onBattleEnd);
@@ -280,6 +285,9 @@ function Game() {
         )}
         {activePanel?.type === 'storage' && (
           <StoragePanel onClose={closePanel} />
+        )}
+        {activePanel?.type === 'compendium' && (
+          <CompendiumPanel onClose={closePanel} />
         )}
         {activePanel?.type === 'teamSelect' && (
           <TeamSelectPanel battlePayload={activePanel.battlePayload} onClose={closePanel} />

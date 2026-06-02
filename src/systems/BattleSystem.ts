@@ -113,6 +113,8 @@ export function calculateDamage(params: {
   // Status effects — AtkUp (support buff) raises damage, AtkDown lowers it.
   if (attackerStatuses.some(e => e.effect === 'AtkUp')) atk = Math.floor(atk * 1.35);
   if (attackerStatuses.some(e => e.effect === 'AtkDown')) atk = Math.floor(atk * 0.75);
+  // Bleed saps the bleeder's strength — it deals 20% less damage while bleeding.
+  if (attackerStatuses.some(e => e.effect === 'Bleed')) atk = Math.floor(atk * 0.8);
 
   // Trait: Berserk doubles attack when below 30% HP
   if (attackerTrait === 'Berserk' && attackerCurrentHp / attackerMaxHp < 0.3) {
@@ -219,22 +221,62 @@ export function addStatusEffect(
   combatant.statusEffects.push({ effect, remainingRounds: rounds, value });
 }
 
-export function processStatusTick(combatant: BattleCombatant): number {
-  let dotDamage = 0;
+// Per-round status processing. Returns both the damage-over-time taken and any
+// healing-over-time gained this round so the caller can apply each to HP. Burn,
+// Poison and Bleed deal damage; Regen heals. Every effect's duration ticks down
+// by one round and expired effects are dropped.
+export function processStatusTick(combatant: BattleCombatant): { damage: number; heal: number } {
+  let damage = 0;
+  let heal = 0;
   const remaining: ActiveStatusEffect[] = [];
 
   for (const se of combatant.statusEffects) {
     if (se.effect === 'Burn') {
-      dotDamage += Math.floor(combatant.maxHp * 0.05);
+      damage += Math.floor(combatant.maxHp * 0.05);
     } else if (se.effect === 'Poison') {
-      dotDamage += Math.floor(combatant.maxHp * 0.07);
+      damage += Math.floor(combatant.maxHp * 0.07);
+    } else if (se.effect === 'Bleed') {
+      damage += Math.floor(combatant.maxHp * 0.10);
+    } else if (se.effect === 'Regen') {
+      heal += Math.floor(combatant.maxHp * 0.10);
     }
     const rounds = se.remainingRounds - 1;
     if (rounds > 0) remaining.push({ ...se, remainingRounds: rounds });
   }
 
   combatant.statusEffects = remaining;
-  return dotDamage;
+  return { damage, heal };
+}
+
+// Multiplier applied to damage a combatant RECEIVES. Vulnerable raises incoming
+// damage by 50%. Centralised so normal hits, AoE and ULTIMA all agree.
+export function incomingDamageMultiplier(target: BattleCombatant): number {
+  let mult = 1;
+  if (target.statusEffects.some(e => e.effect === 'Vulnerable')) mult *= 1.5;
+  return mult;
+}
+
+// Runs incoming damage through the target's Shield (if any): the shield soaks
+// damage up to its remaining strength, which is reduced accordingly (and removed
+// once depleted). Returns how much damage is left to apply to HP plus the amount
+// the shield absorbed (for the floating "blocked" label).
+export function applyShield(target: BattleCombatant, incoming: number): { toHp: number; absorbed: number } {
+  const shield = target.statusEffects.find(e => e.effect === 'Shield');
+  if (!shield || (shield.value ?? 0) <= 0) return { toHp: incoming, absorbed: 0 };
+  const pool = shield.value ?? 0;
+  const absorbed = Math.min(pool, incoming);
+  shield.value = pool - absorbed;
+  if (shield.value <= 0) {
+    target.statusEffects = target.statusEffects.filter(e => e !== shield);
+  }
+  return { toHp: incoming - absorbed, absorbed };
+}
+
+// Returns the living combatant on `side` that is taunting (if any). Single-target
+// attacks must be redirected onto it. The most recently applied taunt wins.
+export function findTaunter(side: BattleCombatant[]): BattleCombatant | null {
+  const taunters = side.filter(c => c.currentHp > 0 && c.statusEffects.some(e => e.effect === 'Taunt'));
+  return taunters.length > 0 ? taunters[taunters.length - 1] : null;
 }
 
 export function gainUltCharge(c: BattleCombatant, damageDealt: number): void {

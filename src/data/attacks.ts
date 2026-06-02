@@ -1334,4 +1334,40 @@ export const ATTACKS: Record<string, MoveDef> = {
     support: { kind: 'energize', amount: 40 },
     description: 'Catches a fresh gust of wind, restoring battle energy.',
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXTENDED-EFFECT ATTACKS — apply the newer battle effects wired into the
+  // engine (Bleed, Vulnerable, Shield, Taunt, Regen). Reachable by training them
+  // onto element-matching monsters and via the movesets below.
+  // ═══════════════════════════════════════════════════════════════════════════
+  lacerate: {
+    id: 'lacerate', name: 'Lacerate', element: 'Combat', power: 1.3,
+    minigameType: 'SwipePath',
+    statusEffect: { effect: 'Bleed', threshold: 55 },
+    description: 'A raking slash that leaves the foe Bleeding — losing HP each round and hitting softer.',
+  },
+  expose: {
+    id: 'expose', name: 'Expose', element: 'Darkness', power: 1.0,
+    minigameType: 'AimClick',
+    statusEffect: { effect: 'Vulnerable', threshold: 50 },
+    description: 'Marks a weak point, leaving the target Vulnerable — it takes 50% more damage.',
+  },
+  aegis: {
+    id: 'aegis', name: 'Aegis', element: 'Metal', power: 0,
+    minigameType: 'TimingBar', energyCost: 35,
+    support: { kind: 'shield', amount: 0.35 },
+    description: 'Raises a shield that absorbs incoming damage equal to 35% of the caster\'s max HP.',
+  },
+  provoke: {
+    id: 'provoke', name: 'Provoke', element: 'Combat', power: 0,
+    minigameType: 'MashButton', energyCost: 20,
+    support: { kind: 'taunt' },
+    description: 'Goads the enemy into attacking the caster — all single-target attacks are drawn to it.',
+  },
+  regrowth: {
+    id: 'regrowth', name: 'Regrowth', element: 'Plant', power: 0,
+    minigameType: 'TimingBar', energyCost: 30,
+    support: { kind: 'regen' },
+    description: 'Wraps the caster in living vines that regenerate 10% of its max HP each round.',
+  },
 };
