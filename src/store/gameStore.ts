@@ -491,7 +491,7 @@ export const useGameStore = create<GameStore>()(
         if (!monster) return 0;
         const def = MONSTER_DEFS[monster.defId];
         if (!def) return 0;
-        const value = calculateSellValue(RARITY_RANK[def.rarity], monster.level);
+        const value = calculateSellValue(RARITY_RANK[def.rarity], monster.level, monster.isUnique);
         set((s) => {
           const m = s.monsters[instanceId];
           if (!m) return;
@@ -710,7 +710,7 @@ export const useGameStore = create<GameStore>()(
         const def = MONSTER_DEFS[egg.monsterDefId];
         const rank = def ? RARITY_RANK[def.rarity] : 0;
         // Eggs sell for less than the baby they hatch into (see calculateEggSellValue).
-        const value = calculateEggSellValue(rank) * (egg.isUnique ? 2 : 1);
+        const value = calculateEggSellValue(rank, egg.isUnique);
         set((s) => {
           s.storedEggs = s.storedEggs.filter(e => e.id !== eggId);
           s.gold += value;

@@ -4,6 +4,7 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_COLORS, RARITY_RANK, RARITY_HATCH_TIME_SEC } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
+import { calculateEggSellValue } from '@systems/EconomySystem';
 import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
@@ -65,7 +66,7 @@ export function StoragePanel({ onClose }: StoragePanelProps) {
           const def = MONSTER_DEFS[egg.monsterDefId];
           if (!def) return null;
           const rank = RARITY_RANK[def.rarity];
-          const sellValue = Math.floor(120 * Math.pow(2.1, rank)) * (egg.isUnique ? 2 : 1);
+          const sellValue = calculateEggSellValue(rank, egg.isUnique);
           const hatchMin = Math.round(RARITY_HATCH_TIME_SEC[def.rarity] / 60);
           return (
             <div key={egg.id} className="monster-card" style={{

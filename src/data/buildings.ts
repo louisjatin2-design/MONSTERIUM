@@ -29,13 +29,19 @@ function makePrestigeHabitatLevels(goldPerHour: number) {
   ];
 }
 
+// Farm economy is tuned so that:
+//   1. Upgrading an existing farm is always a better deal than building a
+//      brand-new one — production (×2.1 / level) grows faster than the upgrade
+//      cost (×1.6 / level), so the per-gold food yield of every upgrade beats
+//      the yield of a fresh build (whose cost is ~2× the upgrade base).
+//   2. Higher-tier farms are more gold-efficient than lower-tier ones, so
+//      investing in better farms pays off (see per-farm baseFood/baseGold).
 function makeFarmLevels(baseGold: number, baseFoodPerHour: number) {
   return Array.from({ length: 5 }, (_, i) => ({
     level: i + 1,
-    upgradeCost: Math.floor(baseGold * Math.pow(2, i)),
+    upgradeCost: Math.floor(baseGold * Math.pow(1.6, i)),
     upgradeTimeSec: (i + 1) * 120,
-    // Boosted production so feeding (now far cheaper) stays sustainable.
-    foodPerHour: Math.floor(baseFoodPerHour * Math.pow(2.2, i)),
+    foodPerHour: Math.floor(baseFoodPerHour * Math.pow(2.1, i)),
   }));
 }
 
@@ -273,24 +279,27 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
   farm_basic: {
     id: 'farm_basic', name: 'Basic Farm', category: 'Farm',
     tilesW: 2, tilesH: 2,
-    goldCost: 300, buildTimeSec: 5,
-    levels: makeFarmLevels(300, 3600), // 3600/h = 1 food per second at level 1
-    description: 'Produces food slowly. Converts gold to food over time.',
+    goldCost: 1200, buildTimeSec: 5,
+    // baseFood/baseGold = 6.7 — entry tier. Upgrade base 600, build cost 1200 (2×).
+    levels: makeFarmLevels(600, 4000),
+    description: 'Produces food. Upgrading it is cheaper per food than building a second one.',
   },
   farm_advanced: {
     id: 'farm_advanced', name: 'Advanced Farm', category: 'Farm',
     tilesW: 2, tilesH: 2,
-    goldCost: 1500, buildTimeSec: 60,
-    levels: makeFarmLevels(1500, 7200), // 7200/h = 2 food per second at level 1
-    description: 'Produces food quickly. Requires more gold investment.',
+    goldCost: 3000, buildTimeSec: 60,
+    // baseFood/baseGold = 8.0 — clearly better gold-efficiency than the basic farm.
+    levels: makeFarmLevels(1500, 12000),
+    description: 'Produces food far more efficiently than a Basic Farm. Worth the bigger investment.',
   },
   farm_mythic: {
     id: 'farm_mythic', name: 'Mythic Farm', category: 'Farm',
     tilesW: 3, tilesH: 2,
-    goldCost: 10000, buildTimeSec: 600,
-    levels: makeFarmLevels(10000, 18000), // 18000/h = 5 food per second at level 1
+    goldCost: 8000, buildTimeSec: 600,
+    // baseFood/baseGold = 10.0 — the most gold-efficient farm in the game.
+    levels: makeFarmLevels(4000, 40000),
     unlockLevel: 18,
-    description: 'Massive food production for end-game feeding needs. Freigeschaltet ab Level 18.',
+    description: 'The most efficient food production in the game. Freigeschaltet ab Level 18.',
   },
   // --- Special ---
   breeding_station: {
