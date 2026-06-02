@@ -19,12 +19,14 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
   const activeBreedings = useGameStore(s => s.activeBreedings);
   const buildings       = useGameStore(s => s.buildings);
   const gold            = useGameStore(s => s.gold);
+  const diamonds        = useGameStore(s => s.diamonds);
   const startBreeding   = useGameStore(s => s.startBreeding);
   const collectEgg      = useGameStore(s => s.collectBreedingEgg);
   const speedUp         = useGameStore(s => s.speedUpBreeding);
   const breedingCap     = useGameStore(s => s.breedingCapacity);
   const eggCap          = useGameStore(s => s.eggCapacity);
   const upgradeBuilding = useGameStore(s => s.upgradeBuilding);
+  const skipUpgrade     = useGameStore(s => s.skipUpgrade);
   const lastBreedPair   = useGameStore(s => s.lastBreedPair);
 
   const [parent1Id, setParent1Id] = useState('');
@@ -84,7 +86,11 @@ export function BreedingPanel({ onClose }: BreedingPanelProps) {
             Level {station.level} · {activeBreedings.length}/{capacity} Slots belegt
           </div>
           {station.upgradeEndMs ? (
-            <span style={{ color: '#ffaa00', fontSize: 12 }}>⏳ Ausbau läuft…</span>
+            <button className="btn btn-info" style={{ padding: '4px 10px', fontSize: 12 }}
+              disabled={diamonds < Math.max(1, Math.ceil((station.upgradeEndMs - Date.now()) / 60000))}
+              onClick={() => skipUpgrade(station.instanceId)}>
+              💎 {Math.max(1, Math.ceil((station.upgradeEndMs - Date.now()) / 60000))} · Überspringen
+            </button>
           ) : nextLevel ? (
             <button className="btn btn-gold" style={{ padding: '4px 10px', fontSize: 12 }}
               disabled={gold < nextLevel.upgradeCost}

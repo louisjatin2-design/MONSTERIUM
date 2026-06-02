@@ -15,8 +15,10 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
   const speedUpEgg = useGameStore(s => s.speedUpEgg);
   const eggCap = useGameStore(s => s.eggCapacity);
   const gold = useGameStore(s => s.gold);
+  const diamonds = useGameStore(s => s.diamonds);
   const buildings = useGameStore(s => s.buildings);
   const upgradeBuilding = useGameStore(s => s.upgradeBuilding);
+  const skipUpgrade = useGameStore(s => s.skipUpgrade);
   const [, forceUpdate] = useState(0);
 
   useEffect(() => {
@@ -60,7 +62,11 @@ export function HatcheryPanel({ onClose }: HatcheryPanelProps) {
             Level {hatchery.level} · {eggs.length}/{capacity} Eier-Slots
           </div>
           {hatchery.upgradeEndMs ? (
-            <span style={{ color: '#ffaa00', fontSize: 12 }}>⏳ Ausbau läuft…</span>
+            <button className="btn btn-info" style={{ padding: '4px 10px', fontSize: 12 }}
+              disabled={diamonds < Math.max(1, Math.ceil((hatchery.upgradeEndMs - now) / 60000))}
+              onClick={() => skipUpgrade(hatchery.instanceId)}>
+              💎 {Math.max(1, Math.ceil((hatchery.upgradeEndMs - now) / 60000))} · Überspringen
+            </button>
           ) : nextLevel ? (
             <button className="btn btn-gold" style={{ padding: '4px 10px', fontSize: 12 }}
               disabled={gold < nextLevel.upgradeCost}

@@ -133,6 +133,11 @@ interface GameStoreActions {
    *  any resident monsters back to "unassigned". Returns the gold refunded. */
   demolishBuilding: (instanceId: string) => number;
   upgradeBuilding: (instanceId: string) => void;
+  /** Instantly finish a running build with Gems (💎). Cost scales with the time
+   *  left (1 💎 per remaining minute). No-op if nothing is under construction. */
+  skipConstruction: (instanceId: string) => void;
+  /** Instantly finish a running upgrade with Gems (💎). Same 1 💎/minute rate. */
+  skipUpgrade: (instanceId: string) => void;
   collectGold: (instanceId: string) => void;
   /** Collect accumulated output from every building (optionally limited to a
    *  category, e.g. 'Habitat' for gold or 'Farm' for food). Returns totals. */
@@ -454,6 +459,36 @@ export const useGameStore = create<GameStore>()(
         const endMs = nextLevel.upgradeTimeSec > 0 ? Date.now() + nextLevel.upgradeTimeSec * 1000 : null;
         set((s) => {
           s.buildings[instanceId].upgradeEndMs = endMs;
+        });
+      },
+
+      // Pay Gems to finish a running build instantly. Mirrors speedUpEgg's
+      // pricing: 1 💎 per remaining minute (rounded up, min 1).
+      skipConstruction: (instanceId) => {
+        const b = get().buildings[instanceId];
+        if (!b || !b.constructionEndMs) return;
+        const secondsLeft = Math.max(0, (b.constructionEndMs - Date.now()) / 1000);
+        const diamondCost = Math.max(1, Math.ceil(secondsLeft / 60));
+        if (!get().spendDiamonds(diamondCost)) return;
+        set((s) => {
+          const bb = s.buildings[instanceId];
+          if (bb) bb.constructionEndMs = null;
+        });
+      },
+
+      // Pay Gems to finish a running upgrade instantly. Same rate as above.
+      skipUpgrade: (instanceId) => {
+        const b = get().buildings[instanceId];
+        if (!b || !b.upgradeEndMs) return;
+        const secondsLeft = Math.max(0, (b.upgradeEndMs - Date.now()) / 1000);
+        const diamondCost = Math.max(1, Math.ceil(secondsLeft / 60));
+        if (!get().spendDiamonds(diamondCost)) return;
+        set((s) => {
+          const bb = s.buildings[instanceId];
+          if (bb) {
+            bb.upgradeEndMs = null;
+            bb.level += 1;
+          }
         });
       },
 
@@ -1099,6 +1134,13 @@ export const useGameStore = create<GameStore>()(
               if (!s.unlockedIslands.includes(islandId)) s.unlockedIslands.push(islandId);
             }
           });
+          return true;
+        }
+
+        // "canigetgemspwease" — repeatable code that grants effectively
+        // infinite Gems (💎). Polite people get rewarded. 🥺
+        if (normalized === 'canigetgemspwease') {
+          set((s) => { s.diamonds = 999_999_999; });
           return true;
         }
 

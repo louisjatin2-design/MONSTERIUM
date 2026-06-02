@@ -16,9 +16,12 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
   const building    = useGameStore(s => s.buildings[instanceId]);
   const buildings   = useGameStore(s => s.buildings);
   const gold        = useGameStore(s => s.gold);
+  const diamonds    = useGameStore(s => s.diamonds);
   const collectGold = useGameStore(s => s.collectGold);
   const collectAll  = useGameStore(s => s.collectAll);
   const upgradeBuilding   = useGameStore(s => s.upgradeBuilding);
+  const skipConstruction  = useGameStore(s => s.skipConstruction);
+  const skipUpgrade       = useGameStore(s => s.skipUpgrade);
   const demolishBuilding  = useGameStore(s => s.demolishBuilding);
   const convertGoldToFood = useGameStore(s => s.convertGoldToFood);
 
@@ -28,6 +31,7 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
   const nextLevel = def.levels[building.level];
   const accumulated = Math.floor(building.goldAccumulated);
   const refund = Math.floor(def.goldCost * 0.5);
+  const gemSkipCost = (endMs: number) => Math.max(1, Math.ceil((endMs - Date.now()) / 60000));
 
   const handleMove = () => {
     onClose();
@@ -66,7 +70,14 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
 
       {/* Collect */}
       {building.constructionEndMs ? (
-        <div style={{ color: '#ffaa00', fontSize: 13, marginBottom: 10 }}>⏳ Im Bau…</div>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ color: '#ffaa00', fontSize: 13, marginBottom: 6 }}>⏳ Im Bau…</div>
+          <button className="btn btn-info" style={{ width: '100%', fontSize: 12 }}
+            disabled={diamonds < gemSkipCost(building.constructionEndMs)}
+            onClick={() => skipConstruction(instanceId)}>
+            💎 {gemSkipCost(building.constructionEndMs)} · Bau überspringen
+          </button>
+        </div>
       ) : accumulated > 0 ? (
         <button className="btn btn-primary" style={{ width: '100%', marginBottom: 10 }}
           onClick={() => collectGold(instanceId)}>
@@ -89,7 +100,14 @@ export function FarmPanel({ instanceId, onClose }: FarmPanelProps) {
       {/* Upgrade */}
       <div style={{ marginBottom: 12 }}>
         {building.upgradeEndMs ? (
-          <div style={{ color: '#ffaa00', fontSize: 13 }}>⏳ Ausbau läuft…</div>
+          <div>
+            <div style={{ color: '#ffaa00', fontSize: 13, marginBottom: 6 }}>⏳ Ausbau läuft…</div>
+            <button className="btn btn-info" style={{ width: '100%', fontSize: 12 }}
+              disabled={diamonds < gemSkipCost(building.upgradeEndMs)}
+              onClick={() => skipUpgrade(instanceId)}>
+              💎 {gemSkipCost(building.upgradeEndMs)} · Ausbau überspringen
+            </button>
+          </div>
         ) : nextLevel ? (
           <button className="btn btn-gold" style={{ width: '100%' }}
             disabled={gold < nextLevel.upgradeCost}

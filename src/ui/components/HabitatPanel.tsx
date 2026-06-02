@@ -38,6 +38,8 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   const assignToHabitat = useGameStore(s => s.assignToHabitat);
   const removeFromHabitat = useGameStore(s => s.removeFromHabitat);
   const upgradeBuilding = useGameStore(s => s.upgradeBuilding);
+  const skipConstruction = useGameStore(s => s.skipConstruction);
+  const skipUpgrade     = useGameStore(s => s.skipUpgrade);
   const demolishBuilding = useGameStore(s => s.demolishBuilding);
   const evolveMonster   = useGameStore(s => s.evolveMonster);
   const equipAttack     = useGameStore(s => s.equipAttack);
@@ -52,6 +54,7 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
   const def = BUILDING_DEFS[building.defId];
   const levelData = def.levels[building.level - 1];
   const nextLevel = def.levels[building.level];
+  const gemSkipCost = (endMs: number) => Math.max(1, Math.ceil((endMs - Date.now()) / 60000));
   const canDemolish = def.category === 'Habitat';
   const refund = Math.floor(def.goldCost * 0.5);
 
@@ -116,10 +119,28 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
         );
       })()}
 
+      {building.constructionEndMs && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ color: '#ffaa00', fontSize: 13, marginBottom: 6 }}>⏳ Im Bau…</div>
+          <button className="btn btn-info" style={{ width: '100%', fontSize: 12 }}
+            disabled={diamonds < gemSkipCost(building.constructionEndMs)}
+            onClick={() => skipConstruction(instanceId)}>
+            💎 {gemSkipCost(building.constructionEndMs)} · Bau überspringen
+          </button>
+        </div>
+      )}
+
       {!building.constructionEndMs && (
         <div style={{ marginBottom: 10 }}>
           {building.upgradeEndMs ? (
-            <div style={{ color: '#ffaa00', fontSize: 13 }}>⏳ Ausbau läuft…</div>
+            <div>
+              <div style={{ color: '#ffaa00', fontSize: 13, marginBottom: 6 }}>⏳ Ausbau läuft…</div>
+              <button className="btn btn-info" style={{ width: '100%', fontSize: 12 }}
+                disabled={diamonds < gemSkipCost(building.upgradeEndMs)}
+                onClick={() => skipUpgrade(instanceId)}>
+                💎 {gemSkipCost(building.upgradeEndMs)} · Ausbau überspringen
+              </button>
+            </div>
           ) : nextLevel ? (
             <button className="btn btn-gold" style={{ width: '100%', fontSize: 12 }}
               disabled={gold < nextLevel.upgradeCost}
