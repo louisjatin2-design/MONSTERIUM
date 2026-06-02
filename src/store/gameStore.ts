@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type {
   MonsterInstance, BuildingInstance, Egg, EvolutionStage, ActiveBreeding, BuildingCategory,
@@ -23,6 +23,39 @@ import { QUESTS, isQuestComplete, type QuestProgressSnapshot } from '@data/quest
 function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
+
+// ─── Account-scoped save storage ────────────────────────────────────────
+// Each logged-in account keeps its OWN save game. We namespace the persisted
+// key by username ("monsterium-save::alice") so two players on one device
+// don't clobber each other. `activeSaveUser` tracks who the store is bound to;
+// the auth store flips it via activateSaveFor() on login/logout.
+const SAVE_KEY = 'monsterium-save';
+
+// On a fresh page load, figure out who was logged in last (the auth store
+// persists currentUser) so we hydrate from the right account's save.
+function readPersistedUser(): string | null {
+  try {
+    const raw = localStorage.getItem('monsterium-auth');
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.currentUser ?? null;
+  } catch {
+    return null;
+  }
+}
+
+let activeSaveUser: string | null = readPersistedUser();
+
+function scopedKey(name: string): string {
+  return activeSaveUser ? `${name}::${activeSaveUser}` : name;
+}
+
+// localStorage adapter that transparently namespaces every key by the active
+// account. Falls back to the bare key when nobody is logged in.
+const accountScopedStorage = {
+  getItem: (name: string) => localStorage.getItem(scopedKey(name)),
+  setItem: (name: string, value: string) => localStorage.setItem(scopedKey(name), value),
+  removeItem: (name: string) => localStorage.removeItem(scopedKey(name)),
+};
 
 // Build the snapshot quests measure progress against, from live store state.
 function buildQuestSnapshot(s: GameStoreState): QuestProgressSnapshot {
@@ -168,6 +201,10 @@ interface GameStoreActions {
 
   // Cheat codes — returns true if the code was valid.
   redeemCheatCode: (code: string) => boolean;
+
+  // Wipe the in-memory state back to a brand-new game. Used when switching to
+  // an account that has no save yet (see activateSaveFor).
+  hardReset: () => void;
 }
 
 type GameStore = GameStoreState & GameStoreActions;
@@ -1036,9 +1073,12 @@ export const useGameStore = create<GameStore>()(
 
         return false;
       },
+
+      hardReset: () => set((s) => { Object.assign(s, structuredClone(INITIAL_STATE)); }),
     })),
     {
-      name: 'monsterium-save',
+      name: SAVE_KEY,
+      storage: createJSONStorage(() => accountScopedStorage),
       version: 10,
       migrate: (persisted: any, version: number) => {
         // v10: one-time hard reset — wipe every existing save back to a fresh
@@ -1105,3 +1145,17 @@ export const useGameStore = create<GameStore>()(
     }
   )
 );
+
+// Bind the game store to a specific account's save (or detach it when logged
+// out). Called by the auth store on login/register/logout. If the account
+// already has a save we re-hydrate from it; otherwise we start a fresh game so
+// the new player never inherits the previous account's monsters.
+export function activateSaveFor(username: string | null): void {
+  activeSaveUser = username;
+  const hasSave = localStorage.getItem(scopedKey(SAVE_KEY)) != null;
+  if (hasSave) {
+    void useGameStore.persist.rehydrate();
+  } else {
+    useGameStore.getState().hardReset();
+  }
+}
