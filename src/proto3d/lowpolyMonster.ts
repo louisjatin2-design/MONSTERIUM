@@ -145,44 +145,67 @@ export function buildLowPolyMonster(spec: MonsterVisualSpec): THREE.Group {
   const bodyColor = spec.elementColor;
   const wobble = 0.9 + rng() * 0.25;
 
-  // --- Body ---------------------------------------------------------------
-  const bodyMesh = new THREE.Mesh(ICO(0.78), mat(bodyColor, { roughness: 0.5 }));
-  bodyMesh.scale.set(1.0, 1.05 * wobble, 0.92);
-  bodyMesh.position.y = 0.85;
+  // --- Body --------------------------------------------------------------
+  // Chubby, slightly squashed sphere reads as a cute round belly.
+  const bodyMesh = new THREE.Mesh(ICO(0.8), mat(bodyColor, { roughness: 0.5 }));
+  bodyMesh.scale.set(1.1, 0.95 * wobble, 1.06);
+  bodyMesh.position.y = 0.8;
   bodyMesh.castShadow = true;
   body.add(bodyMesh);
 
   // Lighter belly patch on the front.
-  const belly = new THREE.Mesh(ICO(0.5), mat(shade(bodyColor, 1.5)));
-  belly.scale.set(0.85, 0.95, 0.4);
-  belly.position.set(0, 0.72, 0.55);
+  const belly = new THREE.Mesh(ICO(0.52), mat(shade(bodyColor, 1.5)));
+  belly.scale.set(0.92, 0.92, 0.42);
+  belly.position.set(0, 0.68, 0.6);
   body.add(belly);
 
-  // --- Eyes ---------------------------------------------------------------
-  const white = mat(0xffffff, { roughness: 0.3 });
-  const dark = mat(0x0a1020, { roughness: 0.2 });
+  // --- Eyes (big, round & sparkly = the main cuteness lever) -------------
+  const white = mat(0xffffff, { roughness: 0.25 });
+  const dark = mat(0x0a1020, { roughness: 0.15 });
+  const eyeY = 0.96;
   for (const s of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), white);
-    eye.position.set(s * 0.27, 0.98, 0.62);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.25, 14, 12), white);
+    eye.position.set(s * 0.26, eyeY, 0.64);
     body.add(eye);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), dark);
-    pupil.position.set(s * 0.27, 0.96, 0.74);
+    // Big pupil looking slightly up.
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), dark);
+    pupil.position.set(s * 0.25, eyeY + 0.02, 0.79);
     body.add(pupil);
+    // Catch-light sparkle.
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), white);
+    shine.position.set(s * 0.25 - 0.06, eyeY + 0.09, 0.9);
+    body.add(shine);
   }
 
-  // --- Feet ---------------------------------------------------------------
+  // --- Rosy cheeks -------------------------------------------------------
+  const cheekMat = mat(0xff9ab0, { emissive: 0xff5577, emissiveIntensity: 0.25, roughness: 0.6 });
+  for (const s of [-1, 1]) {
+    const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), cheekMat);
+    cheek.scale.set(1, 0.7, 0.5);
+    cheek.position.set(s * 0.52, 0.78, 0.62);
+    body.add(cheek);
+  }
+
+  // --- Little smile ------------------------------------------------------
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.028, 8, 12, Math.PI), dark);
+  mouth.rotation.z = Math.PI; // half-ring opening upward → a happy curve
+  mouth.position.set(0, 0.8, 0.82);
+  body.add(mouth);
+
+  // --- Feet (stubby & rounded) -------------------------------------------
   const footMat = mat(shade(bodyColor, 0.75));
   for (const s of [-1, 1]) {
-    const foot = new THREE.Mesh(ICO(0.26), footMat);
-    foot.scale.set(1, 0.7, 1.1);
-    foot.position.set(s * 0.34, 0.2, 0.18);
+    const foot = new THREE.Mesh(ICO(0.3), footMat);
+    foot.scale.set(1.1, 0.65, 1.2);
+    foot.position.set(s * 0.36, 0.17, 0.22);
     foot.castShadow = true;
     body.add(foot);
   }
 
-  // --- Element feature on top --------------------------------------------
+  // --- Element feature on top (smaller so the face stays the star) -------
   const feature = buildElementFeature(spec.element, bodyColor, spec.accentColor);
-  feature.position.y = 1.5;
+  feature.position.y = 1.34;
+  feature.scale.setScalar(0.82);
   body.add(feature);
 
   // --- Rarity flair: floating gems orbiting + emissive aura disc ----------
