@@ -14,6 +14,7 @@ import {
   getMoveCooldown, tickMoveCooldowns, addStatusEffect,
   earlyCampaignDamageBonus, campaignRewardMultiplier,
   effectiveDefense, getMoveEnergyCost, canAffordMove, spendEnergy, regenEnergy,
+  incomingDamageMultiplier, applyShield, findTaunter,
 } from '@systems/BattleSystem';
 import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
 import type { BattleCombatant, MoveDef, MinigameType, StatusEffect } from '@gtypes/game';
@@ -22,6 +23,7 @@ import type { BattleCombatant, MoveDef, MinigameType, StatusEffect } from '@gtyp
 // which effects to strip (leaving positive buffs like AtkUp/DefUp in place).
 const NEGATIVE_STATUS: StatusEffect[] = [
   'Burn', 'Poison', 'Freeze', 'Stun', 'Paralyze', 'Blind', 'DefDown', 'AtkDown',
+  'Bleed', 'Vulnerable',
 ];
 
 // Which Phaser scene drives each minigame type.
@@ -726,11 +728,17 @@ export class Battle extends Phaser.Scene {
       // New meta-round: tick DOT, rebuild speed-based queue
       this.turnIndex = 0;
       for (const c of alive) {
-        const dot = processStatusTick(c);
+        const { damage: dot, heal } = processStatusTick(c);
         if (dot > 0) {
           c.currentHp = Math.max(0, c.currentHp - dot);
           this.updateHpBar(c);
           this.showDamageText(c.instanceId, dot, 0xff8800);
+        }
+        // Regeneration heals at the top of the round (never past max HP).
+        if (heal > 0 && c.currentHp > 0) {
+          c.currentHp = Math.min(c.maxHp, c.currentHp + heal);
+          this.updateHpBar(c);
+          this.showHealText(c.instanceId, heal);
         }
         // Recharge strong moves by one round.
         tickMoveCooldowns(c);
@@ -877,6 +885,9 @@ export class Battle extends Phaser.Scene {
       case 'energize': return `+${s.amount ?? 0} ⚡`;
       case 'atkBuff':  return 'ATK ↑';
       case 'defBuff':  return 'DEF ↑';
+      case 'shield':   return `🛡 ${Math.round((s.amount ?? 0.3) * 100)}%`;
+      case 'taunt':    return '🚩 Spott';
+      case 'regen':    return '💚 Regen';
     }
   }
 
@@ -1258,9 +1269,19 @@ export class Battle extends Phaser.Scene {
     // Resolve the target list: AoE moves strike every living foe; single-target
     // moves hit only the chosen one.
     const opponents = attacker.isPlayer ? this.enemyCombatants : this.playerCombatants;
+    // Taunt: a single-target attack is forced onto a taunting foe (Cold Blood /
+    // Pierce would bypass this, but those traits aren't wired yet).
+    let actualPrimary = primaryTarget;
+    if (move.targeting !== 'aoe') {
+      const taunter = findTaunter(opponents);
+      if (taunter && taunter !== primaryTarget) {
+        actualPrimary = taunter;
+        this.log(`${taunter.name} fordert den Angriff heraus!`);
+      }
+    }
     const targets = move.targeting === 'aoe'
       ? opponents.filter(c => c.currentHp > 0)
-      : [primaryTarget].filter(c => c.currentHp > 0);
+      : [actualPrimary].filter(c => c.currentHp > 0);
     if (targets.length === 0) return;
 
     // One lunge toward the enemy side no matter how many foes are struck.
@@ -1313,6 +1334,14 @@ export class Battle extends Phaser.Scene {
     if (attacker.trait === 'Echo') {
       totalDmg = Math.floor(dmg * 0.6) * 2;
     }
+
+    // Vulnerable raises the damage the target takes by 50%.
+    totalDmg = Math.floor(totalDmg * incomingDamageMultiplier(target));
+
+    // A Shield soaks damage up to its remaining strength before HP is touched.
+    const { toHp, absorbed } = applyShield(target, totalDmg);
+    totalDmg = toHp;
+    if (absorbed > 0) this.showSupportText(target.instanceId, `🛡 -${absorbed}`, '#9fe9dc');
 
     target.currentHp = Math.max(0, target.currentHp - totalDmg);
 
@@ -1419,6 +1448,26 @@ export class Battle extends Phaser.Scene {
           this.showSupportText(ally.instanceId, 'DEF ↑', '#88ccff');
           break;
         }
+        case 'shield': {
+          // Shield strength = fraction of the ally's max HP, scaled by the score.
+          const amount = Math.max(1, Math.floor(ally.maxHp * (s.amount ?? 0.3) * scoreFactor));
+          addStatusEffect(ally, 'Shield', 2, amount);
+          this.updateStatusDisplay(ally);
+          this.showSupportText(ally.instanceId, `🛡 ${amount}`, '#9fe9dc');
+          break;
+        }
+        case 'taunt': {
+          addStatusEffect(ally, 'Taunt', 2);
+          this.updateStatusDisplay(ally);
+          this.showSupportText(ally.instanceId, '🚩 Spott', '#d7aef0');
+          break;
+        }
+        case 'regen': {
+          addStatusEffect(ally, 'Regen', 3);
+          this.updateStatusDisplay(ally);
+          this.showSupportText(ally.instanceId, '💚 Regen', '#8fffae');
+          break;
+        }
       }
       const ctr = this.cardCenters.get(ally.instanceId);
       if (ctr) this.spawnImpactBurst(ctr.x, ctr.y, burstColor);
@@ -1467,7 +1516,7 @@ export class Battle extends Phaser.Scene {
     const effectiveDef = effectiveDefense(target);
 
     const avgScore = (score1 + score2) / 2;
-    const dmg = calculateDamage({
+    const ultBaseDmg = calculateDamage({
       attackerATK: attacker.attackStat,
       movePower: 2.5,
       minigameScore: avgScore,
@@ -1501,6 +1550,14 @@ export class Battle extends Phaser.Scene {
       this.tweens.add({ targets: ultTxt, y: src.y - 60, alpha: 0, duration: 1400, ease: 'Quad.in', onComplete: () => ultTxt.destroy() });
     }
     this.playLunge(attacker.instanceId, attacker.isPlayer ? 'right' : 'left');
+
+    // Vulnerable amplifies the ULT and a Shield soaks part of it, just like a
+    // normal hit, so these effects stay consistent across every damage path.
+    let dmg = ultBaseDmg;
+    dmg = Math.floor(dmg * incomingDamageMultiplier(target));
+    const ultShield = applyShield(target, dmg);
+    dmg = ultShield.toHp;
+    if (ultShield.absorbed > 0) this.showSupportText(target.instanceId, `🛡 -${ultShield.absorbed}`, '#9fe9dc');
 
     target.currentHp = Math.max(0, target.currentHp - dmg);
     this.updateHpBar(target);

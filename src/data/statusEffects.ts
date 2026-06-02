@@ -99,6 +99,46 @@ export const STATUS_EFFECTS: Record<StatusEffect, StatusEffectDef> = {
     category: 'buff',
     description: 'Verteidigung ist um 40% erhöht.',
   },
+  Bleed: {
+    id: 'Bleed',
+    name: 'Blutung',
+    icon: '🩸',
+    color: '#b03a2e',
+    category: 'dot',
+    description: 'Verliert 10% der maximalen HP pro Runde und richtet 20% weniger Schaden an.',
+  },
+  Vulnerable: {
+    id: 'Vulnerable',
+    name: 'Verwundbar',
+    icon: '🎯',
+    color: '#e67e22',
+    category: 'debuff',
+    description: 'Erleidet 50% mehr Schaden durch Angriffe.',
+  },
+  Shield: {
+    id: 'Shield',
+    name: 'Schild',
+    icon: '🛡',
+    color: '#48c9b0',
+    category: 'buff',
+    description: 'Absorbiert eingehenden Schaden, bis der Schild aufgebraucht ist.',
+  },
+  Taunt: {
+    id: 'Taunt',
+    name: 'Spott',
+    icon: '🚩',
+    color: '#af7ac5',
+    category: 'buff',
+    description: 'Zieht alle Einzelziel-Angriffe der Gegner auf sich.',
+  },
+  Regen: {
+    id: 'Regen',
+    name: 'Regeneration',
+    icon: '💚',
+    color: '#27ae60',
+    category: 'buff',
+    description: 'Heilt 10% der maximalen HP pro Runde.',
+  },
 };
 
 // Default number of rounds a freshly applied status effect lasts.

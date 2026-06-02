@@ -12,7 +12,14 @@ export type StatusEffect =
   | 'Burn' | 'Freeze' | 'Paralyze' | 'Poison'
   | 'Stun' | 'Blind' | 'DefDown' | 'AtkDown'
   // Positive buffs applied by support attacks.
-  | 'AtkUp' | 'DefUp';
+  | 'AtkUp' | 'DefUp'
+  // Extended battle effects wired into the engine (Monster-Legends style):
+  //   Bleed      → DoT + the bleeder deals less damage
+  //   Vulnerable → the victim takes more damage
+  //   Shield     → absorbs a pool of incoming damage (value = remaining shield)
+  //   Taunt      → forces single-target attacks onto the taunter
+  //   Regen      → heals a chunk of HP each round
+  | 'Bleed' | 'Vulnerable' | 'Shield' | 'Taunt' | 'Regen';
 
 export type TraitType =
   | 'Mania' | 'Tough' | 'Swift' | 'Undead' | 'Fireproof'
@@ -33,7 +40,10 @@ export type AttackTargeting = 'single' | 'aoe';
 //   energize → restore battle energy (amount = flat energy points)
 //   atkBuff  → grant the AtkUp buff (boosts damage dealt)
 //   defBuff  → grant the DefUp buff (reduces damage taken)
-export type SupportKind = 'heal' | 'cleanse' | 'energize' | 'atkBuff' | 'defBuff';
+//   shield   → grant a damage-absorbing shield (amount = fraction of maxHp)
+//   taunt    → draw single-target attacks toward the caster
+//   regen    → apply a heal-over-time
+export type SupportKind = 'heal' | 'cleanse' | 'energize' | 'atkBuff' | 'defBuff' | 'shield' | 'taunt' | 'regen';
 
 export interface SupportEffect {
   kind: SupportKind;
