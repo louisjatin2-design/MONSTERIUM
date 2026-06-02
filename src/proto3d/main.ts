@@ -13,7 +13,8 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { buildLowPolyMonster, countTriangles, type MonsterVisualSpec } from './lowpolyMonster';
 
 // Pick a handful of real monsters spanning elements + rarities.
-const SHOWCASE = ['flameling', 'frostpaw', 'aquapup', 'voltkit', 'pebblor'];
+// One per body archetype to show the range of forms.
+const SHOWCASE = ['flameling', 'aquapup', 'voltkit', 'pebblor', 'shadowfox', 'shroomling', 'luminos'];
 
 const app = document.getElementById('app')!;
 

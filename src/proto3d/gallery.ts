@@ -164,15 +164,28 @@ function buildIslands() {
   info = `${ids.length} islands — each silhouette from its tile mask`;
 }
 
-// The catalog grids hold thousands of meshes; shadow maps would re-render them
-// all every frame, so reserve real shadows for the populated world view.
-if (view !== 'world') { renderer.shadowMap.enabled = false; key.castShadow = false; }
+// Close-up of a single building: ?solo=habitat_fire
+const solo = new URLSearchParams(location.search).get('solo');
 
-switch (view) {
-  case 'monsters': buildMonsters(); break;
-  case 'buildings': buildBuildings(); break;
-  case 'islands': buildIslands(); break;
-  default: buildWorld();
+if (solo && BUILDING_DEFS[solo]) {
+  const def = BUILDING_DEFS[solo];
+  const grp = buildLowPolyBuilding(def);
+  totalTris += countTriangles(grp);
+  scene.add(grp);
+  const r = Math.max(def.tilesW, def.tilesH);
+  camera.position.set(r * 1.6, r * 1.4, r * 2.2);
+  controls.target.set(0, 0.4, 0);
+  info = `${def.name} — close-up`;
+} else {
+  // The catalog grids hold thousands of meshes; shadow maps would re-render
+  // them all every frame, so reserve real shadows for the world view.
+  if (view !== 'world') { renderer.shadowMap.enabled = false; key.castShadow = false; }
+  switch (view) {
+    case 'monsters': buildMonsters(); break;
+    case 'buildings': buildBuildings(); break;
+    case 'islands': buildIslands(); break;
+    default: buildWorld();
+  }
 }
 
 // --- HUD with view switcher -------------------------------------------------
