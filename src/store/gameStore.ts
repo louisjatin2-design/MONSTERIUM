@@ -209,6 +209,48 @@ interface GameStoreActions {
 
 type GameStore = GameStoreState & GameStoreActions;
 
+/** A reward granted by redeeming a one-time gift code. */
+interface RewardCode {
+  gold?: number;
+  diamonds?: number;
+  food?: number;
+  xp?: number;
+  /** Grants a bonus egg (added to the Lager) when set. */
+  eggDefId?: string;
+}
+
+/**
+ * One-time gift codes. Each code may be redeemed once per account and grants
+ * the listed reward. Codes are matched case-sensitively after trimming.
+ */
+const REWARD_CODES: Record<string, RewardCode> = {
+  WELCOME2026:  { gold: 5_000, diamonds: 10 },
+  MONSTERIUM:   { diamonds: 50 },
+  GOLDRUSH:     { gold: 25_000 },
+  FOODFEAST:    { food: 5_000 },
+  DIAMOND50:    { diamonds: 50 },
+  STARTERPACK:  { gold: 3_000, food: 1_000, diamonds: 5 },
+  LEVELUP:      { xp: 2_000 },
+  EGGHUNT:      { eggDefId: 'flameling' },
+  AQUAGIFT:     { eggDefId: 'aquapup' },
+  VOLTBONUS:    { eggDefId: 'voltkit' },
+  ROCKSOLID:    { eggDefId: 'pebblor' },
+  WINDFALL:     { gold: 10_000 },
+  FROSTBITE:    { eggDefId: 'frostpaw' },
+  SHADOWGIFT:   { eggDefId: 'shadowfox' },
+  LUMINOUS:     { diamonds: 75 },
+  MEGAFOOD:     { food: 10_000 },
+  RICHKID:      { gold: 50_000 },
+  GEMSTORM:     { diamonds: 100 },
+  XPBOOST:      { xp: 5_000 },
+  DRAGONEGG:    { eggDefId: 'crystaldrake' },
+  COSMIC:       { eggDefId: 'cosmolord' },
+  LUCKYDAY:     { gold: 7_777, diamonds: 7, food: 777 },
+  HATCHDAY:     { eggDefId: 'zephyrling' },
+  TREASURE:     { gold: 15_000, diamonds: 25 },
+  SUMMERFUN:    { gold: 2_026, diamonds: 20, food: 500 },
+};
+
 const INITIAL_STATE: GameStoreState = {
   gold: 2000,
   diamonds: 50,
@@ -1068,6 +1110,26 @@ export const useGameStore = create<GameStore>()(
             s.gold += 10_000;
             s.redeemedCheatCodes.push('GEM25');
           });
+          return true;
+        }
+
+        // Table-driven one-time gift codes (see REWARD_CODES). Each grants its
+        // listed reward exactly once per account.
+        const reward = REWARD_CODES[normalized];
+        if (reward) {
+          if (get().redeemedCheatCodes.includes(normalized)) return false;
+          // Skip egg rewards we can't fulfil (unknown monster def).
+          if (reward.eggDefId && !MONSTER_DEFS[reward.eggDefId]) return false;
+          set((s) => {
+            if (reward.gold) s.gold += reward.gold;
+            if (reward.diamonds) s.diamonds += reward.diamonds;
+            if (reward.food) s.food += reward.food;
+            s.redeemedCheatCodes.push(normalized);
+          });
+          // XP and eggs go through their own actions (they trigger further
+          // state changes like level-ups and Lager placement).
+          if (reward.xp) get().addPlayerXp(reward.xp);
+          if (reward.eggDefId) get().addEgg(reward.eggDefId);
           return true;
         }
 
