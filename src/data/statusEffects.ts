@@ -139,6 +139,14 @@ export const STATUS_EFFECTS: Record<StatusEffect, StatusEffectDef> = {
     category: 'buff',
     description: 'Heilt 10% der maximalen HP pro Runde.',
   },
+  Decay: {
+    id: 'Decay',
+    name: 'Zerfall',
+    icon: '🥀',
+    color: '#6c3483',
+    category: 'dot',
+    description: 'Verliert 50% der maximalen HP pro Runde und stirbt so innerhalb von 2 Runden.',
+  },
 };
 
 // Default number of rounds a freshly applied status effect lasts.

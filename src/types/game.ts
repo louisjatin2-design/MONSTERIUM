@@ -19,7 +19,8 @@ export type StatusEffect =
   //   Shield     → absorbs a pool of incoming damage (value = remaining shield)
   //   Taunt      → forces single-target attacks onto the taunter
   //   Regen      → heals a chunk of HP each round
-  | 'Bleed' | 'Vulnerable' | 'Shield' | 'Taunt' | 'Regen';
+  //   Decay      → heavy DoT that wipes out the holder within 2 rounds
+  | 'Bleed' | 'Vulnerable' | 'Shield' | 'Taunt' | 'Regen' | 'Decay';
 
 export type TraitType =
   | 'Mania' | 'Tough' | 'Swift' | 'Undead' | 'Fireproof'

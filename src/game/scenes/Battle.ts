@@ -1420,10 +1420,13 @@ export class Battle extends Phaser.Scene {
       if (immune) {
         this.log(`${target.name} ist immun gegen ${statusName}!`);
       } else if (target.trait === 'Mania') {
-        // Mania: if target has Mania, buff instead of being debuffed.
-        target.attackStat = Math.floor(target.attackStat * 3);
-        target.defenseStat = Math.floor(target.defenseStat * 3);
-        this.log(`${target.name} goes MANIC!`);
+        // Mania: instead of being debuffed, the holder goes manic — gaining a
+        // small ATK/DEF buff for 2 rounds. The price is steep: it starts to
+        // decay and rots away within 2 rounds (50% max HP per round).
+        addStatusEffect(target, 'AtkUp', 2);
+        addStatusEffect(target, 'DefUp', 2);
+        addStatusEffect(target, 'Decay', 2);
+        this.log(`${target.name} goes MANIC — but begins to decay!`);
       } else {
         // addStatusEffect refreshes an existing effect instead of stacking
         // a duplicate, so each effect only ever appears once.

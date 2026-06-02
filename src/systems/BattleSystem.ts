@@ -237,6 +237,10 @@ export function processStatusTick(combatant: BattleCombatant): { damage: number;
       damage += Math.floor(combatant.maxHp * 0.07);
     } else if (se.effect === 'Bleed') {
       damage += Math.floor(combatant.maxHp * 0.10);
+    } else if (se.effect === 'Decay') {
+      // Decay is the price of going manic: 50% max HP per round means the
+      // holder rots away within two rounds no matter what.
+      damage += Math.ceil(combatant.maxHp * 0.50);
     } else if (se.effect === 'Regen') {
       heal += Math.floor(combatant.maxHp * 0.10);
     }
