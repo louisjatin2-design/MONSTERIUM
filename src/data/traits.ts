@@ -37,7 +37,7 @@ export const TRAITS: Record<TraitType, TraitDef> = {
   Mania: {
     id: 'Mania',
     name: 'Mania',
-    description: 'When receiving a negative status effect, gains 3× ATK/DEF for 2 rounds.',
+    description: 'When receiving a negative status effect, gains a small ATK/DEF buff for 2 rounds, but starts to decay and dies within 2 rounds.',
   },
   Echo: {
     id: 'Echo',
