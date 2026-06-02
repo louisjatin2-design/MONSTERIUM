@@ -696,17 +696,34 @@ export class Island extends Phaser.Scene {
     });
   };
 
+  // Zoom the iso camera toward a focal SCREEN point — the mouse cursor for a
+  // wheel zoom, or the midpoint of the two fingers for a pinch — keeping the
+  // world point under that focal point pinned exactly in place. So it always
+  // zooms in on wherever you're pointing / swiping, not the screen centre.
+  //
+  // The maths is done by hand instead of via cam.getWorldPoint(): after
+  // setZoom() the camera's transform matrix isn't rebuilt until the next
+  // preRender, so reading world points back in the same frame returns stale
+  // values — which made the zoom drift toward the centre rather than the focal
+  // point. midPoint = scroll + half-viewport (independent of zoom); the world
+  // point under screen (fx,fy) is midPoint + (focal − half) / zoom.
+  private zoomCameraToFocal(targetZoom: number, fx: number, fy: number) {
+    const cam = this.cameras.main;
+    const z0 = cam.zoom;
+    const z1 = this.clampZoom(targetZoom);
+    if (z1 === z0) return;
+    const halfW = cam.width / 2, halfH = cam.height / 2;
+    const worldX = cam.scrollX + halfW + (fx - halfW) / z0;
+    const worldY = cam.scrollY + halfH + (fy - halfH) / z0;
+    cam.setZoom(z1);
+    cam.scrollX = worldX - halfW - (fx - halfW) / z1;
+    cam.scrollY = worldY - halfH - (fy - halfH) / z1;
+  }
+
   // Zoom the iso camera by a multiplicative factor, keeping the point under
   // the pointer fixed on screen (focal zoom, Monster-Legends style).
   private zoomCameraBy(factor: number, pointer: Phaser.Input.Pointer) {
-    const cam = this.cameras.main;
-    const before = cam.getWorldPoint(pointer.x, pointer.y);
-    const next = this.clampZoom(cam.zoom * factor);
-    if (next === cam.zoom) return;
-    cam.setZoom(next);
-    const after = cam.getWorldPoint(pointer.x, pointer.y);
-    cam.scrollX += before.x - after.x;
-    cam.scrollY += before.y - after.y;
+    this.zoomCameraToFocal(this.cameras.main.zoom * factor, pointer.x, pointer.y);
   }
 
   // Two pointers down? Start tracking the pinch (camera or overlay).
@@ -739,12 +756,9 @@ export class Island extends Phaser.Scene {
       return true;
     }
     if (!this.placementMode && this.pinchStartDist > 0) {
-      const cam = this.cameras.main;
-      const before = cam.getWorldPoint(mid.x, mid.y);
-      cam.setZoom(this.clampZoom(this.pinchStartZoom * (dist / this.pinchStartDist)));
-      const after = cam.getWorldPoint(mid.x, mid.y);
-      cam.scrollX += before.x - after.x;
-      cam.scrollY += before.y - after.y;
+      // Zoom toward the midpoint of the two fingers — i.e. wherever you're
+      // pinching/swiping — and let that midpoint move as the fingers do.
+      this.zoomCameraToFocal(this.pinchStartZoom * (dist / this.pinchStartDist), mid.x, mid.y);
       this.dragMoved = true;
       return true;
     }
