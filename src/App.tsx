@@ -22,8 +22,10 @@ import { QuestPanel } from '@ui/components/QuestPanel';
 import { EventsPanel } from '@ui/components/EventsPanel';
 import { StoragePanel } from '@ui/components/StoragePanel';
 import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
+import { LoginScreen } from '@ui/components/LoginScreen';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
+import { useAuthStore } from '@store/authStore';
 import type Phaser from 'phaser';
 
 export type ActivePanel =
@@ -47,7 +49,17 @@ export type ActivePanel =
   | { type: 'teamSelect'; battlePayload: BattlePayload }
   | { type: 'battle' };
 
+// Gate the whole game behind the account login. Kept as a thin wrapper so the
+// Game component below always mounts with a stable set of hooks (the login/game
+// switch happens by swapping which component renders, not by early-returning
+// inside Game).
 export default function App() {
+  const currentUser = useAuthStore(s => s.currentUser);
+  if (!currentUser) return <LoginScreen />;
+  return <Game />;
+}
+
+function Game() {
   const phaserRef = useRef<Phaser.Game | null>(null);
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   // True while the flat 2D build overlay is up — hide the floating HUD/rails so

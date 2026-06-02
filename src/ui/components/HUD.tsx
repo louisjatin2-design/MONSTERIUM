@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGameStore } from '@store/gameStore';
+import { useAuthStore } from '@store/authStore';
 import { EventBus, GameEvents } from '@game/EventBus';
 import '../styles/global.css';
 
@@ -22,17 +23,29 @@ export function HUD(_props: HUDProps) {
   const pendingRewards = useGameStore(s => s.pendingLevelRewards.length);
 
   const redeemCheatCode = useGameStore(s => s.redeemCheatCode);
+  const currentUser = useAuthStore(s => s.currentUser);
+  const logout      = useAuthStore(s => s.logout);
+
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const xpToNext  = Math.floor(100 * Math.pow(playerLevel, 1.5));
   const xpPercent = Math.min(100, (playerXp / xpToNext) * 100);
 
   const openCheatPrompt = () => {
+    setMenuOpen(false);
     const code = window.prompt('Cheat-Code eingeben:');
     if (code == null) return;
     const ok = redeemCheatCode(code);
     window.alert(ok
       ? '✨ Cheat aktiviert! Deine Belohnung wurde gutgeschrieben.'
       : '❌ Ungültiger oder bereits eingelöster Code.');
+  };
+
+  const handleLogout = () => {
+    setMenuOpen(false);
+    if (window.confirm('Möchtest du dich wirklich abmelden? Dein Fortschritt ist gespeichert.')) {
+      logout();
+    }
   };
 
   return (
@@ -139,23 +152,65 @@ export function HUD(_props: HUDProps) {
         <ResourcePill icon="💎" value={diamonds} color="#5ad6ff" onClick={() => EventBus.emit(GameEvents.OPEN_SHOP, {})} />
       </div>
 
-      {/* ── Settings / cheat code ── */}
-      <button
-        onClick={openCheatPrompt}
-        title="Einstellungen / Cheat-Code"
-        style={{
-          background: 'radial-gradient(circle at 35% 30%, #3a2466, #1c1038)',
-          border: '2px solid #c79a3a',
-          borderRadius: '50%', color: '#ffe9a8', width: 38, height: 38,
-          cursor: 'pointer', fontSize: 19, display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-          pointerEvents: 'auto',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,120,0.25)',
-        }}>⚙️</button>
+      {/* ── Settings (cheat code + logout) ── */}
+      <div style={{ position: 'relative', flexShrink: 0, pointerEvents: 'auto' }}>
+        <button
+          onClick={() => setMenuOpen(o => !o)}
+          title="Einstellungen"
+          style={{
+            background: 'radial-gradient(circle at 35% 30%, #3a2466, #1c1038)',
+            border: '2px solid #c79a3a',
+            borderRadius: '50%', color: '#ffe9a8', width: 38, height: 38,
+            cursor: 'pointer', fontSize: 19, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,120,0.25)',
+          }}>⚙️</button>
+
+        {menuOpen && (
+          <>
+            {/* Click-away catcher */}
+            <div
+              onClick={() => setMenuOpen(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 200 }}
+            />
+            <div style={{
+              position: 'absolute', top: 46, right: 0, zIndex: 201,
+              minWidth: 180,
+              background: 'linear-gradient(160deg, #241046, #160826)',
+              border: '2px solid #8a5cd8', borderRadius: 12,
+              padding: 8,
+              boxShadow: '0 10px 30px rgba(0,0,0,0.7)',
+            }}>
+              <div style={{
+                fontSize: 12, color: '#baa9e6', fontWeight: 700,
+                padding: '4px 8px 8px', borderBottom: '1px solid rgba(255,215,120,0.2)',
+                marginBottom: 6, wordBreak: 'break-word',
+              }}>
+                👤 {currentUser}
+              </div>
+              <button
+                onClick={openCheatPrompt}
+                style={menuItemStyle}
+              >🎁 Cheat-Code</button>
+              <button
+                onClick={handleLogout}
+                style={{ ...menuItemStyle, color: '#ff9b8b' }}
+              >🚪 Abmelden</button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
+
+const menuItemStyle: React.CSSProperties = {
+  display: 'block', width: '100%', textAlign: 'left',
+  background: 'transparent', border: 'none',
+  color: '#fff', fontSize: 14, fontWeight: 700,
+  padding: '9px 8px', borderRadius: 8, cursor: 'pointer',
+  fontFamily: 'inherit',
+};
 
 function ResourcePill({
   icon, value, color, onClick,
