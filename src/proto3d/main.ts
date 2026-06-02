@@ -13,7 +13,7 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { buildLowPolyMonster, countTriangles, type MonsterVisualSpec } from './lowpolyMonster';
 
 // Pick a handful of real monsters spanning elements + rarities.
-const SHOWCASE = ['flameling', 'aquapup', 'voltkit', 'pebblor', 'zephyrling'];
+const SHOWCASE = ['flameling', 'frostpaw', 'aquapup', 'voltkit', 'pebblor'];
 
 const app = document.getElementById('app')!;
 
@@ -59,13 +59,21 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
+// Portrait mode: /monster3d.html?solo=flameling shows one big front-on creature.
+const soloId = new URLSearchParams(location.search).get('solo');
+const ROW = soloId ? [soloId] : SHOWCASE;
+if (soloId) {
+  camera.position.set(0, 1.4, 5);
+  controls.target.set(0, 1.1, 0);
+}
+
 // --- Build the showcase row -------------------------------------------------
 const pivots: THREE.Group[] = [];
 let totalTris = 0;
 const names: string[] = [];
 
 const spacing = 2.6;
-SHOWCASE.forEach((id, i) => {
+ROW.forEach((id, i) => {
   const def = MONSTER_DEFS[id];
   if (!def) return;
   const el = def.elements[0];
@@ -81,7 +89,8 @@ SHOWCASE.forEach((id, i) => {
   names.push(`${def.name} (${el})`);
 
   const pivot = new THREE.Group();
-  pivot.position.x = (i - (SHOWCASE.length - 1) / 2) * spacing;
+  pivot.position.x = (i - (ROW.length - 1) / 2) * spacing;
+  if (soloId) monster.scale.setScalar(1.5);
   pivot.add(monster);
   scene.add(pivot);
   pivots.push(pivot);
@@ -95,8 +104,8 @@ hud.style.cssText =
   'border:1px solid #ffffff22;pointer-events:none;max-width:340px';
 hud.innerHTML =
   `<b style="color:#fff">MONSTERIUM · low-poly 3D proof</b><br>` +
-  `${SHOWCASE.length} monsters · <b>${totalTris.toLocaleString()} triangles total</b> ` +
-  `(~${Math.round(totalTris / SHOWCASE.length)} each)<br>` +
+  `${ROW.length} monster${ROW.length > 1 ? 's' : ''} · <b>${totalTris.toLocaleString()} triangles total</b> ` +
+  `(~${Math.round(totalTris / ROW.length)} each)<br>` +
   `<span style="color:#8fd9ff">${names.join(' · ')}</span><br>` +
   `<span style="opacity:.7">drag to orbit · scroll to zoom · all generated in code</span>`;
 document.body.appendChild(hud);
@@ -106,7 +115,8 @@ const clock = new THREE.Clock();
 function tick() {
   const t = clock.getElapsedTime();
   pivots.forEach((p, i) => {
-    p.rotation.y = t * 0.4 + i;
+    // Solo: gentle sway so the face stays toward the camera. Row: full spin.
+    p.rotation.y = soloId ? Math.sin(t * 0.5) * 0.5 : t * 0.4 + i;
     const body = p.children[0]?.userData.body as THREE.Group | undefined;
     if (body) body.position.y = Math.sin(t * 2 + i) * 0.08;
     const orbit = body?.getObjectByName('rarityOrbit');
