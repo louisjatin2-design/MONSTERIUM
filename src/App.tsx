@@ -162,9 +162,10 @@ function Game() {
     EventBus.emit(GameEvents.PANEL_CLOSED, {});
   };
 
-  // Opt-in real 3D overworld (Three.js). Renders above the Phaser canvas and
-  // routes clicks through the same EventBus events; battles still use Phaser.
-  const world3dEnabled = typeof location !== 'undefined' && new URLSearchParams(location.search).get('world3d') === '1';
+  // Real 3D overworld (Three.js) is the default. It renders above the Phaser
+  // canvas and routes clicks through the same EventBus events; Phaser is kept
+  // underneath for battles. Set ?world3d=0 to fall back to the 2D Phaser island.
+  const world3dEnabled = typeof location === 'undefined' || new URLSearchParams(location.search).get('world3d') !== '0';
 
   const isBattleActive = activePanel?.type === 'battle';
   const hasPanelOpen   = activePanel !== null && !isBattleActive;

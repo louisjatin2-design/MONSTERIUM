@@ -187,51 +187,147 @@ export function World3D({ hidden }: { hidden: boolean }) {
       if (isl !== lastIslandId) { lastIslandId = isl; fit(); }
     });
 
-    // --- click vs. orbit-drag detection + raycast routing ------------------
+    // --- placement / move mode -------------------------------------------
+    type Mode = { kind: 'normal' } | { kind: 'place'; defId: string } | { kind: 'move'; instanceId: string; defId: string };
+    let mode: Mode = { kind: 'normal' };
+    let ghost: THREE.Group | null = null;
+    const removeGhost = () => { if (ghost) { world.remove(ghost); ghost = null; } };
+    const makeGhost = (defId: string) => {
+      removeGhost();
+      ghost = buildLowPolyBuilding(BUILDING_DEFS[defId]);
+      ghost.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) {
+          const mats = Array.isArray(m.material) ? m.material : [m.material];
+          mats.forEach((mm) => { const sm = mm as THREE.MeshStandardMaterial; sm.transparent = true; sm.opacity = 0.55; sm.depthWrite = false; });
+        }
+      });
+      world.add(ghost);
+    };
+    const tintGhost = (ok: boolean) => {
+      ghost?.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) {
+          const mats = Array.isArray(m.material) ? m.material : [m.material];
+          mats.forEach((mm) => { const sm = mm as THREE.MeshStandardMaterial; sm.emissive = new THREE.Color(ok ? 0x33ff66 : 0xff3333); sm.emissiveIntensity = 0.45; });
+        }
+      });
+    };
+    const enterMode = (m: Mode) => {
+      mode = m;
+      if (m.kind === 'place' || m.kind === 'move') makeGhost(m.defId);
+      else removeGhost();
+    };
+    const onEnterPlacement = (d: { defId: string }) => enterMode({ kind: 'place', defId: d.defId });
+    const onEnterMove = (d: { instanceId: string }) => {
+      const b = useGameStore.getState().buildings[d.instanceId];
+      if (b) enterMode({ kind: 'move', instanceId: d.instanceId, defId: b.defId });
+    };
+    const onPanelClosed = () => enterMode({ kind: 'normal' });
+    EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
+    EventBus.on(GameEvents.ENTER_MOVE_MODE, onEnterMove);
+    EventBus.on(GameEvents.PANEL_CLOSED, onPanelClosed);
+
+    function canPlace(defId: string, col: number, row: number, ignoreId?: string): boolean {
+      const s = useGameStore.getState();
+      const def = BUILDING_DEFS[defId];
+      const island = ISLAND_DEFS[s.currentIslandId];
+      if (!def || !island) return false;
+      const cleared = new Set(s.clearedObstacles ?? []);
+      for (let dx = 0; dx < def.tilesW; dx++) for (let dy = 0; dy < def.tilesH; dy++) {
+        const c = col + dx, r = row + dy;
+        if (!island.tileMask[r]?.[c]) return false;
+        const occupied = Object.values(s.buildings).some((b) => b.islandId === s.currentIslandId && b.instanceId !== ignoreId
+          && c >= b.tileX && c < b.tileX + (BUILDING_DEFS[b.defId]?.tilesW ?? 1)
+          && r >= b.tileY && r < b.tileY + (BUILDING_DEFS[b.defId]?.tilesH ?? 1));
+        if (occupied) return false;
+        const onObstacle = (island.obstacles ?? []).some((ob) => ob.tileX === c && ob.tileY === r && !cleared.has(`${island.id}:${ob.tileX},${ob.tileY}`));
+        if (onObstacle) return false;
+      }
+      return true;
+    }
+
+    // --- pointer routing ---------------------------------------------------
     const raycaster = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
-    let downX = 0, downY = 0, downT = 0;
-    const onDown = (e: PointerEvent) => { downX = e.clientX; downY = e.clientY; downT = performance.now(); };
-    const onUp = (e: PointerEvent) => {
-      const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
-      if (moved > 6 || performance.now() - downT > 500) return; // it was a drag
+    const setNdc = (e: PointerEvent) => {
       const r = renderer.domElement.getBoundingClientRect();
       ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       raycaster.setFromCamera(ndc, camera);
+    };
+    const groundTile = () => {
+      const gh = raycaster.intersectObjects(groundMeshes, true)[0];
+      if (!gh) return null;
+      const def = ISLAND_DEFS[useGameStore.getState().currentIslandId];
+      const { col, row } = worldToGrid(gh.point.x, gh.point.z, islandGrid(def));
+      return { col, row };
+    };
+
+    let downX = 0, downY = 0, downT = 0;
+    const onDown = (e: PointerEvent) => { downX = e.clientX; downY = e.clientY; downT = performance.now(); };
+    const onMove = (e: PointerEvent) => {
+      if (mode.kind === 'normal' || !ghost) return;
+      setNdc(e);
+      const t = groundTile();
+      if (!t) { ghost.visible = false; return; }
+      ghost.visible = true;
+      const def = BUILDING_DEFS[mode.defId];
+      const grid = islandGrid(ISLAND_DEFS[useGameStore.getState().currentIslandId]);
+      const w0 = gridToWorld(t.col + def.tilesW / 2, t.row + def.tilesH / 2, grid);
+      ghost.position.set(w0.x, TOP_Y, w0.z);
+      tintGhost(canPlace(mode.defId, t.col, t.row, mode.kind === 'move' ? mode.instanceId : undefined));
+    };
+    const onUp = (e: PointerEvent) => {
+      const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
+      if (moved > 6 || performance.now() - downT > 500) return; // a drag → orbit
+      setNdc(e);
+
+      // Placement / move: a tap drops the building on a valid tile.
+      if (mode.kind === 'place' || mode.kind === 'move') {
+        const t = groundTile();
+        if (!t) return;
+        const ignore = mode.kind === 'move' ? mode.instanceId : undefined;
+        if (!canPlace(mode.defId, t.col, t.row, ignore)) return;
+        const s = useGameStore.getState();
+        const ok = mode.kind === 'place'
+          ? s.placeBuilding(mode.defId, s.currentIslandId, t.col, t.row) !== null
+          : s.moveBuilding(mode.instanceId, t.col, t.row);
+        if (ok) { enterMode({ kind: 'normal' }); EventBus.emit(GameEvents.PANEL_CLOSED, {}); }
+        return;
+      }
 
       const findTagged = (list: THREE.Object3D[], key: string) => {
         const hits = raycaster.intersectObjects(list, true);
         if (!hits.length) return null;
         let o: THREE.Object3D | null = hits[0].object;
         while (o && o.userData[key] === undefined) o = o.parent;
-        return o?.userData[key] as string | undefined ?? null;
+        return (o?.userData[key] as string | undefined) ?? null;
       };
-
-      const mId = findTagged(pickMonsters, 'monsterInstanceId');
-      const bId = mId ? null : findTagged(pickBuildings, 'instanceId');
-      // Whichever was nearer along the ray wins; check distances.
       const nearest = (list: THREE.Object3D[]) => raycaster.intersectObjects(list, true)[0]?.distance ?? Infinity;
+      const mId = findTagged(pickMonsters, 'monsterInstanceId');
+      const bId = findTagged(pickBuildings, 'instanceId');
       const dM = pickMonsters.length ? nearest(pickMonsters) : Infinity;
       const dB = pickBuildings.length ? nearest(pickBuildings) : Infinity;
 
       if (mId && dM <= dB) { EventBus.emit(GameEvents.OPEN_MONSTER_DETAIL, { instanceId: mId }); return; }
       if (bId) { const b = useGameStore.getState().buildings[bId]; if (b) panelForBuilding(b); return; }
 
-      // Empty ground → build menu for that tile (if it's a buildable land tile).
-      const gh = raycaster.intersectObjects(groundMeshes, true)[0];
-      if (gh) {
-        const s = useGameStore.getState();
-        const def = ISLAND_DEFS[s.currentIslandId];
-        const grid = islandGrid(def);
-        const { col, row } = worldToGrid(gh.point.x, gh.point.z, grid);
-        const land = !!def.tileMask[row]?.[col];
-        const occupied = Object.values(s.buildings).some((b) => b.islandId === s.currentIslandId
-          && col >= b.tileX && col < b.tileX + (BUILDING_DEFS[b.defId]?.tilesW ?? 1)
-          && row >= b.tileY && row < b.tileY + (BUILDING_DEFS[b.defId]?.tilesH ?? 1));
-        if (land && !occupied) EventBus.emit(GameEvents.OPEN_BUILD_MENU, { tileX: col, tileY: row });
-      }
+      // Empty ground → either clear an obstacle there, or open the build menu.
+      const t = groundTile();
+      if (!t) return;
+      const s = useGameStore.getState();
+      const def = ISLAND_DEFS[s.currentIslandId];
+      if (!def.tileMask[t.row]?.[t.col]) return;
+      const cleared = new Set(s.clearedObstacles ?? []);
+      const ob = (def.obstacles ?? []).find((o) => o.tileX === t.col && o.tileY === t.row && !cleared.has(`${def.id}:${o.tileX},${o.tileY}`));
+      if (ob) { s.clearObstacle(s.currentIslandId, ob.tileX, ob.tileY); return; }
+      const occupied = Object.values(s.buildings).some((b) => b.islandId === s.currentIslandId
+        && t.col >= b.tileX && t.col < b.tileX + (BUILDING_DEFS[b.defId]?.tilesW ?? 1)
+        && t.row >= b.tileY && t.row < b.tileY + (BUILDING_DEFS[b.defId]?.tilesH ?? 1));
+      if (!occupied) EventBus.emit(GameEvents.OPEN_BUILD_MENU, { tileX: t.col, tileY: t.row });
     };
     renderer.domElement.addEventListener('pointerdown', onDown);
+    renderer.domElement.addEventListener('pointermove', onMove);
     renderer.domElement.addEventListener('pointerup', onUp);
 
     // --- animation loop ----------------------------------------------------
@@ -266,7 +362,11 @@ export function World3D({ hidden }: { hidden: boolean }) {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
       renderer.domElement.removeEventListener('pointerdown', onDown);
+      renderer.domElement.removeEventListener('pointermove', onMove);
       renderer.domElement.removeEventListener('pointerup', onUp);
+      EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
+      EventBus.off(GameEvents.ENTER_MOVE_MODE, onEnterMove);
+      EventBus.off(GameEvents.PANEL_CLOSED, onPanelClosed);
       unsub();
       controls.dispose();
       clearWorld();
