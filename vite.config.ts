@@ -23,8 +23,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
-        // Isolated low-poly 3D proof-of-concept page (does not affect the game).
+        // Isolated low-poly 3D proof-of-concept pages (do not affect the game).
         monster3d: path.resolve(__dirname, 'monster3d.html'),
+        gallery: path.resolve(__dirname, 'gallery.html'),
       },
     },
   },
