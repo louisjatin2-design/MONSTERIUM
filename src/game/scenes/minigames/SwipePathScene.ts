@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
+import { addDim, addMinigameHeader, addReadyPrompt, addResultBanner } from '@game/scenes/minigames/minigameUi';
 import type { MoveDef } from '@gtypes/game';
 
 interface SwipeData {
@@ -41,26 +42,26 @@ export class SwipePathScene extends Phaser.Scene {
     // Fit to the live viewport (re-fits on orientation flip). Oversized overlay
     // so the dim covers any letterbox margin around the design space.
     setupFixedViewport(this);
-    this.add.rectangle(width / 2, height / 2, width * 3, height * 3, 0x000000, 0.8);
-    this.add.text(width / 2, 60, this.moveDef.name, {
-      fontSize: '28px', color: '#ffd700', fontStyle: 'bold',
-    }).setOrigin(0.5);
-    this.add.text(width / 2, 98, 'Ziehe der Reihe nach durch alle Knoten!', {
-      fontSize: '14px', color: '#aaaaaa',
-    }).setOrigin(0.5);
+    addDim(this);
+
+    addMinigameHeader(this, this.moveDef.name, 'Ziehe der Reihe nach durch alle Knoten!');
 
     this.trail = this.add.graphics();
 
-    // Lay out nodes along a gentle wave.
-    const marginX = 120;
+    // Lay out nodes along a gentle wave, using the full landscape width and a
+    // taller amplitude so the path is open and easy to trace with a finger.
+    const marginX = 150;
     const usableW = width - marginX * 2;
     for (let i = 0; i < this.nodeCount; i++) {
       const t = this.nodeCount === 1 ? 0.5 : i / (this.nodeCount - 1);
       const x = marginX + usableW * t;
-      const y = height / 2 + Math.sin(t * Math.PI * 2) * 80;
-      const gfx = this.add.circle(x, y, 26, i === 0 ? 0x44cc44 : 0x445588)
-        .setStrokeStyle(3, 0xffffff);
-      this.add.text(x, y, String(i + 1), { fontSize: '16px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+      const y = height / 2 + 20 + Math.sin(t * Math.PI * 2) * 130;
+      const gfx = this.add.circle(x, y, 42, i === 0 ? 0x44cc44 : 0x445588)
+        .setStrokeStyle(5, 0xffffff);
+      this.add.text(x, y, String(i + 1), {
+        fontSize: '34px', color: '#fff', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 4,
+      }).setOrigin(0.5);
       this.nodes.push({ x, y, hit: false, gfx });
     }
 
@@ -79,9 +80,7 @@ export class SwipePathScene extends Phaser.Scene {
       checkAt(p);
     });
 
-    const ready = this.add.text(width / 2, height - 70, 'Bereit…', {
-      fontSize: '16px', color: '#ffdd55',
-    }).setOrigin(0.5);
+    const ready = addReadyPrompt(this, width / 2, height - 70, 'Bereit…');
     this.time.delayedCall(400, () => {
       this.armed = true;
       this.endTime = this.time.now + this.timeLimitMs;
@@ -92,7 +91,9 @@ export class SwipePathScene extends Phaser.Scene {
   private checkNode(px: number, py: number) {
     const node = this.nodes[this.nextIndex];
     if (!node) return;
-    if (Phaser.Math.Distance.Between(px, py, node.x, node.y) <= 30) {
+    // Generous hit radius (bigger than the node) so a finger swipe reliably
+    // catches each node in order.
+    if (Phaser.Math.Distance.Between(px, py, node.x, node.y) <= 52) {
       node.hit = true;
       node.gfx.setFillStyle(0x44ff44);
       this.nextIndex++;
@@ -107,7 +108,7 @@ export class SwipePathScene extends Phaser.Scene {
 
   private redrawTrail() {
     this.trail.clear();
-    this.trail.lineStyle(4, 0x66ddff, 0.8);
+    this.trail.lineStyle(8, 0x66ddff, 0.85);
     for (let i = 1; i < this.nextIndex; i++) {
       this.trail.lineBetween(this.nodes[i - 1].x, this.nodes[i - 1].y, this.nodes[i].x, this.nodes[i].y);
     }
@@ -125,10 +126,8 @@ export class SwipePathScene extends Phaser.Scene {
     const score = Math.floor((hits / this.nodes.length) * 100);
     const width = DESIGN_W, height = DESIGN_H;
     const label = score >= 100 ? 'PERFECT!' : score >= 60 ? 'GREAT!' : score >= 30 ? 'OK' : 'MISS!';
-    const color = score >= 80 ? '#44ff44' : score >= 40 ? '#ffaa00' : '#ff4444';
-    this.add.text(width / 2, height - 60, `${label} (${score}%)`, {
-      fontSize: '26px', color, fontStyle: 'bold',
-    }).setOrigin(0.5);
+    const color = score >= 80 ? '#5dff5d' : score >= 40 ? '#ffc23d' : '#ff5a5a';
+    addResultBanner(this, width / 2, height - 64, `${label} (${score}%)`, color);
     this.time.delayedCall(700, () => {
       EventBus.emit(GameEvents.MINIGAME_COMPLETE, { score });
       this.scene.stop();

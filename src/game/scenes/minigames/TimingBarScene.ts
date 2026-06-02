@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
+import { addDim, addMinigameHeader, addResultBanner, MG_HINT_SIZE } from '@game/scenes/minigames/minigameUi';
 import type { MoveDef } from '@gtypes/game';
 
 interface TimingData {
@@ -11,7 +12,9 @@ interface TimingData {
 export class TimingBarScene extends Phaser.Scene {
   private indicator!: Phaser.GameObjects.Rectangle;
   private greenZone!: Phaser.GameObjects.Rectangle;
-  private barWidth = 400;
+  // Wide bar so it fills the horizontal space on a landscape phone/iPad and the
+  // moving indicator is easy to track.
+  private barWidth = 820;
   private barX = 0;
   private barY = 0;
   private speed = 0;
@@ -39,36 +42,34 @@ export class TimingBarScene extends Phaser.Scene {
     // Fit to the live viewport (re-fits on orientation flip). Oversized overlay
     // so the dim covers any letterbox margin around the design space.
     setupFixedViewport(this);
-    this.add.rectangle(width / 2, height / 2, width * 3, height * 3, 0x000000, 0.75);
+    addDim(this);
 
-    // Title
-    this.add.text(width / 2, height / 2 - 120, this.moveDef.name, {
-      fontSize: '28px', color: '#ffd700', fontStyle: 'bold',
-    }).setOrigin(0.5);
-    this.add.text(width / 2, height / 2 - 80, 'Press SPACE or click when the bar is in the green zone!', {
-      fontSize: '14px', color: '#aaaaaa',
-    }).setOrigin(0.5);
+    addMinigameHeader(this, this.moveDef.name, 'Tippe (oder SPACE) wenn der Balken in der grünen Zone ist!');
 
-    // Bar background
-    this.add.rectangle(width / 2, this.barY, this.barWidth + 8, 36, 0x333333)
-      .setStrokeStyle(2, 0x888888);
+    // Bar background — tall and bordered so the moving indicator reads clearly.
+    this.add.rectangle(width / 2, this.barY, this.barWidth + 12, 72, 0x222531)
+      .setStrokeStyle(4, 0x8893aa);
 
     // Red zone (whole bar)
-    this.add.rectangle(width / 2, this.barY, this.barWidth, 28, 0xcc2222);
+    this.add.rectangle(width / 2, this.barY, this.barWidth, 60, 0xc62b2b);
 
-    // Green zone (shrinks with rarity)
-    const greenW = Math.max(30, 80 - this.rarityRank * 8);
-    this.greenZone = this.add.rectangle(width / 2, this.barY, greenW, 28, 0x22cc22);
+    // Green zone (shrinks with rarity) — keep a generous minimum so the timing
+    // stays achievable on touch. Bright outline makes the goal obvious.
+    const greenW = this.greenWidth();
+    this.greenZone = this.add.rectangle(width / 2, this.barY, greenW, 60, 0x29cc4a)
+      .setStrokeStyle(3, 0xbfffce);
 
-    // Indicator
-    this.indicator = this.add.rectangle(this.barX, this.barY, 8, 36, 0xffffff)
-      .setOrigin(0, 0.5);
+    // Indicator — a thick bright bar that's easy to follow at speed.
+    this.indicator = this.add.rectangle(this.barX, this.barY, 14, 84, 0xffffff)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(2, 0x223344);
     this.indicatorPos = 0;
-    this.speed = 200 + this.rarityRank * 40; // pixels per second
+    this.speed = 260 + this.rarityRank * 55; // pixels per second (scaled for the wider bar)
 
     // Instruction text
-    const spaceText = this.add.text(width / 2, this.barY + 60, 'SPACE / Click', {
-      fontSize: '18px', color: '#ffffff',
+    const spaceText = this.add.text(width / 2, this.barY + 90, 'SPACE / Tippen', {
+      fontSize: `${MG_HINT_SIZE}px`, color: '#ffffff', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 4,
     }).setOrigin(0.5);
 
     // Brief arming delay so the launching tap isn't counted as the stop input.
@@ -77,6 +78,12 @@ export class TimingBarScene extends Phaser.Scene {
     // Input handlers
     this.input.keyboard?.once('keydown-SPACE', () => { if (this.armed) this.submitResult(); });
     this.input.on('pointerdown', () => { if (this.armed) this.submitResult(); });
+  }
+
+  // Green-zone width, scaled to the wider bar with a comfortable floor so the
+  // timing window stays fair on touch even for rare moves.
+  private greenWidth() {
+    return Math.max(70, 150 - this.rarityRank * 14);
   }
 
   update(_: number, delta: number) {
@@ -92,7 +99,7 @@ export class TimingBarScene extends Phaser.Scene {
     this.completed = true;
 
     const width = DESIGN_W, height = DESIGN_H;
-    const greenW = Math.max(30, 80 - this.rarityRank * 8);
+    const greenW = this.greenWidth();
     const greenLeft = width / 2 - greenW / 2 - this.barX;
     const greenRight = width / 2 + greenW / 2 - this.barX;
 
@@ -109,11 +116,9 @@ export class TimingBarScene extends Phaser.Scene {
       score = Math.max(0, 60 - (distFromBar / (this.barWidth / 2)) * 60);
     }
 
-    const scoreColor = score >= 80 ? '#44ff44' : score >= 50 ? '#ffaa00' : '#ff4444';
+    const scoreColor = score >= 80 ? '#5dff5d' : score >= 50 ? '#ffc23d' : '#ff5a5a';
     const label = score >= 90 ? 'PERFECT!' : score >= 70 ? 'GREAT!' : score >= 40 ? 'OK' : 'MISS!';
-    this.add.text(width / 2, height / 2 + 100, `${label} (${Math.floor(score)}%)`, {
-      fontSize: '24px', color: scoreColor, fontStyle: 'bold',
-    }).setOrigin(0.5);
+    addResultBanner(this, width / 2, height / 2 + 150, `${label} (${Math.floor(score)}%)`, scoreColor);
 
     this.time.delayedCall(700, () => {
       EventBus.emit(GameEvents.MINIGAME_COMPLETE, { score: Math.floor(score) });
