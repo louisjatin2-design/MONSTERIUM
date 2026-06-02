@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
+import { addDim, addMinigameHeader, addReadyPrompt, addResultBanner } from '@game/scenes/minigames/minigameUi';
 import type { MoveDef } from '@gtypes/game';
 
 interface MashData {
@@ -20,7 +21,7 @@ export class MashButtonScene extends Phaser.Scene {
   private completed = false;
   private armed = false;
   private fillBar!: Phaser.GameObjects.Rectangle;
-  private fillBarMaxW = 360;
+  private fillBarMaxW = 720;
   private tapText!: Phaser.GameObjects.Text;
 
   constructor() { super('MashButtonScene'); }
@@ -41,28 +42,26 @@ export class MashButtonScene extends Phaser.Scene {
     // Fit to the live viewport (re-fits on orientation flip). Oversized overlay
     // so the dim covers any letterbox margin around the design space.
     setupFixedViewport(this);
-    this.add.rectangle(width / 2, height / 2, width * 3, height * 3, 0x000000, 0.8);
-    this.add.text(width / 2, 70, this.moveDef.name, {
-      fontSize: '28px', color: '#ffd700', fontStyle: 'bold',
-    }).setOrigin(0.5);
-    this.add.text(width / 2, 110, 'MASH! Tippe / drücke so schnell du kannst!', {
-      fontSize: '14px', color: '#aaaaaa',
-    }).setOrigin(0.5);
+    addDim(this);
 
-    // Progress bar
-    this.add.rectangle(width / 2, height / 2, this.fillBarMaxW + 8, 40, 0x333333).setStrokeStyle(2, 0x888888);
-    this.fillBar = this.add.rectangle(width / 2 - this.fillBarMaxW / 2, height / 2, 0, 34, 0xffcc22)
+    addMinigameHeader(this, this.moveDef.name, 'MASH! Tippe / drücke so schnell du kannst!');
+
+    // Progress bar — wide and tall so the fill is unmistakable as you mash.
+    this.add.rectangle(width / 2, height / 2 - 30, this.fillBarMaxW + 12, 60, 0x222531).setStrokeStyle(4, 0x8893aa);
+    this.fillBar = this.add.rectangle(width / 2 - this.fillBarMaxW / 2, height / 2 - 30, 0, 50, 0xffcc22)
       .setOrigin(0, 0.5);
 
-    this.tapText = this.add.text(width / 2, height / 2 + 50, `0 / ${this.target}`, {
-      fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
+    this.tapText = this.add.text(width / 2, height / 2 + 38, `0 / ${this.target}`, {
+      fontSize: '34px', color: '#ffffff', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 5,
     }).setOrigin(0.5);
 
-    // Big mash button
-    const btn = this.add.circle(width / 2, height - 130, 56, 0xe8a845)
-      .setStrokeStyle(4, 0xffd070).setInteractive({ useHandCursor: true });
-    this.add.text(width / 2, height - 130, 'MASH', {
-      fontSize: '20px', color: '#3a1a00', fontStyle: 'bold',
+    // Big mash button — a large finger target low on the landscape screen.
+    const btnY = height - 150;
+    const btn = this.add.circle(width / 2, btnY, 96, 0xe8a845)
+      .setStrokeStyle(6, 0xffd070).setInteractive({ useHandCursor: true });
+    this.add.text(width / 2, btnY, 'MASH', {
+      fontSize: '40px', color: '#3a1a00', fontStyle: 'bold',
     }).setOrigin(0.5);
 
     const onTap = () => {
@@ -76,9 +75,7 @@ export class MashButtonScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-SPACE', onTap);
 
     // Arm after a short delay so the launching tap doesn't count.
-    const ready = this.add.text(width / 2, height / 2 - 60, 'Bereit…', {
-      fontSize: '16px', color: '#ffdd55',
-    }).setOrigin(0.5);
+    const ready = addReadyPrompt(this, width / 2, height / 2 - 110, 'Bereit…');
     this.time.delayedCall(400, () => {
       this.armed = true;
       this.endTime = this.time.now + this.timeLimitMs;
@@ -104,10 +101,8 @@ export class MashButtonScene extends Phaser.Scene {
     const score = Math.floor(ratio * 100);
     const width = DESIGN_W, height = DESIGN_H;
     const label = score >= 90 ? 'PERFECT!' : score >= 60 ? 'GREAT!' : score >= 30 ? 'OK' : 'WEAK!';
-    const color = score >= 80 ? '#44ff44' : score >= 40 ? '#ffaa00' : '#ff4444';
-    this.add.text(width / 2, height / 2 - 60, `${label} (${score}%)`, {
-      fontSize: '26px', color, fontStyle: 'bold',
-    }).setOrigin(0.5);
+    const color = score >= 80 ? '#5dff5d' : score >= 40 ? '#ffc23d' : '#ff5a5a';
+    addResultBanner(this, width / 2, height / 2 - 110, `${label} (${score}%)`, color);
     this.input.keyboard?.removeAllListeners('keydown-SPACE');
     this.time.delayedCall(700, () => {
       EventBus.emit(GameEvents.MINIGAME_COMPLETE, { score });

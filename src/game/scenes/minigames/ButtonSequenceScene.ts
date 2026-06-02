@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
+import { addDim, addMinigameHeader, addResultBanner } from '@game/scenes/minigames/minigameUi';
 import type { MoveDef } from '@gtypes/game';
 
 interface SequenceData {
@@ -47,15 +48,9 @@ export class ButtonSequenceScene extends Phaser.Scene {
     // Fit to the live viewport (re-fits on orientation flip). Oversized overlay
     // so the dim covers any letterbox margin around the design space.
     setupFixedViewport(this);
-    this.add.rectangle(width / 2, height / 2, width * 3, height * 3, 0x000000, 0.8);
+    addDim(this);
 
-    // Title
-    this.add.text(width / 2, 80, this.moveDef.name, {
-      fontSize: '28px', color: '#ffd700', fontStyle: 'bold',
-    }).setOrigin(0.5);
-    this.add.text(width / 2, 120, 'Memorize and repeat the sequence!', {
-      fontSize: '14px', color: '#aaaaaa',
-    }).setOrigin(0.5);
+    addMinigameHeader(this, this.moveDef.name, 'Merke dir die Reihenfolge und tippe sie nach!');
 
     // Draw sequence
     this.drawSequence();
@@ -71,8 +66,10 @@ export class ButtonSequenceScene extends Phaser.Scene {
 
   private drawSequence() {
     const width = DESIGN_W, height = DESIGN_H;
-    const keySize = 56;
-    const spacing = 10;
+    // Large tiles with rounded corners so the sequence is easy to read at a
+    // glance and from across a hand-held screen.
+    const keySize = 92;
+    const spacing = 18;
     const totalW = this.sequenceLength * (keySize + spacing) - spacing;
     const startX = width / 2 - totalW / 2 + keySize / 2;
     const y = height / 2 - 20;
@@ -80,9 +77,10 @@ export class ButtonSequenceScene extends Phaser.Scene {
     this.sequence.forEach((key, i) => {
       const x = startX + i * (keySize + spacing);
       const bg = this.add.rectangle(x, y, keySize, keySize, KEY_COLORS[key] ?? 0x888888)
-        .setStrokeStyle(2, 0xffffff);
+        .setStrokeStyle(4, 0xffffff);
       const txt = this.add.text(x, y, key, {
-        fontSize: '28px', color: '#ffffff', fontStyle: 'bold',
+        fontSize: '46px', color: '#ffffff', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 4,
       }).setOrigin(0.5);
       const container = this.add.container(0, 0, [bg, txt]);
       this.keyDisplays.push(container);
@@ -98,21 +96,22 @@ export class ButtonSequenceScene extends Phaser.Scene {
   private showInputPhase() {
     const width = DESIGN_W, height = DESIGN_H;
 
-    this.add.text(width / 2, height / 2 + 80, 'Now press the sequence!', {
-      fontSize: '18px', color: '#ffffff',
+    this.add.text(width / 2, height / 2 + 84, 'Tippe jetzt die Reihenfolge!', {
+      fontSize: '26px', color: '#ffffff', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 4,
     }).setOrigin(0.5);
 
     // Show current position indicator
-    const keySize = 56;
-    const spacing = 10;
+    const keySize = 92;
+    const spacing = 18;
     const totalW = this.sequenceLength * (keySize + spacing) - spacing;
     const startX = width / 2 - totalW / 2 + keySize / 2;
-    const y = height / 2 + 130;
+    const y = height / 2 + 134;
 
     this.sequence.forEach((_, i) => {
       const x = startX + i * (keySize + spacing);
-      const ind = this.add.rectangle(x, y, keySize, 12, 0x333333)
-        .setStrokeStyle(1, 0x666666);
+      const ind = this.add.rectangle(x, y, keySize, 18, 0x333333)
+        .setStrokeStyle(2, 0x666666);
       this.inputIndicators.push(ind);
     });
 
@@ -121,23 +120,30 @@ export class ButtonSequenceScene extends Phaser.Scene {
       this.input.keyboard?.on(`keydown-${key}`, () => this.onKeyPress(key));
     }
 
-    // On-screen touch buttons (always shown — works on both touch and desktop)
-    const btnSize = 64;
-    const btnSpacing = 12;
-    const btnY = height - 70;
+    // On-screen touch buttons (always shown — works on both touch and desktop).
+    // Big, well-spaced finger targets along the bottom of the landscape screen.
+    const btnSize = 116;
+    const btnSpacing = 28;
+    const btnY = height - 96;
     const totalBtnW = KEYS.length * (btnSize + btnSpacing) - btnSpacing;
     const btnStartX = width / 2 - totalBtnW / 2 + btnSize / 2;
 
     KEYS.forEach((key, i) => {
       const bx = btnStartX + i * (btnSize + btnSpacing);
       const bg = this.add.rectangle(bx, btnY, btnSize, btnSize, KEY_COLORS[key] ?? 0x888888)
-        .setStrokeStyle(2, 0xffffff)
+        .setStrokeStyle(4, 0xffffff)
         .setInteractive({ useHandCursor: true });
       this.add.text(bx, btnY, key, {
-        fontSize: '26px', color: '#ffffff', fontStyle: 'bold',
+        fontSize: '48px', color: '#ffffff', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 4,
       }).setOrigin(0.5).setDepth(1);
 
-      bg.on('pointerdown', () => this.onKeyPress(key));
+      bg.on('pointerdown', () => {
+        this.onKeyPress(key);
+        // Quick press feedback so taps feel responsive.
+        bg.setScale(0.92);
+        this.tweens.add({ targets: bg, scale: 1, duration: 90 });
+      });
       bg.on('pointerover', () => bg.setFillStyle(0xffffff, 0.3));
       bg.on('pointerout', () => bg.setFillStyle(KEY_COLORS[key] ?? 0x888888));
     });
@@ -176,11 +182,9 @@ export class ButtonSequenceScene extends Phaser.Scene {
 
     const width = DESIGN_W, height = DESIGN_H;
     const label = score >= 90 ? 'PERFECT!' : score >= 70 ? 'GREAT!' : score >= 40 ? 'OK' : 'MISS!';
-    const color = score >= 80 ? '#44ff44' : score >= 50 ? '#ffaa00' : '#ff4444';
+    const color = score >= 80 ? '#5dff5d' : score >= 50 ? '#ffc23d' : '#ff5a5a';
 
-    this.add.text(width / 2, height / 2 + 180, `${label} (${score}%)`, {
-      fontSize: '28px', color, fontStyle: 'bold',
-    }).setOrigin(0.5);
+    addResultBanner(this, width / 2, height / 2 - 130, `${label} (${score}%)`, color);
 
     for (const key of KEYS) {
       this.input.keyboard?.removeAllListeners(`keydown-${key}`);

@@ -158,8 +158,9 @@ export class Battle extends Phaser.Scene {
     this.drawMonsterCards();
 
     // Status + log text
-    this.statusText = this.add.text(width / 2, height - 120, '', {
-      fontSize: '16px', color: '#ffffff',
+    this.statusText = this.add.text(width / 2, height - 178, '', {
+      fontSize: '22px', color: '#ffffff', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 4, align: 'center',
     }).setOrigin(0.5);
 
     this.logText = this.add.text(10, height - 50, '', {
@@ -827,13 +828,13 @@ export class Battle extends Phaser.Scene {
 
     // ── ULTIMA button (only when fully charged) ──────────────────────────────
     if (attacker.ultCharge >= ultChargeCostFor(attacker.attackStat)) {
-      const ux = width / 2, uy = height - 116;
-      const ubtn = this.add.rectangle(ux, uy, 280, 36, 0x664400)
-        .setStrokeStyle(3, 0xffd700)
+      const ux = width / 2, uy = height - 122;
+      const ubtn = this.add.rectangle(ux, uy, 400, 52, 0x664400)
+        .setStrokeStyle(4, 0xffd700)
         .setInteractive({ useHandCursor: true });
       const utxt = this.add.text(ux, uy, '⚡  ULTIMA  ⚡  (2 Minigames!)', {
-        fontSize: '14px', color: '#ffd700', fontStyle: 'bold',
-        stroke: '#000000', strokeThickness: 3,
+        fontSize: '22px', color: '#ffd700', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 4,
       }).setOrigin(0.5);
       const pulse = this.tweens.add({ targets: ubtn, alpha: { from: 1, to: 0.65 }, duration: 480, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       const uContainer = this.add.container(0, 0, [ubtn, utxt]);
@@ -843,11 +844,17 @@ export class Battle extends Phaser.Scene {
       ubtn.on('pointerout', () => ubtn.setFillStyle(0x664400));
     }
 
+    // Big, evenly-centred attack buttons. Sizing/spacing scales to the number
+    // of moves so the row stays balanced and the targets are finger-friendly on
+    // a landscape phone or iPad.
+    const btnW = 168, btnH = 76, gap = 16;
+    const count = moves.length;
+    const rowStartX = width / 2 - ((count - 1) * (btnW + gap)) / 2;
     moves.forEach((moveId, i) => {
       const moveDef = ATTACKS[moveId];
       if (!moveDef) return;
-      const x = width / 2 - 180 + i * 120;
-      const y = height - 70;
+      const x = rowStartX + i * (btnW + gap);
+      const y = height - 56;
 
       const cdLeft = attacker.moveCooldowns[moveId] ?? 0;
       const onCooldown = cdLeft > 0;
@@ -861,14 +868,16 @@ export class Battle extends Phaser.Scene {
       const hoverColor = moveDef.support ? 0x3d7a4f : 0x4455aa;
       const strokeColor = moveDef.support ? 0x77dd99 : 0xaabbff;
 
-      const btn = this.add.rectangle(x, y, 100, 44, disabled ? 0x2a2a33 : baseColor)
-        .setStrokeStyle(2, disabled ? 0x555566 : strokeColor);
+      const btn = this.add.rectangle(x, y, btnW, btnH, disabled ? 0x2a2a33 : baseColor)
+        .setStrokeStyle(3, disabled ? 0x555566 : strokeColor);
       if (!disabled) btn.setInteractive({ useHandCursor: true });
 
       // Tag AoE / support moves on the name line so their role is obvious.
       const tag = moveDef.support ? '✚ ' : (moveDef.targeting === 'aoe' ? '✺ ' : '');
-      const txt = this.add.text(x, y - 8, tag + moveDef.name, {
-        fontSize: '11px', color: disabled ? '#777788' : '#ffffff', fontStyle: 'bold',
+      const txt = this.add.text(x, y - 14, tag + moveDef.name, {
+        fontSize: '18px', color: disabled ? '#777788' : '#ffffff', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 3,
+        align: 'center', wordWrap: { width: btnW - 14 },
       }).setOrigin(0.5);
 
       // Subtitle: cooldown / energy-shortage warning, else the move's stat line
@@ -889,8 +898,9 @@ export class Battle extends Phaser.Scene {
         sub = extras.length ? `${main} · ${extras.join(' · ')}` : main;
         subColor = moveDef.support ? '#aaffcc' : '#aaccff';
       }
-      const powerTxt = this.add.text(x, y + 8, sub, {
-        fontSize: '10px', color: subColor,
+      const powerTxt = this.add.text(x, y + 18, sub, {
+        fontSize: '15px', color: subColor, fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 2,
       }).setOrigin(0.5);
 
       const container = this.add.container(0, 0, [btn, txt, powerTxt]);
