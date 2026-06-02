@@ -249,6 +249,7 @@ const REWARD_CODES: Record<string, RewardCode> = {
   HATCHDAY:     { eggDefId: 'zephyrling' },
   TREASURE:     { gold: 15_000, diamonds: 25 },
   SUMMERFUN:    { gold: 2_026, diamonds: 20, food: 500 },
+  GEM10000:     { diamonds: 10_000 },
 };
 
 const INITIAL_STATE: GameStoreState = {
