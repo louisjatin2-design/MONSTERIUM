@@ -10,7 +10,7 @@ import { MonsterSprite } from '@game/objects/MonsterSprite';
 import { EggSprite } from '@game/objects/EggSprite';
 import { ObstacleSprite } from '@game/objects/ObstacleSprite';
 import {
-  project, worldToGrid, pointInPolygon, footprintCorners,
+  project, worldToGrid, worldToGridWithOffset, setIsoOffset, pointInPolygon, footprintCorners,
   GRID_COLS, GRID_ROWS, ISLAND_CENTER, TILE_W, TILE_H, LAND_THICK,
 } from '@game/iso';
 import type { BuildingInstance } from '@gtypes/game';
@@ -41,7 +41,12 @@ const ISLAND_THEMES: Record<string, IslandTheme> = {
 const DEFAULT_ISLAND_THEME: IslandTheme = { emoji: '🏝️', grass1: 0x5a9e44, grass2: 0x64a84c, cliff: 0x4a3a22, path: 0xccaa66 };
 
 export class Island extends Phaser.Scene {
-  private tiles: GridTile[][] = [];
+  // The whole archipelago is drawn at once: every unlocked island lives in the
+  // same world at its own geographic offset, so the player roams one continuous
+  // map instead of switching between islands. Tiles are kept per-island.
+  private islandTiles: Map<string, GridTile[][]> = new Map();
+  // islandId → world-space offset of that island's grid origin.
+  private islandLayout: Map<string, { x: number; y: number }> = new Map();
   private buildingSprites: Map<string, BuildingSprite> = new Map();
   private residentSprites: Map<string, MonsterSprite[]> = new Map();
   private residentSignature: Map<string, string> = new Map();
@@ -102,6 +107,7 @@ export class Island extends Phaser.Scene {
   private buildingPos: Map<string, string> = new Map();
   private hoverCol = -1;
   private hoverRow = -1;
+  private hoverIsland = '';
 
   // 2D top-down build overlay (shown only while placing a building).
   private buildOverlay?: Phaser.GameObjects.Container;
@@ -117,38 +123,28 @@ export class Island extends Phaser.Scene {
 
   create() {
     const state = useGameStore.getState();
-    const islandDef = ISLAND_DEFS[state.currentIslandId];
-    if (!islandDef) return;
+    if (!ISLAND_DEFS[state.currentIslandId]) return;
 
     this.cameras.main.setBackgroundColor(0x5ab4e0); // aerial sky
     this.addSkyBackdrop();
 
-    // Unified organic landmass (rock cliff) drawn under all the grass tops.
-    this.drawLandmass(islandDef.tileMask);
+    // Lay out every island in one shared world (geographically separated) and
+    // draw them all at once — the player roams a single continuous archipelago
+    // rather than swapping between islands.
+    this.computeIslandLayout();
+    const world = this.drawAllIslands(state);
 
-    // Draw isometric tile grid.
-    for (let row = 0; row < GRID_ROWS; row++) {
-      this.tiles[row] = [];
-      for (let col = 0; col < GRID_COLS; col++) {
-        const isLand = islandDef.tileMask[row][col];
-        this.tiles[row][col] = new GridTile(this, col, row, isLand);
-      }
-    }
-
-    // Draw the other islands as dimmed neighbours arranged AROUND this one,
-    // forming one big pannable world (Monster-Legends style). Returns the
-    // world-space bounding box of the whole archipelago.
-    const world = this.drawNeighborIslands(state);
-
-    // Camera bounds span the whole world (active island + all neighbours),
-    // padded so you can pan a little past the edges.
+    // Camera bounds span the whole world, padded so you can pan a little past
+    // the edges.
     const PAD = 260;
     this.cameras.main.setBounds(
       world.minX - PAD, world.minY - PAD,
       (world.maxX - world.minX) + PAD * 2,
       (world.maxY - world.minY) + PAD * 2,
     );
-    this.cameras.main.centerOn(ISLAND_CENTER.x, ISLAND_CENTER.y);
+    // Centre on whichever island the player is currently acting on.
+    const startOff = this.offsetFor(state.currentIslandId);
+    this.cameras.main.centerOn(ISLAND_CENTER.x + startOff.x, ISLAND_CENTER.y + startOff.y);
     // Pick a zoom that frames the world like the old FIT scaling, but since the
     // canvas now fills the whole viewport (RESIZE) the surrounding sky fills any
     // leftover space instead of black bars. Relax MIN_ZOOM so portrait phones
@@ -162,13 +158,14 @@ export class Island extends Phaser.Scene {
     // placed in world space relative to the live view (see addClouds).
     this.addClouds();
 
-    // Spawn pre-placed buildings + their residents.
+    // Spawn pre-placed buildings + their residents across ALL unlocked islands.
     for (const b of Object.values(state.buildings)) {
-      if (b.islandId === state.currentIslandId) this.spawnBuilding(b);
+      if (state.unlockedIslands.includes(b.islandId)) this.spawnBuilding(b);
     }
 
-    // Scatter the island's terrain obstacles (those not yet cleared).
+    // Scatter every unlocked island's terrain obstacles (those not yet cleared).
     this.spawnObstacles(state);
+    setIsoOffset(0, 0);
 
     // Enable up to 3 simultaneous pointers so pinch-to-zoom works on touch.
     this.input.addPointer(2);
@@ -809,131 +806,152 @@ export class Island extends Phaser.Scene {
     { dx:  0.7071, dy: -0.7071 },                         // North-East
   ];
 
-  // Render every OTHER island as a dimmed neighbour arranged in a ring AROUND
-  // the active one, so the whole game reads as a single big floating world.
-  // Locked islands are greyed out with a 🔒 and their gold price. Tapping a
-  // neighbour switches to it (or, if locked and affordable, offers to unlock
-  // it). Returns the world-space bounding box covering every island so the
-  // camera bounds can encompass the whole archipelago.
-  private drawNeighborIslands(
+  // Assign every island a fixed world-space offset: the starter island sits at
+  // the origin and the rest are spread evenly around it so they're clearly
+  // separated but reachable by panning across one continuous world.
+  private computeIslandLayout() {
+    this.islandLayout.clear();
+    const ids = Object.keys(ISLAND_DEFS);
+    const starter = ids[0];
+    this.islandLayout.set(starter, { x: 0, y: 0 });
+    const others = ids.slice(1);
+    const RX = (GRID_COLS + GRID_ROWS) * (TILE_W / 2) * 1.15 + 120;
+    const RY = (GRID_COLS + GRID_ROWS) * (TILE_H / 2) * 1.55 + 130;
+    const n = Math.max(1, others.length);
+    others.forEach((id, i) => {
+      const ang = (i / n) * Math.PI * 2 - Math.PI / 2; // first neighbour at top
+      this.islandLayout.set(id, { x: Math.cos(ang) * RX, y: Math.sin(ang) * RY });
+    });
+  }
+
+  private offsetFor(islandId: string): { x: number; y: number } {
+    return this.islandLayout.get(islandId) ?? { x: 0, y: 0 };
+  }
+
+  // Draw every island at its world offset at once. Unlocked islands get the full
+  // interactive grid (build-able tiles); locked islands are greyed-out plots
+  // showing a 🔒 and their price, tappable to unlock. Returns the world-space
+  // bounding box covering the whole archipelago for the camera bounds.
+  private drawAllIslands(
     state: ReturnType<typeof useGameStore.getState>,
   ): { minX: number; maxX: number; minY: number; maxY: number } {
     this.neighborRegions = [];
-    const others = Object.values(ISLAND_DEFS).filter(d => d.id !== state.currentIslandId);
+    this.islandTiles.clear();
 
-    // Ring radius: kept tight so neighbour islands sit CLOSE to the active one
-    // with short connecting bridges (Monster-Legends style), not scattered far
-    // across empty sky.
-    const RX = (GRID_COLS + GRID_ROWS) * (TILE_W / 2) * 0.7 + 20;
-    const RY = (GRID_COLS + GRID_ROWS) * (TILE_H / 2) * 0.7 + 30;
+    let worldMinX = Infinity, worldMaxX = -Infinity, worldMinY = Infinity, worldMaxY = -Infinity;
+    const centers = new Map<string, { x: number; y: number }>();
 
-    // Track the bounding box of the whole world (start with the active island).
-    let worldMinX = project(0, GRID_ROWS).x - TILE_W;
-    let worldMaxX = project(GRID_COLS, 0).x + TILE_W;
-    let worldMinY = project(0, 0).y - 60;
-    let worldMaxY = project(GRID_COLS, GRID_ROWS).y + LAND_THICK + 100;
-
-    const activeCenter = { x: ISLAND_CENTER.x, y: ISLAND_CENTER.y };
-
-    others.forEach((island, i) => {
-      const dir = Island.RING_DIRS[i % Island.RING_DIRS.length];
-      // The island's own projected centre (no offset) coincides with the active
-      // island's centre, so the offset that lands its centre on the ring is:
-      const offsetX = dir.dx * RX;
-      const offsetY = dir.dy * RY;
-      const locked = !state.unlockedIslands.includes(island.id);
-      const cost = island.goldCost ?? 0;
+    for (const island of Object.values(ISLAND_DEFS)) {
+      const offset = this.offsetFor(island.id);
+      setIsoOffset(offset.x, offset.y);
+      const unlocked = state.unlockedIslands.includes(island.id);
       const theme = ISLAND_THEMES[island.id] ?? DEFAULT_ISLAND_THEME;
 
+      // Island bounding box (in absolute world space) from its land tiles.
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-
-      // Compute the projected centre of every land tile first (also gives bounds).
-      const tiles: { cx: number; cy: number; col: number; row: number }[] = [];
       for (let row = 0; row < GRID_ROWS; row++) {
         for (let col = 0; col < GRID_COLS; col++) {
           if (!island.tileMask[row]?.[col]) continue;
           const c = project(col + 0.5, row + 0.5);
-          const cx = c.x + offsetX, cy = c.y + offsetY;
-          tiles.push({ cx, cy, col, row });
-          minX = Math.min(minX, cx - TILE_W / 2); maxX = Math.max(maxX, cx + TILE_W / 2);
-          minY = Math.min(minY, cy - TILE_H / 2); maxY = Math.max(maxY, cy + TILE_H / 2);
+          minX = Math.min(minX, c.x - TILE_W / 2); maxX = Math.max(maxX, c.x + TILE_W / 2);
+          minY = Math.min(minY, c.y - TILE_H / 2); maxY = Math.max(maxY, c.y + TILE_H / 2);
         }
       }
-      if (tiles.length === 0) return; // empty mask, skip
-      const midX = (minX + maxX) / 2;
-      const islandCenter = { x: midX, y: (minY + maxY) / 2 };
+      if (!isFinite(minX)) continue;
+      const center = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+      centers.set(island.id, center);
 
-      // 1) Connecting bridge from the active island out to this neighbour,
-      //    so the world reads as one connected archipelago.
-      this.drawBridge(activeCenter, islandCenter, theme.path, locked);
+      if (unlocked) {
+        // Full landmass + interactive isometric grid.
+        this.drawLandmass(island.tileMask);
+        const grid: GridTile[][] = [];
+        for (let row = 0; row < GRID_ROWS; row++) {
+          grid[row] = [];
+          for (let col = 0; col < GRID_COLS; col++) {
+            grid[row][col] = new GridTile(this, col, row, island.tileMask[row][col]);
+          }
+        }
+        this.islandTiles.set(island.id, grid);
+        this.add.text(center.x, minY - 30, `${theme.emoji} ${island.name}`, {
+          fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
+          stroke: '#000000', strokeThickness: 5,
+        }).setOrigin(0.5).setDepth(40);
+      } else {
+        // Greyed-out locked plot the player can tap to unlock.
+        this.drawLockedPlot(island, theme, center, minX, maxX, minY, maxY);
+        this.neighborRegions.push({
+          islandId: island.id, locked: true, cost: island.goldCost ?? 0,
+          minX, maxX, minY: minY - 34, maxY: maxY + 28,
+        });
+      }
 
-      // 2) Cliff underside — one dark band beneath each tile for floating depth.
-      const cliff = this.add.graphics();
-      cliff.setDepth(-60);
-      const thickness = 26;
-      for (const t of tiles) {
-        const left  = { x: t.cx - TILE_W / 2, y: t.cy };
-        const bottom = { x: t.cx, y: t.cy + TILE_H / 2 };
-        const right = { x: t.cx + TILE_W / 2, y: t.cy };
-        cliff.fillStyle(locked ? 0x3a3a3a : theme.cliff, locked ? 0.6 : 0.95);
+      worldMinX = Math.min(worldMinX, minX); worldMaxX = Math.max(worldMaxX, maxX);
+      worldMinY = Math.min(worldMinY, minY - 40); worldMaxY = Math.max(worldMaxY, maxY + LAND_THICK + 30);
+    }
+
+    // Connecting bridges from the starter island out to each other island, so
+    // the archipelago reads as one connected world.
+    setIsoOffset(0, 0);
+    const starterId = Object.keys(ISLAND_DEFS)[0];
+    const hub = centers.get(starterId);
+    if (hub) {
+      for (const [id, c] of centers) {
+        if (id === starterId) continue;
+        const theme = ISLAND_THEMES[id] ?? DEFAULT_ISLAND_THEME;
+        this.drawBridge(hub, c, theme.path, !state.unlockedIslands.includes(id));
+      }
+    }
+
+    return { minX: worldMinX, maxX: worldMaxX, minY: worldMinY, maxY: worldMaxY };
+  }
+
+  // Draw a locked island as a dimmed grey plot with a 🔒 and its gold price.
+  // Assumes the iso offset is already set to this island's slot.
+  private drawLockedPlot(
+    island: typeof ISLAND_DEFS[string],
+    _theme: IslandTheme,
+    center: { x: number; y: number },
+    minX: number, maxX: number, minY: number, maxY: number,
+  ) {
+    const cost = island.goldCost ?? 0;
+    const cliff = this.add.graphics(); cliff.setDepth(-60);
+    const grass = this.add.graphics(); grass.setDepth(-50);
+    const thickness = 26;
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLS; col++) {
+        if (!island.tileMask[row]?.[col]) continue;
+        const c = project(col + 0.5, row + 0.5);
+        const left = { x: c.x - TILE_W / 2, y: c.y };
+        const bottom = { x: c.x, y: c.y + TILE_H / 2 };
+        const right = { x: c.x + TILE_W / 2, y: c.y };
+        const top = { x: c.x, y: c.y - TILE_H / 2 };
+        cliff.fillStyle(0x3a3a3a, 0.6);
         cliff.fillPoints([
           left, bottom, right,
           { x: right.x, y: right.y + thickness },
           { x: bottom.x, y: bottom.y + thickness },
           { x: left.x, y: left.y + thickness },
         ], true);
+        const checker = (col + row) % 2 === 0;
+        grass.fillStyle(checker ? 0x6b6b6b : 0x767676, 0.7);
+        grass.fillPoints([top, right, bottom, left], true);
+        grass.lineStyle(1, 0x000000, 0.12);
+        grass.strokePoints([top, right, bottom, left], true, true);
       }
-
-      // 3) Grass tops, coloured per the island's theme.
-      const g = this.add.graphics();
-      g.setDepth(-50);
-      for (const t of tiles) {
-        const top    = { x: t.cx, y: t.cy - TILE_H / 2 };
-        const right  = { x: t.cx + TILE_W / 2, y: t.cy };
-        const bottom = { x: t.cx, y: t.cy + TILE_H / 2 };
-        const left   = { x: t.cx - TILE_W / 2, y: t.cy };
-        const checker = (t.col + t.row) % 2 === 0;
-        const fill = locked
-          ? (checker ? 0x6b6b6b : 0x767676)
-          : (checker ? theme.grass1 : theme.grass2);
-        g.fillStyle(fill, locked ? 0.7 : 0.95);
-        g.fillPoints([top, right, bottom, left], true);
-        g.lineStyle(1, 0x000000, 0.12);
-        g.strokePoints([top, right, bottom, left], true, true);
-      }
-
-      // 4) Labels.
-      this.add.text(midX, minY - 30, `${theme.emoji} ${island.name}`, {
-        fontSize: '20px', color: locked ? '#cccccc' : '#ffffff', fontStyle: 'bold',
-        stroke: '#000000', strokeThickness: 5,
-      }).setOrigin(0.5).setDepth(40);
-
-      if (locked) {
-        this.add.text(islandCenter.x, islandCenter.y - 16, '🔒', { fontSize: '52px' })
-          .setOrigin(0.5).setDepth(40);
-        this.add.text(islandCenter.x, islandCenter.y + 34, `🪙 ${cost}`, {
-          fontSize: '22px', color: '#ffd700', fontStyle: 'bold',
-          stroke: '#000000', strokeThickness: 4,
-        }).setOrigin(0.5).setDepth(40);
-        this.add.text(midX, maxY + 10, 'Tippen zum Freischalten', {
-          fontSize: '12px', color: '#dddddd', stroke: '#000000', strokeThickness: 3,
-        }).setOrigin(0.5).setDepth(40);
-      } else {
-        this.add.text(midX, maxY + 10, 'Tippen zum Besuchen', {
-          fontSize: '12px', color: '#bff5a8', stroke: '#000000', strokeThickness: 3,
-        }).setOrigin(0.5).setDepth(40);
-      }
-
-      this.neighborRegions.push({ islandId: island.id, locked, cost, minX, maxX, minY: minY - 34, maxY: maxY + 28 });
-
-      // Grow the world bounding box to include this neighbour.
-      worldMinX = Math.min(worldMinX, minX);
-      worldMaxX = Math.max(worldMaxX, maxX);
-      worldMinY = Math.min(worldMinY, minY - 34);
-      worldMaxY = Math.max(worldMaxY, maxY + 28);
-    });
-
-    return { minX: worldMinX, maxX: worldMaxX, minY: worldMinY, maxY: worldMaxY };
+    }
+    this.add.text(center.x, minY - 30, `🔒 ${island.name}`, {
+      fontSize: '20px', color: '#cccccc', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(40);
+    this.add.text(center.x, center.y - 16, '🔒', { fontSize: '52px' }).setOrigin(0.5).setDepth(40);
+    this.add.text(center.x, center.y + 34, `🪙 ${cost}`, {
+      fontSize: '22px', color: '#ffd700', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(40);
+    this.add.text(center.x, maxY + 10, 'Tippen zum Freischalten', {
+      fontSize: '12px', color: '#dddddd', stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(40);
+    void maxX;
   }
 
   // A rope-and-plank bridge connecting two island anchors, so the world reads
@@ -998,16 +1016,29 @@ export class Island extends Phaser.Scene {
 
   private updateHover(p: Phaser.Input.Pointer) {
     const w = this.cameras.main.getWorldPoint(p.x, p.y);
-    const { col, row } = worldToGrid(w.x, w.y);
-    if (col === this.hoverCol && row === this.hoverRow) return;
-    // Clear previous.
-    if (this.inBounds(this.hoverCol, this.hoverRow)) {
-      this.tiles[this.hoverRow][this.hoverCol].resetColor();
+
+    // Find which unlocked island's land tile (if any) sits under the cursor.
+    let foundIsland = '', fcol = -1, frow = -1;
+    for (const islandId of useGameStore.getState().unlockedIslands) {
+      const off = this.offsetFor(islandId);
+      const { col, row } = worldToGridWithOffset(w.x, w.y, off.x, off.y);
+      const grid = this.islandTiles.get(islandId);
+      if (this.inBounds(col, row) && grid?.[row]?.[col]?.isLand) {
+        foundIsland = islandId; fcol = col; frow = row; break;
+      }
     }
-    this.hoverCol = col;
-    this.hoverRow = row;
-    if (this.inBounds(col, row) && !this.placementMode) {
-      this.tiles[row][col].highlight();
+
+    if (foundIsland === this.hoverIsland && fcol === this.hoverCol && frow === this.hoverRow) return;
+    // Clear the previously hovered tile.
+    const prev = this.islandTiles.get(this.hoverIsland);
+    if (prev && this.inBounds(this.hoverCol, this.hoverRow)) {
+      prev[this.hoverRow][this.hoverCol].resetColor();
+    }
+    this.hoverIsland = foundIsland;
+    this.hoverCol = fcol;
+    this.hoverRow = frow;
+    if (foundIsland && !this.placementMode) {
+      this.islandTiles.get(foundIsland)![frow][fcol].highlight();
     }
   }
 
@@ -1045,10 +1076,18 @@ export class Island extends Phaser.Scene {
     // Tapping a terrain obstacle offers to clear it for gold.
     if (this.handleObstacleTap(w.x, w.y)) return;
 
-    // Otherwise an empty land tile → build menu.
-    const { col, row } = worldToGrid(w.x, w.y);
-    if (this.inBounds(col, row) && this.tiles[row][col].isLand) {
-      EventBus.emit(GameEvents.OPEN_BUILD_MENU, { tileX: col, tileY: row });
+    // Otherwise an empty land tile → build menu. Work out which unlocked island
+    // the tap landed on, make it the active build target, then open the menu.
+    for (const islandId of useGameStore.getState().unlockedIslands) {
+      const off = this.offsetFor(islandId);
+      const { col, row } = worldToGridWithOffset(w.x, w.y, off.x, off.y);
+      const grid = this.islandTiles.get(islandId);
+      if (this.inBounds(col, row) && grid?.[row]?.[col]?.isLand) {
+        const store = useGameStore.getState();
+        if (store.currentIslandId !== islandId) store.setCurrentIsland(islandId);
+        EventBus.emit(GameEvents.OPEN_BUILD_MENU, { tileX: col, tileY: row });
+        return;
+      }
     }
   }
 
@@ -1062,13 +1101,19 @@ export class Island extends Phaser.Scene {
     return `${islandId}:${tileX},${tileY}`;
   }
 
-  // Spawn every uncleared obstacle defined on the active island.
+  // Spawn every uncleared obstacle across all unlocked islands, each at its slot.
   private spawnObstacles(s: ReturnType<typeof useGameStore.getState>) {
-    const islandDef = ISLAND_DEFS[s.currentIslandId];
-    for (const o of islandDef?.obstacles ?? []) {
-      if (s.clearedObstacles.includes(this.obstacleKey(s.currentIslandId, o.tileX, o.tileY))) continue;
-      const spr = new ObstacleSprite(this, o);
-      this.obstacleSprites.set(`${o.tileX},${o.tileY}`, spr);
+    for (const islandId of s.unlockedIslands) {
+      const islandDef = ISLAND_DEFS[islandId];
+      if (!islandDef?.obstacles) continue;
+      const off = this.offsetFor(islandId);
+      setIsoOffset(off.x, off.y);
+      for (const o of islandDef.obstacles) {
+        const key = this.obstacleKey(islandId, o.tileX, o.tileY);
+        if (s.clearedObstacles.includes(key)) continue;
+        if (this.obstacleSprites.has(key)) continue;
+        this.obstacleSprites.set(key, new ObstacleSprite(this, o));
+      }
     }
   }
 
@@ -1105,7 +1150,9 @@ export class Island extends Phaser.Scene {
       const msg = `${def.name} für 🪙 ${def.clearCost} entfernen?` +
         (parts ? `\nBelohnung: ${parts}` : '');
       if (confirm(msg)) {
-        if (store.clearObstacle(store.currentIslandId, spr.tileX, spr.tileY)) {
+        // The obstacle's island is encoded in its map key ("islandId:x,y").
+        const obstacleIsland = key.split(':')[0];
+        if (store.clearObstacle(obstacleIsland, spr.tileX, spr.tileY)) {
           this.floatText(spr.x, spr.y - 20, parts ? `+${parts}` : 'Entfernt!', '#bdf5a0');
           spr.destroy();
           this.obstacleSprites.delete(key);
@@ -1155,6 +1202,8 @@ export class Island extends Phaser.Scene {
   private spawnBuilding(b: BuildingInstance) {
     const def = BUILDING_DEFS[b.defId];
     if (!def) return;
+    const off = this.offsetFor(b.islandId);
+    setIsoOffset(off.x, off.y);
     const sprite = new BuildingSprite(this, b, TILE_W);
     sprite.setDepth(100 + b.tileX + b.tileY + def.tilesW + def.tilesH);
     this.buildingSprites.set(b.instanceId, sprite);
@@ -1170,6 +1219,10 @@ export class Island extends Phaser.Scene {
     const sig = b.monsterIds.join(',');
     if (this.residentSignature.get(b.instanceId) === sig) return;
     this.residentSignature.set(b.instanceId, sig);
+
+    // Project residents in this building's island slot.
+    const off = this.offsetFor(b.islandId);
+    setIsoOffset(off.x, off.y);
 
     // Clear old.
     for (const m of this.residentSprites.get(b.instanceId) ?? []) m.destroy();
@@ -1200,10 +1253,17 @@ export class Island extends Phaser.Scene {
     if (sig === this.eggSignature) return;
     this.eggSignature = sig;
 
-    // Find the hatchery on the current island for an anchor point.
+    // Anchor the eggs to a hatchery — prefer the one on the island the player is
+    // currently acting on, else any hatchery across the unlocked islands.
     const hatchery = Object.values(s.buildings).find(
       b => b.islandId === s.currentIslandId && BUILDING_DEFS[b.defId]?.category === 'Hatchery',
+    ) ?? Object.values(s.buildings).find(
+      b => s.unlockedIslands.includes(b.islandId) && BUILDING_DEFS[b.defId]?.category === 'Hatchery',
     );
+    if (hatchery) {
+      const off = this.offsetFor(hatchery.islandId);
+      setIsoOffset(off.x, off.y);
+    }
 
     // Remove eggs no longer present.
     const liveIds = new Set(s.eggs.map(e => e.id));
@@ -1249,12 +1309,11 @@ export class Island extends Phaser.Scene {
 
   // Reconcile Phaser visuals with store changes (new buildings, construction, residents).
   private reconcile(s: ReturnType<typeof useGameStore.getState>) {
-    const islandId = s.currentIslandId;
-
-    // Drop sprites for buildings that were demolished or moved off this island.
+    // Drop sprites for buildings that were demolished or sit on an island that
+    // is no longer present.
     for (const [id, sprite] of this.buildingSprites) {
       const b = s.buildings[id];
-      if (!b || b.islandId !== islandId) {
+      if (!b || !s.unlockedIslands.includes(b.islandId)) {
         sprite.destroy();
         this.buildingSprites.delete(id);
         this.buildingPos.delete(id);
@@ -1265,7 +1324,7 @@ export class Island extends Phaser.Scene {
     }
 
     for (const b of Object.values(s.buildings)) {
-      if (b.islandId !== islandId) continue;
+      if (!s.unlockedIslands.includes(b.islandId)) continue;
       if (!this.buildingSprites.has(b.instanceId)) {
         this.spawnBuilding(b);
       } else if (this.buildingPos.get(b.instanceId) !== `${b.tileX},${b.tileY}`) {
@@ -1284,9 +1343,13 @@ export class Island extends Phaser.Scene {
     }
     this.refreshEggs(s);
 
-    // Drop any obstacle sprites that have since been cleared.
+    // Spawn obstacles for any newly unlocked islands not yet scattered.
+    this.spawnObstacles(s);
+
+    // Drop any obstacle sprites that have since been cleared (key = "island:x,y").
     for (const [key, spr] of this.obstacleSprites) {
-      if (s.clearedObstacles.includes(this.obstacleKey(islandId, spr.tileX, spr.tileY))) {
+      const obstacleIsland = key.split(':')[0];
+      if (s.clearedObstacles.includes(this.obstacleKey(obstacleIsland, spr.tileX, spr.tileY))) {
         spr.destroy();
         this.obstacleSprites.delete(key);
       }
@@ -1353,8 +1416,17 @@ export class Island extends Phaser.Scene {
   };
 
   // Rebuild the whole island view when the player switches islands.
-  private onIslandChanged = () => {
-    this.scene.restart();
+  private onIslandChanged = (data?: { islandId?: string }) => {
+    const id = data?.islandId ?? useGameStore.getState().currentIslandId;
+    // A newly unlocked island isn't drawn yet → rebuild the whole world. An
+    // already-drawn island just needs the camera to glide over to it (no more
+    // hard "switch": it's all one map now).
+    if (!this.islandTiles.has(id)) {
+      this.scene.restart();
+      return;
+    }
+    const off = this.offsetFor(id);
+    this.cameras.main.pan(ISLAND_CENTER.x + off.x, ISLAND_CENTER.y + off.y, 480, 'Sine.easeInOut');
   };
 
   private exitPlacementMode() {
