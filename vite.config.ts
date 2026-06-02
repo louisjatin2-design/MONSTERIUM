@@ -20,5 +20,12 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        // Isolated low-poly 3D proof-of-concept page (does not affect the game).
+        monster3d: path.resolve(__dirname, 'monster3d.html'),
+      },
+    },
   },
 });
