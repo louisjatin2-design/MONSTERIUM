@@ -169,28 +169,34 @@ function buildCrest(art: ElementArt, rng: () => number): THREE.Object3D {
 }
 
 // --- shared face (eyes / cheeks / smile), facing +z ------------------------
+// `frontZ` is the eyeball plane (placed right on the head's front surface so
+// the eyes are seated in the body, never floating); `spacingR` is the head
+// radius and drives eye separation + cheek/mouth offsets.
 interface FaceOpts { eyeCount: number; eyeR: number; cheeks: boolean; iris: number; rng: () => number; }
-function addFace(group: THREE.Group, cx: number, cy: number, cz: number, r: number, o: FaceOpts) {
+function addFace(group: THREE.Group, cx: number, cy: number, frontZ: number, spacingR: number, o: FaceOpts) {
   const white = mat(0xffffff, { roughness: 0.2 });
   const dark = mat(0x080a14, { roughness: 0.12 });
   const irisM = mat(o.iris, { roughness: 0.18, metalness: 0.25, emissive: o.iris, emissiveIntensity: 0.18 });
+  const r = o.eyeR;
+  // Seat the eyeball so only its front pokes out of the surface.
+  const ballZ = frontZ - r * 0.45;
   const xs = o.eyeCount === 1 ? [0] : o.eyeCount === 3 ? [-0.5, 0, 0.5] : [-0.45, 0.45];
   for (const fx of xs) {
-    const ex = cx + fx * r, ey = cy, ez = cz + r * 0.78;
-    const ball = new THREE.Mesh(SPH(o.eyeR, 14, 12), white); ball.position.set(ex, ey, ez); group.add(ball);
-    const ir = new THREE.Mesh(ICO(o.eyeR * 0.7, 0), irisM); ir.position.set(ex, ey, ez + o.eyeR * 0.6); group.add(ir);
-    const pu = new THREE.Mesh(SPH(o.eyeR * 0.4, 10, 8), dark); pu.position.set(ex, ey, ez + o.eyeR * 0.95); group.add(pu);
-    const sh = new THREE.Mesh(SPH(o.eyeR * 0.22, 8, 8), white); sh.position.set(ex - o.eyeR * 0.28, ey + o.eyeR * 0.34, ez + o.eyeR); group.add(sh);
+    const ex = cx + fx * spacingR, ey = cy;
+    const ball = new THREE.Mesh(SPH(r, 14, 12), white); ball.position.set(ex, ey, ballZ); group.add(ball);
+    const ir = new THREE.Mesh(ICO(r * 0.7, 0), irisM); ir.position.set(ex, ey, ballZ + r * 0.55); group.add(ir);
+    const pu = new THREE.Mesh(SPH(r * 0.4, 10, 8), dark); pu.position.set(ex, ey, ballZ + r * 0.82); group.add(pu);
+    const sh = new THREE.Mesh(SPH(r * 0.2, 8, 8), white); sh.position.set(ex - r * 0.28, ey + r * 0.34, ballZ + r * 0.9); group.add(sh);
   }
   if (o.cheeks) {
     const cm = mat(0xff9ab0, { emissive: 0xff5577, emissiveIntensity: 0.22, roughness: 0.6 });
     for (const sgn of [-1, 1]) {
-      const ch = new THREE.Mesh(SPH(r * 0.16, 10, 8), cm); ch.scale.set(1, 0.65, 0.45);
-      ch.position.set(cx + sgn * r * 0.78, cy - r * 0.28, cz + r * 0.74); group.add(ch);
+      const ch = new THREE.Mesh(SPH(spacingR * 0.22, 10, 8), cm); ch.scale.set(1, 0.65, 0.45);
+      ch.position.set(cx + sgn * spacingR * 0.66, cy - spacingR * 0.3, ballZ - r * 0.1); group.add(ch);
     }
   }
-  const mouth = new THREE.Mesh(new THREE.TorusGeometry(r * 0.16, r * 0.04, 8, 12, Math.PI), dark);
-  mouth.rotation.z = Math.PI; mouth.position.set(cx, cy - r * 0.34, cz + r * 0.88); group.add(mouth);
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(spacingR * 0.22, spacingR * 0.05, 8, 12, Math.PI), dark);
+  mouth.rotation.z = Math.PI; mouth.position.set(cx, cy - spacingR * 0.42, ballZ + r * 0.55); group.add(mouth);
 }
 
 // short stubby limb (cone or ico) helper
@@ -290,7 +296,7 @@ function buildCritter(body: THREE.Group, grad: [number, number, number], fo: Fac
   bm.scale.set(0.96, 1.3 * w, 0.92); bm.position.y = 1.06; body.add(bm);
   for (const s of [-1, 1]) { const a = limb(ICO(0.2, 1), jit(grad[1])); a.scale.set(0.85, 1.3, 0.85); a.position.set(s * 0.78, 0.66, 0.16); a.rotation.z = s * 0.6; body.add(a); }
   feet(body, jit(grad[2]), 0.17, 0.4, 0.28);
-  addFace(body, 0, 1.22, 0.6, 0.6, fo);
+  addFace(body, 0, 1.24, 0.78, 0.55, fo);
   return { x: 0, y: 2.0, z: 0.02, r: 0.6 };
 }
 
@@ -305,7 +311,7 @@ function buildBiped(body: THREE.Group, grad: [number, number, number], fo: FaceO
   for (const s of [-1, 1]) { const l = limb(ICO(0.2, 1), jit(grad[2])); l.scale.set(1, 1.3, 1.2); l.position.set(s * 0.3, 0.28, 0.12); body.add(l); }
   // tail
   if (rng() < 0.7) for (let i = 0; i < 3; i++) { const t = limb(ICO(0.16 - i * 0.04, 0), jit(grad[2])); t.position.set(0, 0.7 - i * 0.12, -0.5 - i * 0.22); body.add(t); }
-  addFace(body, 0, hy + 0.04, 0.46, 0.5, fo);
+  addFace(body, 0, hy + 0.02, 0.46, 0.4, fo);
   return { x: 0, y: hy + 0.5, z: 0.02, r: 0.5 };
 }
 
@@ -317,7 +323,7 @@ function buildQuadruped(body: THREE.Group, grad: [number, number, number], fo: F
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const l = limb(new THREE.CylinderGeometry(0.12, 0.1, 0.5, 6), jit(grad[2])); l.position.set(sx * 0.34, 0.25, 0.32 + sz * 0.42 - 0.1); body.add(l); }
   // tail
   for (let i = 0; i < 3; i++) { const t = limb(ICO(0.14 - i * 0.03, 0), jit(grad[2])); t.position.set(0, 0.62 + i * 0.06, -0.7 - i * 0.2); body.add(t); }
-  addFace(body, 0, 0.8, 0.6 + 0.46 * 0.78 - 0.1, 0.46, fo);
+  addFace(body, 0, 0.8, 1.02, 0.4, fo);
   return { x: 0, y: 1.12, z: 0.55, r: 0.46 };
 }
 
@@ -328,7 +334,7 @@ function buildAquatic(body: THREE.Group, grad: [number, number, number], fo: Fac
   for (const sgn of [-1, 1]) { const tf = limb(CONE(0.16, 0.5, 3), jit(grad[1])); tf.scale.set(0.4, 1, 1); tf.position.set(0, 0.95 + sgn * 0.18, -1.05); tf.rotation.x = Math.PI / 2 + sgn * 0.5; body.add(tf); }
   // side fins
   for (const s of [-1, 1]) { const sf = limb(CONE(0.14, 0.4, 3), jit(grad[1])); sf.scale.set(0.4, 1, 1); sf.position.set(s * 0.7, 0.85, 0.1); sf.rotation.z = s * 1.4; body.add(sf); }
-  addFace(body, 0, 1.06, 0.78, 0.55, fo);
+  addFace(body, 0, 1.06, 1.0, 0.5, fo);
   return { x: 0, y: 1.7, z: 0.05, r: 0.5 };
 }
 
@@ -343,7 +349,7 @@ function buildAvian(body: THREE.Group, grad: [number, number, number], fo: FaceO
   for (const s of [-1, 1]) { const l = limb(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 5), 0xffb02a); l.position.set(s * 0.18, 0.3, 0.05); body.add(l); }
   // tail feathers
   for (const sgn of [-1, 0, 1]) { const t = limb(CONE(0.1, 0.45, 3), jit(grad[2])); t.scale.set(0.5, 1, 1); t.position.set(sgn * 0.12, 0.75, -0.6); t.rotation.x = -1.9; body.add(t); }
-  addFace(body, 0, 1.5, 0.36, 0.42, fo);
+  addFace(body, 0, 1.5, 0.48, 0.34, fo);
   return { x: 0, y: 1.85, z: 0.05, r: 0.42 };
 }
 
@@ -358,7 +364,7 @@ function buildSpectral(body: THREE.Group, grad: [number, number, number], fo: Fa
   for (let i = 0; i < 4; i++) { const t = limb(ICO(0.3 - i * 0.06, 1), jit(grad[2])); t.position.set(Math.sin(i) * 0.1, 0.65 - i * 0.16, 0); body.add(t); }
   // floating wisp arms
   for (const s of [-1, 1]) { const a = limb(ICO(0.14, 1), jit(grad[1])); a.position.set(s * 0.7, 1.0, 0.1); body.add(a); }
-  addFace(body, 0, 1.2, 0.66, 0.58, { ...fo, eyeR: fo.eyeR * 1.1 });
+  addFace(body, 0, 1.2, 0.64, 0.5, { ...fo, eyeR: fo.eyeR * 1.1 });
   return { x: 0, y: 1.95, z: 0.02, r: 0.55 };
 }
 
