@@ -1039,13 +1039,13 @@ export const useGameStore = create<GameStore>()(
     })),
     {
       name: 'monsterium-save',
-      version: 9,
+      version: 10,
       migrate: (persisted: any, version: number) => {
-        // v9: one-time hard reset — wipe every existing save back to a fresh
-        // start (all players reset to 0) so the current farm production stats
-        // (1/2/5 food per second) load cleanly. Any save below v9 is discarded
-        // and replaced with the initial state.
-        if (version < 9) {
+        // v10: one-time hard reset — wipe every existing save back to a fresh
+        // start (all players reset to 0) so the rebalanced egg/monster sale
+        // values and farm production stats load cleanly. Any save below v10 is
+        // discarded and replaced with the initial state.
+        if (version < 10) {
           return structuredClone(INITIAL_STATE);
         }
         if (persisted && typeof persisted === 'object') {
