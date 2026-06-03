@@ -1051,37 +1051,53 @@ export class Battle extends Phaser.Scene {
       this.attackButtons.push(container);
 
       if (!disabled) {
-        btn.on('pointerdown', () => this.onMoveSelected(moveId, attacker));
+        btn.on('pointerdown', () => this.showAttackDetail(moveId, attacker));
         btn.on('pointerover', () => btn.setFillStyle(hoverColor));
         btn.on('pointerout', () => btn.setFillStyle(baseColor));
       }
     });
 
-    // ── "Aufladen" button ─────────────────────────────────────────────────────
-    // Every attack now costs energy, so the player always needs a way back: this
-    // button spends the turn to fully refill the attacker's energy bar. It sits
-    // in the bottom-right corner, clear of the centred attack row, and is always
-    // available (even when every move is too expensive to use).
+    // ── Energie-Button (Gruppe 3) ──────────────────────────────────────────────
+    // Dauerhaft sichtbar. Ist die Energie NICHT voll, lädt er auf ("Aufladen").
+    // Ist sie voll, wandelt er sich in einen "Zug überspringen"-Button um, der
+    // den Zug beendet, ohne eine Attacke auszuführen.
     const rx = width - 92, ry = height - 56;
     const full = attacker.energy >= attacker.maxEnergy;
-    const rBtn = this.add.rectangle(rx, ry, 152, btnH, full ? 0x2a2a33 : 0x144a55)
-      .setStrokeStyle(3, full ? 0x555566 : 0x33ccff);
-    const rTxt = this.add.text(rx, ry - 14, '🔋 Aufladen', {
-      fontSize: '18px', color: full ? '#777788' : '#bff0ff', fontStyle: 'bold',
+    const baseFill = full ? 0x3a2d55 : 0x144a55;
+    const overFill = full ? 0x4d3a72 : 0x1d6678;
+    const stroke   = full ? 0xb98cff : 0x33ccff;
+    const rBtn = this.add.rectangle(rx, ry, 152, btnH, baseFill).setStrokeStyle(3, stroke);
+    const rTxt = this.add.text(rx, ry - 14, full ? '⏭️ Zug überspr.' : '🔋 Aufladen', {
+      fontSize: '17px', color: full ? '#e7d6ff' : '#bff0ff', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 3, align: 'center',
     }).setOrigin(0.5);
-    const rSub = this.add.text(rx, ry + 18, full ? 'voll' : `⚡${Math.round(attacker.energy)}/${attacker.maxEnergy}`, {
-      fontSize: '15px', color: full ? '#777788' : '#aaccff', fontStyle: 'bold',
+    const rSub = this.add.text(rx, ry + 18, full ? 'Energie voll' : `⚡${Math.round(attacker.energy)}/${attacker.maxEnergy}`, {
+      fontSize: '15px', color: full ? '#c9b3ff' : '#aaccff', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0.5);
     const rContainer = this.add.container(0, 0, [rBtn, rTxt, rSub]);
     this.attackButtons.push(rContainer);
-    if (!full) {
-      rBtn.setInteractive({ useHandCursor: true });
-      rBtn.on('pointerdown', () => this.onRechargeSelected(attacker));
-      rBtn.on('pointerover', () => rBtn.setFillStyle(0x1d6678));
-      rBtn.on('pointerout', () => rBtn.setFillStyle(0x144a55));
+    rBtn.setInteractive({ useHandCursor: true });
+    rBtn.on('pointerdown', () => full ? this.onSkipTurnSelected(attacker) : this.onRechargeSelected(attacker));
+    rBtn.on('pointerover', () => rBtn.setFillStyle(overFill));
+    rBtn.on('pointerout', () => rBtn.setFillStyle(baseFill));
+  }
+
+  // Gruppe 3 — "Zug überspringen": beendet den Zug, ohne anzugreifen (nur wenn
+  // die Energie ohnehin voll ist, also kein Aufladen nötig wäre).
+  private onSkipTurnSelected(attacker: BattleCombatant) {
+    this.awaitingPlayerInput = false;
+    this.clearAttackButtons();
+    this.statusText.setText(`⏭️ ${attacker.name} überspringt den Zug.`);
+    const home = this.avatarHomes.get(attacker.instanceId);
+    if (home) {
+      const fx = this.add.text(home.x, home.y - 26, '⏭️ Übersprungen', {
+        fontSize: '15px', color: '#c9b3ff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(900);
+      this.tweens.add({ targets: fx, y: home.y - 56, alpha: 0, duration: 800, ease: 'Quad.out', onComplete: () => fx.destroy() });
     }
+    this.turnIndex++;
+    this.time.delayedCall(500, () => this.nextTurn());
   }
 
   // Resolves the "Aufladen" action: spends the whole turn to fully refill the
@@ -1148,6 +1164,76 @@ export class Battle extends Phaser.Scene {
     this.scene.launch('AimClickScene', { moveDef: ultMoveDef, rarityRank: ultRank });
     this.scene.bringToTop('AimClickScene');
     this.scene.pause();
+  }
+
+  // Gruppe 3 — Attacken-Detail-Screen: zeigt vor dem Ausführen Name/Beschreibung,
+  // Energieverbrauch, Cooldown, Statuseffekte und eine Schadens-Vorschau über den
+  // Köpfen der Gegner. "Angreifen" bestätigt, "Zurück" kehrt zur Angriffswahl.
+  private showAttackDetail(moveId: string, attacker: BattleCombatant) {
+    const moveDef = ATTACKS[moveId];
+    if (!moveDef) { this.onMoveSelected(moveId, attacker); return; }
+    this.clearAttackButtons();
+    this.awaitingPlayerInput = true;
+    const width = DESIGN_W, height = DESIGN_H;
+    const objs: Phaser.GameObjects.GameObject[] = [];
+
+    // Schadens-Vorschau über den lebenden Gegnern.
+    if (!moveDef.support) {
+      for (const enemy of this.enemyCombatants.filter(c => c.currentHp > 0)) {
+        const home = this.avatarHomes.get(enemy.instanceId);
+        if (!home) continue;
+        const dmg = this.expectedDamage(attacker, enemy, moveDef.element, moveDef.power);
+        const tag = this.add.text(home.x, home.y - 70, `-${dmg}`, {
+          fontSize: '22px', color: '#ff6b6b', fontStyle: 'bold', stroke: '#000', strokeThickness: 4,
+        }).setOrigin(0.5).setDepth(650);
+        objs.push(tag);
+      }
+    }
+
+    // Detail-Panel unten.
+    const panelW = 470, panelH = 188;
+    const px = width / 2, py = height - 118;
+    const bg = this.add.rectangle(px, py, panelW, panelH, 0x0c0f18, 0.97).setStrokeStyle(2, 0xb98cff).setDepth(640);
+    const title = this.add.text(px, py - panelH / 2 + 22,
+      `${moveDef.targeting === 'aoe' ? '✺ ' : moveDef.support ? '✚ ' : ''}${moveDef.name}`, {
+      fontSize: '22px', color: '#e7d6ff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(641);
+    const desc = this.add.text(px, py - 18, moveDef.description || '—', {
+      fontSize: '14px', color: '#c8d0e0', align: 'center', wordWrap: { width: panelW - 40 },
+    }).setOrigin(0.5).setDepth(641);
+
+    const energyCost = getMoveEnergyCost(moveDef);
+    const cd = getMoveCooldown(moveDef);
+    const statusName = moveDef.statusEffect
+      ? (STATUS_EFFECTS[moveDef.statusEffect.effect]?.name ?? moveDef.statusEffect.effect)
+      : null;
+    const statLine = [
+      moveDef.support ? this.supportShortLabel(moveDef) : `Stärke ${moveDef.power}×`,
+      `⚡ ${energyCost}`,
+      cd > 0 ? `Cooldown ${cd}` : 'kein Cooldown',
+      statusName ? `✦ ${statusName} (ab ${moveDef.statusEffect!.threshold}%)` : null,
+    ].filter(Boolean).join('   ·   ');
+    const stats = this.add.text(px, py + 24, statLine, {
+      fontSize: '14px', color: '#aaccff', fontStyle: 'bold', stroke: '#000', strokeThickness: 2,
+      align: 'center', wordWrap: { width: panelW - 40 },
+    }).setOrigin(0.5).setDepth(641);
+
+    // Buttons.
+    const by = py + panelH / 2 - 24;
+    const backBtn = this.add.rectangle(px - 110, by, 150, 40, 0x33303f).setStrokeStyle(2, 0x888899).setDepth(641).setInteractive({ useHandCursor: true });
+    const backTxt = this.add.text(px - 110, by, '← Zurück', { fontSize: '16px', color: '#ddddee', fontStyle: 'bold' }).setOrigin(0.5).setDepth(642);
+    const goBtn = this.add.rectangle(px + 110, by, 170, 40, 0x2d5a3a).setStrokeStyle(2, 0x77dd99).setDepth(641).setInteractive({ useHandCursor: true });
+    const goTxt = this.add.text(px + 110, by, '⚔️ Angreifen', { fontSize: '16px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(642);
+    backBtn.on('pointerdown', () => { this.clearAttackButtons(); this.showAttackButtons(attacker); });
+    goBtn.on('pointerdown', () => this.onMoveSelected(moveId, attacker));
+    backBtn.on('pointerover', () => backBtn.setFillStyle(0x444050));
+    backBtn.on('pointerout', () => backBtn.setFillStyle(0x33303f));
+    goBtn.on('pointerover', () => goBtn.setFillStyle(0x3d7a4f));
+    goBtn.on('pointerout', () => goBtn.setFillStyle(0x2d5a3a));
+
+    objs.push(bg, title, desc, stats, backBtn, backTxt, goBtn, goTxt);
+    // Alles in einem Container bündeln, damit clearAttackButtons() es aufräumt.
+    this.attackButtons.push(this.add.container(0, 0, objs));
   }
 
   private onMoveSelected(moveId: string, attacker: BattleCombatant) {
