@@ -647,8 +647,13 @@ export function World3D({ hidden }: { hidden: boolean }) {
     applyDayNight();        // initialer Himmel-/Lichtzustand
     let dnAccum = 0;        // Day/Night nur ~2× pro Sekunde neu berechnen
     const tick = () => {
-      const t = clock.getElapsedTime();
+      // WICHTIG: erst das Frame-Delta holen, dann die akkumulierte Zeit lesen.
+      // clock.getElapsedTime() ruft intern selbst getDelta() auf — würde man es
+      // zuerst aufrufen, läge das verbrauchte Delta beim nächsten getDelta() bei
+      // ~0 und JEDE delta-basierte Bewegung (Wandern, Wetter, Wolken, Flourishes)
+      // stünde still. Daher: getDelta() zuerst, t danach aus der Property.
       const dt = clock.getDelta();
+      const t = clock.elapsedTime;
 
       // Gruppe 1: Day/Night-Cycle (Uhrzeit) — günstig, daher gedrosselt.
       dnAccum += dt;
