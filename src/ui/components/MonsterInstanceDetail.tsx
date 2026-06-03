@@ -6,6 +6,7 @@ import { RARITY_COLORS, RARITY_RANK } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { getMonsterFaction, type Faction } from '@data/factions';
 import { getActivePassives } from '@data/passives';
+import { BOND_TASKS, BOND_COOLDOWN_MS, getBondTier, getNextBondTier } from '@data/bonds';
 import { TRAITS } from '@data/traits';
 import { STATUS_EFFECTS } from '@data/statusEffects';
 import { instanceStats } from '@systems/StatSystem';
@@ -40,6 +41,7 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const equipAttack = useGameStore(s => s.equipAttack);
   const unequipAttack = useGameStore(s => s.unequipAttack);
   const trainAttack = useGameStore(s => s.trainAttack);
+  const interactWithMonster = useGameStore(s => s.interactWithMonster);
   const [tab, setTab] = useState<Tab>('info');
   const [openMove, setOpenMove] = useState<string | null>(null);
 
@@ -246,6 +248,46 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
                     </div>
                   </div>
                 ))}
+              </div>
+            );
+          })()}
+
+          {/* Bindung / Relationship-Tasks (Gruppe 5) */}
+          <div className="dossier-sec"><span className="dossier-sec-t">BINDUNG</span><span className="dossier-sec-line" /></div>
+          {(() => {
+            const bondXp = monster.bondXp ?? 0;
+            const tier = getBondTier(bondXp);
+            const next = getNextBondTier(bondXp);
+            const onCooldown = Date.now() - (monster.lastBondMs ?? 0) < BOND_COOLDOWN_MS;
+            const pct = next ? Math.round(((bondXp - tier.xpNeeded) / (next.xpNeeded - tier.xpNeeded)) * 100) : 100;
+            return (
+              <div style={{ marginBottom: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                  <span style={{ color: accent, fontWeight: 800 }}>★ {tier.title} (Stufe {tier.level})</span>
+                  <span style={{ color: '#9fb0c2' }}>+{Math.round(tier.statBonus * 100)}% Werte</span>
+                </div>
+                <div style={{ height: 8, background: '#222', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: accent }} />
+                </div>
+                {onCooldown && (
+                  <div style={{ fontSize: 11, color: '#7d8694', marginBottom: 6 }}>
+                    ⏳ Bereits interagiert — komm später wieder, um die Bindung weiter zu stärken.
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {BOND_TASKS.map(t => {
+                    const afford = (t.cost.gold ?? 0) <= gold && (t.cost.food ?? 0) <= food;
+                    const costLabel = [t.cost.gold ? `🪙${t.cost.gold}` : null, t.cost.food ? `🌾${t.cost.food}` : null].filter(Boolean).join(' ');
+                    return (
+                      <button key={t.id} className="btn" disabled={onCooldown || !afford}
+                        title={t.description}
+                        onClick={() => interactWithMonster(instanceId, t.id)}
+                        style={{ fontSize: 11, padding: '6px 10px', flex: '1 1 auto' }}>
+                        {t.icon} {t.label} <span style={{ opacity: 0.8 }}>(+{t.xp} · {costLabel})</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             );
           })()}
