@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { useGameStore } from '@store/gameStore';
 import { MONSTER_DEFS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { ATTACKS } from '@data/attacks';
@@ -6,6 +7,7 @@ import { RARITY_COLORS, RARITY_STARS, rarityGlow } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { TRAITS } from '@data/traits';
 import { getMonsterRoles, ROLE_COLORS, ROLE_ICONS } from '@data/monsterRoles';
+import { getBestiaryEntries, getBestiaryProgress } from '@data/bestiary';
 import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
@@ -17,6 +19,13 @@ interface MonsterDetailProps {
 
 export function MonsterDetail({ defId, isUnlocked, onClose }: MonsterDetailProps) {
   const def = MONSTER_DEFS[defId];
+  // Gruppe 4 — Bestiarium-Fortschritt (Kämpfe gegen diese Spezies + Besitz).
+  const battles = useGameStore(s => s.bestiary[defId] ?? 0);
+  const owned = useGameStore(s => Object.values(s.monsters).some(m => m.defId === defId));
+  const bestiary = useMemo(
+    () => def ? getBestiaryEntries(def, getBestiaryProgress(battles, owned)) : [],
+    [def, battles, owned],
+  );
   if (!def) return null;
 
   return (
@@ -79,9 +88,30 @@ export function MonsterDetail({ defId, isUnlocked, onClose }: MonsterDetailProps
 
       {isUnlocked ? (
         <>
-          {/* Lore */}
-          <div style={{ fontSize: 13, color: '#aaa', fontStyle: 'italic', marginBottom: 14, lineHeight: 1.5 }}>
-            "{def.lore}"
+          {/* Gruppe 4 — Bestiarium: Lore-Einträge schalten sich mit Kämpfen/Besitz frei. */}
+          <div className="panel-title" style={{ fontSize: 15 }}>
+            📖 Bestiarium
+            <span style={{ fontSize: 11, color: '#888', fontWeight: 400, marginLeft: 8 }}>
+              {bestiary.filter(e => e.unlocked).length}/{bestiary.length} freigeschaltet · {battles} Kämpfe
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+            {bestiary.map(e => (
+              <div key={e.title} style={{
+                background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '8px 10px',
+                border: '1px solid rgba(255,255,255,0.08)',
+                opacity: e.unlocked ? 1 : 0.6,
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: e.unlocked ? '#ffd700' : '#777', marginBottom: 3 }}>
+                  {e.unlocked ? '' : '🔒 '}{e.title}
+                </div>
+                <div style={{ fontSize: 12.5, color: '#bbb', fontStyle: 'italic', lineHeight: 1.5 }}>
+                  {e.unlocked
+                    ? e.text
+                    : `Noch ${Math.max(0, e.threshold - getBestiaryProgress(battles, owned))} Fortschritt — kämpfe oder besitze dieses Monster.`}
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Stats */}

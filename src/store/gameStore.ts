@@ -147,6 +147,9 @@ interface GameStoreState {
   materials: Record<string, number>;
   armorInventory: Record<string, number>;
   redeemedCheatCodes: string[]; // one-time cheat codes already used
+  // Gruppe 4 — Bestiarium: wie oft gegen eine Spezies (defId) gekämpft wurde.
+  // Treibt zusammen mit dem Besitz die schrittweise Lore-Freischaltung.
+  bestiary: Record<string, number>;
 }
 
 interface GameStoreActions {
@@ -239,6 +242,8 @@ interface GameStoreActions {
   // Quests
   /** Mark a battle as won (drives combat quests). Grants material drops. */
   recordBattleWon: (tier?: number) => void;
+  /** Gruppe 4 — Bestiarium: zählt einen Kampf gegen jede gegnerische Spezies. */
+  recordBestiaryEncounter: (defIds: string[]) => void;
 
   // Armor (Gruppe 7)
   /** Add material drops to the inventory. */
@@ -416,6 +421,7 @@ const INITIAL_STATE: GameStoreState = {
   materials: {},
   armorInventory: {},
   redeemedCheatCodes: [],
+  bestiary: {},
 };
 
 export const useGameStore = create<GameStore>()(
@@ -1100,6 +1106,14 @@ export const useGameStore = create<GameStore>()(
         get().addMaterials(rollMaterialDrops(tier));
       },
 
+      recordBestiaryEncounter: (defIds) => {
+        set((s) => {
+          for (const id of defIds) {
+            if (id) s.bestiary[id] = (s.bestiary[id] ?? 0) + 1;
+          }
+        });
+      },
+
       addMaterials: (drops) => {
         set((s) => {
           for (const [id, qty] of Object.entries(drops)) {
@@ -1390,7 +1404,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => accountScopedStorage),
-      version: 11,
+      version: 12,
       migrate: (persisted: any, version: number) => {
         // v10: one-time hard reset — wipe every existing save back to a fresh
         // start (all players reset to 0) so the rebalanced egg/monster sale
@@ -1442,6 +1456,10 @@ export const useGameStore = create<GameStore>()(
           // One-time cheat-code redemption tracking.
           if (!Array.isArray(persisted.redeemedCheatCodes)) {
             persisted.redeemedCheatCodes = [];
+          }
+          // v12: Bestiarium-Kampfzähler pro Spezies.
+          if (!persisted.bestiary || typeof persisted.bestiary !== 'object') {
+            persisted.bestiary = {};
           }
           // Egg storage (Lager). Existing incubating eggs keep running.
           if (!Array.isArray(persisted.storedEggs)) {

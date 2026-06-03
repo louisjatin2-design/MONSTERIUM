@@ -1990,6 +1990,9 @@ export class Battle extends Phaser.Scene {
     const store = useGameStore.getState();
     store.addTrophies(20);
     store.recordBattleWon();
+    // Gruppe 4 — Bestiarium: jede gekämpfte Gegner-Spezies (alle Wellen) zählen,
+    // damit mehr Kämpfe gegen ein Monster dessen Lore-Einträge freischalten.
+    store.recordBestiaryEncounter(this.waves.flatMap(w => w.enemyTeam));
 
     // Advance the story if this was the next uncleared story battle.
     if (this.data_.storyIndex !== undefined && this.data_.storyIndex === store.storyProgress) {
