@@ -140,6 +140,7 @@ interface GameStoreState {
   };
   claimedQuests: string[]; // quest ids already collected
   claimedAchievements: string[]; // achievement ids whose reward was collected
+  lastDailyChestMs: number; // epoch ms of the last claimed daily chest (0 = never)
   redeemedCheatCodes: string[]; // one-time cheat codes already used
 }
 
@@ -237,6 +238,11 @@ interface GameStoreActions {
   claimQuest: (questId: string) => boolean;
   /** Claim a completed achievement's reward. Returns false if not claimable. */
   claimAchievement: (achievementId: string) => boolean;
+
+  /** Whether the daily chest is currently claimable (20h cooldown). */
+  canClaimDailyChest: () => boolean;
+  /** Claim the daily chest. Returns the granted reward, or null if on cooldown. */
+  claimDailyChest: () => { gold: number; diamonds: number; food: number } | null;
 
   // Cheat codes — returns true if the code was valid.
   redeemCheatCode: (code: string) => boolean;
@@ -391,6 +397,7 @@ const INITIAL_STATE: GameStoreState = {
   stats: { feeds: 0, breeds: 0, hatches: 0, collects: 0, battlesWon: 0, buildingsBuilt: 0, evolutions: 0, rankUps: 0, bossRaidWins: 0 },
   claimedQuests: [],
   claimedAchievements: [],
+  lastDailyChestMs: 0,
   redeemedCheatCodes: [],
 };
 
@@ -1104,6 +1111,30 @@ export const useGameStore = create<GameStore>()(
         return true;
       },
 
+      // ── Daily Chest (Gruppe 8) ──────────────────────────────────────────
+      canClaimDailyChest: () => {
+        const DAY_MS = 20 * 3600 * 1000; // 20h Abklingzeit
+        return Date.now() - get().lastDailyChestMs >= DAY_MS;
+      },
+
+      claimDailyChest: () => {
+        if (!get().canClaimDailyChest()) return null;
+        const lvl = get().playerLevel;
+        // Kleine, mit dem Spieler-Level leicht wachsende Tagesbelohnung.
+        const reward = {
+          gold: 500 + lvl * 100,
+          diamonds: 2 + Math.floor(lvl / 5),
+          food: 300 + lvl * 50,
+        };
+        set((s) => {
+          s.gold += reward.gold;
+          s.diamonds += reward.diamonds;
+          s.food += reward.food;
+          s.lastDailyChestMs = Date.now();
+        });
+        return reward;
+      },
+
       addTrophies: (amount) => {
         set((s) => { s.trophies = Math.max(0, s.trophies + amount); });
       },
@@ -1320,6 +1351,9 @@ export const useGameStore = create<GameStore>()(
           if (typeof persisted.stats.bossRaidWins !== 'number') persisted.stats.bossRaidWins = 0;
           if (!Array.isArray(persisted.claimedAchievements)) {
             persisted.claimedAchievements = [];
+          }
+          if (typeof persisted.lastDailyChestMs !== 'number') {
+            persisted.lastDailyChestMs = 0;
           }
           if (!Array.isArray(persisted.claimedQuests)) {
             persisted.claimedQuests = [];

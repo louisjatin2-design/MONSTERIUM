@@ -16,11 +16,14 @@ export function calculateFeedCost(level: number): number {
 export const UNIQUE_SELL_MULTIPLIER = 2;
 
 // Gold earned when selling a monster from a habitat.
-// Scales with rarity (the dominant factor) and a clear per-level bonus — a
-// higher-level monster is worth noticeably more, so leveling before selling pays
-// off (+25% of the base value per level above 1).
+// Scales EXPONENTIALLY with rarity (the dominant factor) so rare monsters/eggs
+// are dramatically more valuable than common ones (Gruppe 8), plus a clear
+// per-level bonus (+25% of base per level above 1) so leveling before selling
+// pays off.
+//   Common(0)=120, Rare(1)=~260, SR(2)=~575, Epic(3)=~1265,
+//   Legendary(4)=~2780, Elite(5)=~6120, Mythic(6)=~13460, Transcendent(7)=~29620
 export function calculateSellValue(rarityRank: number, level: number, isUnique = false): number {
-  const base = 80 + rarityRank * 220;
+  const base = 120 * Math.pow(2.2, rarityRank);
   const value = base * (1 + (level - 1) * 0.25);
   return Math.floor(value * (isUnique ? UNIQUE_SELL_MULTIPLIER : 1));
 }

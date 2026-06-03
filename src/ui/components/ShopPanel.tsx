@@ -104,7 +104,9 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
 
       <div style={{ overflowY: 'auto', padding: 14, flex: 1, minHeight: 0 }}>
         {tab === 'items' ? (
-          SHOP_ITEMS.map(item => {
+          <>
+          <DailyChest />
+          {SHOP_ITEMS.map(item => {
             // Items are priced in either diamonds or gold. Read whichever this
             // item uses so gold eggs don't fall through to a 💎 0 (free) label.
             const isGold = item.goldCost != null;
@@ -126,7 +128,8 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
                 </button>
               </div>
             );
-          })
+          })}
+          </>
         ) : (
           <BuildTab gold={gold} onStartPlacement={onStartPlacement} />
         )}
@@ -200,6 +203,46 @@ function BuildTab({ gold, onStartPlacement }: { gold: number; onStartPlacement: 
         })}
       </div>
     </>
+  );
+}
+
+// ── Daily Chest (Gruppe 8) ──────────────────────────────────────────────────
+function DailyChest() {
+  const lastMs = useGameStore(s => s.lastDailyChestMs);
+  const claimDailyChest = useGameStore(s => s.claimDailyChest);
+  const [, force] = useState(0);
+  const DAY_MS = 20 * 3600 * 1000;
+  const available = Date.now() - lastMs >= DAY_MS;
+  const hoursLeft = Math.ceil((DAY_MS - (Date.now() - lastMs)) / 3600000);
+
+  return (
+    <div className="monster-card" style={{
+      marginBottom: 12, padding: 12,
+      background: available
+        ? 'linear-gradient(135deg, rgba(255,200,80,0.18), rgba(120,80,20,0.25))'
+        : 'rgba(255,255,255,0.04)',
+      border: `1px solid ${available ? '#ffcc66' : 'rgba(255,255,255,0.08)'}`,
+      display: 'flex', alignItems: 'center', gap: 12,
+    }}>
+      <div style={{ fontSize: 32 }}>{available ? '🎁' : '📦'}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 900, fontSize: 14, color: '#ffcc66' }}>Tägliche Truhe</div>
+        <div style={{ fontSize: 11, color: '#aaa' }}>
+          {available ? 'Einmal täglich gratis öffnen!' : `Wieder verfügbar in ~${hoursLeft}h`}
+        </div>
+      </div>
+      <button className="btn btn-gold" style={{ minWidth: 80 }}
+        disabled={!available}
+        onClick={() => {
+          const reward = claimDailyChest();
+          if (reward) {
+            alert(`🎁 Tägliche Truhe:\n🪙 ${reward.gold}  💎 ${reward.diamonds}  🌾 ${reward.food}`);
+            force(x => x + 1);
+          }
+        }}>
+        {available ? 'Öffnen' : '⏳'}
+      </button>
+    </div>
   );
 }
 
