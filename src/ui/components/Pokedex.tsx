@@ -5,7 +5,8 @@ import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_COLORS, RARITY_RANK, RARITY_STARS, RARITY_SYMBOLS, rarityGlow } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { getMonsterRoles, ROLE_COLORS } from '@data/monsterRoles';
-import type { RarityType } from '@gtypes/game';
+import { getMonsterFaction, FACTION_COLORS, FACTION_ICONS, FACTION_LABELS, type Faction } from '@data/factions';
+import type { RarityType, ElementType } from '@gtypes/game';
 import { MonsterDetail } from './MonsterDetail';
 import { HelpButton } from './HelpButton';
 import '../styles/global.css';
@@ -16,12 +17,17 @@ const RARITY_ORDER: RarityType[] = [
   'Common', 'Rare', 'SuperRare', 'Epic', 'Legendary', 'Elite', 'Mythic', 'Transcendent',
 ];
 
+const ELEMENT_ORDER = Object.keys(ELEMENT_CSS_COLORS) as ElementType[];
+const FACTION_ORDER: Faction[] = ['Good', 'Evil', 'Neutral'];
+
 export function Pokedex({ onClose }: PokedexProps) {
   const pokedexSeen = useGameStore(s => s.pokedexSeen);
   const monsters = useGameStore(s => s.monsters);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [rarityFilter, setRarityFilter] = useState<RarityType | 'All'>('All');
+  const [elementFilter, setElementFilter] = useState<ElementType | 'All'>('All');
+  const [factionFilter, setFactionFilter] = useState<Faction | 'All'>('All');
   // When on, the grid only shows monsters the player currently owns.
   const [ownedOnly, setOwnedOnly] = useState(false);
 
@@ -38,6 +44,8 @@ export function Pokedex({ onClose }: PokedexProps) {
         const def = MONSTER_DEFS[id];
         if (!def) return false;
         if (rarityFilter !== 'All' && def.rarity !== rarityFilter) return false;
+        if (elementFilter !== 'All' && !def.elements.includes(elementFilter)) return false;
+        if (factionFilter !== 'All' && getMonsterFaction(def) !== factionFilter) return false;
         if (ownedOnly && !ownedDefIds.has(id)) return false;
         if (!q) return true;
         return def.name.toLowerCase().includes(q)
@@ -49,7 +57,7 @@ export function Pokedex({ onClose }: PokedexProps) {
         const r = RARITY_RANK[da.rarity] - RARITY_RANK[db.rarity];
         return r !== 0 ? r : da.name.localeCompare(db.name);
       });
-  }, [search, rarityFilter, ownedOnly, ownedDefIds]);
+  }, [search, rarityFilter, elementFilter, factionFilter, ownedOnly, ownedDefIds]);
 
   const discovered = pokedexSeen.length;
   const total = ALL_MONSTER_IDS.length;
@@ -114,6 +122,26 @@ export function Pokedex({ onClose }: PokedexProps) {
             active={ownedOnly} color="#44dd88"
             onClick={() => setOwnedOnly(o => !o)} />
         </div>
+
+        {/* Fraktions-Filter (Gut / Böse / Neutral) — Gruppe 9 */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', marginTop: 6 }}>
+          <Chip label="Alle Fraktionen" active={factionFilter === 'All'} color="#bb88ff" onClick={() => setFactionFilter('All')} />
+          {FACTION_ORDER.map(f => (
+            <Chip key={f} label={`${FACTION_ICONS[f]} ${FACTION_LABELS[f]}`}
+              active={factionFilter === f} color={FACTION_COLORS[f]}
+              onClick={() => setFactionFilter(factionFilter === f ? 'All' : f)} />
+          ))}
+        </div>
+
+        {/* Element-Filter — Gruppe 9 */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', marginTop: 6 }}>
+          <Chip label="Alle Elemente" active={elementFilter === 'All'} color="#bb88ff" onClick={() => setElementFilter('All')} />
+          {ELEMENT_ORDER.map(el => (
+            <Chip key={el} label={el}
+              active={elementFilter === el} color={ELEMENT_CSS_COLORS[el]}
+              onClick={() => setElementFilter(elementFilter === el ? 'All' : el)} />
+          ))}
+        </div>
       </div>
 
       {/* Grid */}
@@ -140,6 +168,14 @@ export function Pokedex({ onClose }: PokedexProps) {
               {owned && (
                 <span style={{ position: 'absolute', top: 4, right: 5, fontSize: 11 }} title="Im Besitz">✓</span>
               )}
+              {unlocked && (() => {
+                const f = getMonsterFaction(def);
+                if (f === 'Neutral') return null;
+                return (
+                  <span style={{ position: 'absolute', top: 4, left: 5, fontSize: 11 }}
+                    title={FACTION_LABELS[f]}>{FACTION_ICONS[f]}</span>
+                );
+              })()}
               <div style={{
                 width: 52, height: 52, borderRadius: '50%', margin: '0 auto 6px',
                 background: unlocked
