@@ -3,6 +3,7 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { ATTACKS } from '@data/attacks';
 import { getElementBonus } from '@data/elements';
 import { STATUS_DEFAULT_ROUNDS } from '@data/statusEffects';
+import { getPassiveMultipliers } from '@data/passives';
 
 export function resolveTurnOrder(combatants: BattleCombatant[]): BattleCombatant[] {
   return [...combatants]
@@ -357,19 +358,23 @@ export function buildCombatant(
   level: number,
   equippedMoveIds: string[],
   isPlayer: boolean,
-  name: string
+  name: string,
+  // Gruppe 3 — Passive über Rang-Ups: dauerhafte Statwert-Boni im Kampf.
+  // Default 0 (Gegner/Altaufrufer) → neutral.
+  rankStars: number = 0,
 ): BattleCombatant {
   const def = MONSTER_DEFS[defId];
   const scalingFactor = 1 + (level - 1) * 0.08;
+  const pmul = getPassiveMultipliers(rankStars);
   return {
     instanceId,
     defId,
     level,
-    currentHp: Math.floor(def.baseStats.hp * scalingFactor),
-    maxHp: Math.floor(def.baseStats.hp * scalingFactor),
-    attackStat: Math.floor(def.baseStats.attack * scalingFactor),
-    defenseStat: Math.floor(def.baseStats.defense * scalingFactor),
-    speedStat: Math.floor(def.baseStats.speed * scalingFactor),
+    currentHp: Math.floor(def.baseStats.hp * scalingFactor * pmul.hp),
+    maxHp: Math.floor(def.baseStats.hp * scalingFactor * pmul.hp),
+    attackStat: Math.floor(def.baseStats.attack * scalingFactor * pmul.attack),
+    defenseStat: Math.floor(def.baseStats.defense * scalingFactor * pmul.defense),
+    speedStat: Math.floor(def.baseStats.speed * scalingFactor * pmul.speed),
     statusEffects: [],
     trait: def.trait,
     isPlayer,
