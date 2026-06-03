@@ -68,6 +68,11 @@ export function SideRail() {
         from="#d03f9a" to="#7a1f5f"
         onClick={() => EventBus.emit(GameEvents.OPEN_SEASON_PASS, {})}
       />
+      <RailButton
+        icon="🌐" label="Multiplayer"
+        from="#3f7fd0" to="#1f3f7a"
+        onClick={() => EventBus.emit(GameEvents.OPEN_MULTIPLAYER, {})}
+      />
     </div>
   );
 }
