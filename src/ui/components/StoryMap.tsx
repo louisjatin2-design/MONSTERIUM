@@ -28,6 +28,8 @@ export function StoryMap({ onClose }: StoryMapProps) {
   }, [storyProgress]);
   const [worldIdx, setWorldIdx] = useState(initialWorld);
   const [selected, setSelected] = useState<number | null>(null);
+  // Gruppe 4 — Cutscene-Index, der vor dem Kampf gezeigt wird (null = keine).
+  const [cutscene, setCutscene] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const world = STORY_WORLDS[worldIdx];
@@ -35,13 +37,19 @@ export function StoryMap({ onClose }: StoryMapProps) {
   // Auto-scroll to the active node when the world opens.
   useEffect(() => { setSelected(null); }, [worldIdx]);
 
+  // Gruppe 4 — vor dem Kampf erst die Cutscene zeigen, dann zur Team-Auswahl.
   const handleStartBattle = (index: number) => {
-    const battle = STORY_BATTLES[index];
     if (index > storyProgress) return;
     if (playerMonsters.length === 0) {
       alert('Du brauchst mindestens ein Monster! Kaufe eines im Shop oder züchte es.');
       return;
     }
+    setSelected(null);
+    setCutscene(index);
+  };
+
+  const launchBattle = (index: number) => {
+    const battle = STORY_BATTLES[index];
     EventBus.emit(GameEvents.OPEN_TEAM_SELECT, {
       enemyTeam: battle.enemyMonsterDefs,
       enemyLevels: battle.enemyLevels,
@@ -248,6 +256,85 @@ export function StoryMap({ onClose }: StoryMapProps) {
           onStart={() => handleStartBattle(selected)}
         />
       )}
+
+      {/* ── Gruppe 4 — Vorkampf-Cutscene ─────────────────────────────── */}
+      {cutscene !== null && (
+        <StoryCutscene
+          index={cutscene}
+          world={world}
+          onClose={() => setCutscene(null)}
+          onContinue={() => { const i = cutscene; setCutscene(null); launchBattle(i); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Gruppe 4 — Story-Cutscene (Path-to-Nowhere-Stil) ────────────────────────
+// Mehrere Text-Panels mit „Weiter", die die Vorgeschichte des Kampfes erzählen.
+// Panels werden aus der Kampf-Beschreibung erzeugt (in Sätze zerlegt) plus einer
+// Rahmung. TODO(assets): animierte Szenen-/Bild-Panels statt reinem Text.
+// TODO: Nachkampf-Outro (benötigt Wiring des Kampf-Endes).
+function StoryCutscene({ index, world, onClose, onContinue }: {
+  index: number; world: StoryWorld; onClose: () => void; onContinue: () => void;
+}) {
+  const battle = STORY_BATTLES[index];
+  const isFirst = index === 0;
+  // Panels: optionaler Welt-Intro (nur 1. Kampf) + Sätze der Beschreibung.
+  const panels = useMemo(() => {
+    const sentences = battle.description
+      .split(/(?<=[.!?])\s+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    return (isFirst ? [STORY_INTRO] : []).concat(sentences.length ? sentences : [battle.description]);
+  }, [battle, isFirst]);
+  const [page, setPage] = useState(0);
+  const last = page >= panels.length - 1;
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 20,
+      background: `radial-gradient(120% 90% at 50% 10%, ${world.bgTo}cc, rgba(0,0,0,0.92) 65%)`,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: 24, animation: 'ptnFadeIn 0.3s ease both',
+    }}>
+      <button className="close-btn" onClick={onClose} style={{ top: 14, right: 16 }}>✕</button>
+
+      <div style={{ fontSize: 11, letterSpacing: '0.3em', color: world.accent, marginBottom: 6 }}>
+        {world.emoji} {world.name.toUpperCase()}
+      </div>
+      <div style={{
+        fontFamily: 'Georgia, serif', fontSize: 'clamp(26px,6vw,44px)', fontWeight: 700,
+        color: '#f3f6fb', textAlign: 'center', textShadow: '0 2px 20px rgba(0,0,0,0.8)', marginBottom: 18,
+      }}>
+        {battle.name}
+      </div>
+
+      <div key={page} style={{
+        maxWidth: 560, minHeight: 120, animation: 'ptnFadeIn 0.3s ease both',
+        background: 'rgba(0,0,0,0.45)', border: `1px solid ${world.accent}55`, borderRadius: 8,
+        padding: '18px 20px', color: '#d7deea', fontSize: 15, lineHeight: 1.65, textAlign: 'center',
+      }}>
+        {panels[page]}
+      </div>
+
+      {/* Fortschritts-Punkte */}
+      <div style={{ display: 'flex', gap: 6, margin: '16px 0' }}>
+        {panels.map((_, i) => (
+          <div key={i} style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: i === page ? world.accent : 'rgba(255,255,255,0.25)',
+          }} />
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="btn" onClick={onClose} style={{ padding: '10px 18px' }}>Überspringen</button>
+        <button className="btn btn-primary" style={{ padding: '10px 22px' }}
+          onClick={() => { if (last) onContinue(); else setPage(p => p + 1); }}>
+          {last ? '⚔️ Kampf beginnen' : 'Weiter →'}
+        </button>
+      </div>
     </div>
   );
 }
