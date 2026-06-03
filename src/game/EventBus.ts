@@ -33,4 +33,5 @@ export const GameEvents = {
   OPEN_COMPENDIUM:      'open-compendium',     // traits & battle-effects glossary
   OPEN_LAB:             'open-lab',            // Labor: rank-up two identical max monsters
   OPEN_ACHIEVEMENTS:    'open-achievements',   // achievements / trophies panel
+  OPEN_SEASON_PASS:     'open-season-pass',    // Gruppe 5: Season Pass / Battle Pass
 } as const;

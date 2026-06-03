@@ -22,6 +22,9 @@ import { getLevelReward } from '@data/levelRewards';
 import { QUESTS, isQuestComplete, type QuestProgressSnapshot } from '@data/quests';
 import { ACHIEVEMENTS, isAchievementComplete, type AchievementSnapshot } from '@data/achievements';
 import { ARMOR_DEFS, rollMaterialDrops } from '@data/armor';
+import {
+  SEASON_TIERS, SEASON_DAILY_TASKS, SEASON_LENGTH_DAYS, MS_PER_DAY, dayKeyOf,
+} from '@data/seasonPass';
 
 // Simple uid generator (no external dependency)
 function uid(): string {
@@ -150,6 +153,16 @@ interface GameStoreState {
   // Gruppe 4 — Bestiarium: wie oft gegen eine Spezies (defId) gekämpft wurde.
   // Treibt zusammen mit dem Besitz die schrittweise Lore-Freischaltung.
   bestiary: Record<string, number>;
+  // Gruppe 5 — Season Pass: zeitlich begrenzter Battle Pass mit Tagesaufgaben
+  // und gestaffelten Belohnungen.
+  seasonPass: {
+    startMs: number;                 // Saison-Start (für Ablauf/Reset)
+    xp: number;                      // gesammelte Saison-XP
+    claimedTiers: number[];          // bereits abgeholte Belohnungs-Stufen
+    dayKey: string;                  // aktueller Tages-Satz (YYYY-M-D)
+    dayBaseline: Record<string, number>; // Stats zu Tagesbeginn (für Aufgaben)
+    claimedDailies: string[];        // heute abgeschlossene Aufgaben-IDs
+  };
 }
 
 interface GameStoreActions {
@@ -244,6 +257,13 @@ interface GameStoreActions {
   recordBattleWon: (tier?: number) => void;
   /** Gruppe 4 — Bestiarium: zählt einen Kampf gegen jede gegnerische Spezies. */
   recordBestiaryEncounter: (defIds: string[]) => void;
+  // Gruppe 5 — Season Pass.
+  /** Saison ggf. zurücksetzen (Ablauf) und Tagesaufgaben rollen. */
+  ensureSeason: () => void;
+  /** Eine abgeschlossene Tagesaufgabe einlösen (gibt Saison-XP). */
+  claimSeasonDaily: (taskId: string) => boolean;
+  /** Eine freigeschaltete Belohnungs-Stufe abholen. */
+  claimSeasonTier: (tier: number) => boolean;
 
   // Armor (Gruppe 7)
   /** Add material drops to the inventory. */
@@ -422,6 +442,14 @@ const INITIAL_STATE: GameStoreState = {
   armorInventory: {},
   redeemedCheatCodes: [],
   bestiary: {},
+  seasonPass: {
+    startMs: Date.now(),
+    xp: 0,
+    claimedTiers: [],
+    dayKey: '',
+    dayBaseline: {},
+    claimedDailies: [],
+  },
 };
 
 export const useGameStore = create<GameStore>()(
@@ -1114,6 +1142,66 @@ export const useGameStore = create<GameStore>()(
         });
       },
 
+      // ── Gruppe 5 — Season Pass ──────────────────────────────────────────
+      ensureSeason: () => {
+        set((s) => {
+          const now = Date.now();
+          // Saison abgelaufen → neue Saison starten (Fortschritt zurücksetzen).
+          if (now - s.seasonPass.startMs >= SEASON_LENGTH_DAYS * MS_PER_DAY) {
+            s.seasonPass.startMs = now;
+            s.seasonPass.xp = 0;
+            s.seasonPass.claimedTiers = [];
+            s.seasonPass.claimedDailies = [];
+            s.seasonPass.dayKey = '';
+          }
+          // Tageswechsel → Tagesaufgaben zurücksetzen, neue Baseline merken.
+          const today = dayKeyOf(now);
+          if (s.seasonPass.dayKey !== today) {
+            s.seasonPass.dayKey = today;
+            s.seasonPass.claimedDailies = [];
+            s.seasonPass.dayBaseline = {
+              battlesWon: s.stats.battlesWon,
+              feeds: s.stats.feeds,
+              hatches: s.stats.hatches,
+              breeds: s.stats.breeds,
+              collects: s.stats.collects,
+            };
+          }
+        });
+      },
+
+      claimSeasonDaily: (taskId) => {
+        get().ensureSeason();
+        const task = SEASON_DAILY_TASKS.find(t => t.id === taskId);
+        if (!task) return false;
+        const sp = get().seasonPass;
+        if (sp.claimedDailies.includes(taskId)) return false;
+        const progress = (get().stats as any)[task.stat] - (sp.dayBaseline[task.stat] ?? 0);
+        if (progress < task.goal) return false;
+        set((s) => {
+          s.seasonPass.xp += task.xp;
+          s.seasonPass.claimedDailies.push(taskId);
+        });
+        return true;
+      },
+
+      claimSeasonTier: (tier) => {
+        get().ensureSeason();
+        const def = SEASON_TIERS.find(t => t.tier === tier);
+        if (!def) return false;
+        const sp = get().seasonPass;
+        if (sp.claimedTiers.includes(tier)) return false;
+        if (sp.xp < def.xpNeeded) return false;
+        set((s) => {
+          if (def.reward.gold) s.gold += def.reward.gold;
+          if (def.reward.diamonds) s.diamonds += def.reward.diamonds;
+          if (def.reward.food) s.food += def.reward.food;
+          s.seasonPass.claimedTiers.push(tier);
+        });
+        if (def.reward.eggDefId) get().addEgg(def.reward.eggDefId, undefined, false);
+        return true;
+      },
+
       addMaterials: (drops) => {
         set((s) => {
           for (const [id, qty] of Object.entries(drops)) {
@@ -1404,7 +1492,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => accountScopedStorage),
-      version: 12,
+      version: 13,
       migrate: (persisted: any, version: number) => {
         // v10: one-time hard reset — wipe every existing save back to a fresh
         // start (all players reset to 0) so the rebalanced egg/monster sale
@@ -1460,6 +1548,13 @@ export const useGameStore = create<GameStore>()(
           // v12: Bestiarium-Kampfzähler pro Spezies.
           if (!persisted.bestiary || typeof persisted.bestiary !== 'object') {
             persisted.bestiary = {};
+          }
+          // v13: Season Pass.
+          if (!persisted.seasonPass || typeof persisted.seasonPass !== 'object') {
+            persisted.seasonPass = {
+              startMs: Date.now(), xp: 0, claimedTiers: [],
+              dayKey: '', dayBaseline: {}, claimedDailies: [],
+            };
           }
           // Egg storage (Lager). Existing incubating eggs keep running.
           if (!Array.isArray(persisted.storedEggs)) {
