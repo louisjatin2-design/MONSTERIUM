@@ -34,6 +34,7 @@ const MINIGAME_SCENE_KEYS: Record<MinigameType, string> = {
   ButtonSequence: 'ButtonSequenceScene',
   MashButton: 'MashButtonScene',
   SwipePath: 'SwipePathScene',
+  Rhythm: 'RhythmScene',
 };
 
 type BattleState = 'INTRO' | 'PLAYER_TURN' | 'MINIGAME_ACTIVE' | 'ULT_MINIGAME_1' | 'ULT_MINIGAME_2' | 'AI_TURN' | 'VICTORY' | 'DEFEAT';
@@ -1268,7 +1269,11 @@ export class Battle extends Phaser.Scene {
     this.state = 'MINIGAME_ACTIVE';
     this.statusText.setText(`Executing ${moveDef.name}...`);
 
-    const sceneKey = MINIGAME_SCENE_KEYS[moveDef.minigameType] ?? 'ButtonSequenceScene';
+    // Gruppe 3 — Sound-Attacken nutzen das Rhythm-Minigame (thematisch passend);
+    // alle anderen ihr deklariertes Minigame.
+    const sceneKey = moveDef.element === 'Sound'
+      ? 'RhythmScene'
+      : (MINIGAME_SCENE_KEYS[moveDef.minigameType] ?? 'ButtonSequenceScene');
     this.scene.launch(sceneKey, { moveDef, rarityRank });
     this.scene.bringToTop(sceneKey);
     this.scene.pause();
@@ -1322,6 +1327,12 @@ export class Battle extends Phaser.Scene {
 
     // Spend the move's energy cost (no-op for free moves).
     spendEnergy(this.currentAttacker, moveDef);
+    // Gruppe 3 — Rhythm-Belohnung: ein starkes Timing bei Sound-Attacken lädt
+    // zusätzlich Energie nach (Energie-Reload).
+    if (moveDef.element === 'Sound' && data.score >= 80) {
+      const reload = Math.ceil(this.currentAttacker.maxEnergy * 0.4);
+      this.currentAttacker.energy = Math.min(this.currentAttacker.maxEnergy, this.currentAttacker.energy + reload);
+    }
     this.updateEnergyBar(this.currentAttacker);
     // Put strong moves on cooldown so they can't be used every turn.
     const cd = getMoveCooldown(moveDef);

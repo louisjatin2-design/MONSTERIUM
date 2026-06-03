@@ -31,7 +31,7 @@ export type EvolutionStage = 'Baby' | 'Juvenile' | 'Adult' | 'Elder';
 export type BuildingCategory =
   | 'Habitat' | 'Temple' | 'Farm' | 'BreedingStation' | 'Hatchery';
 
-export type MinigameType = 'TimingBar' | 'AimClick' | 'ButtonSequence' | 'MashButton' | 'SwipePath';
+export type MinigameType = 'TimingBar' | 'AimClick' | 'ButtonSequence' | 'MashButton' | 'SwipePath' | 'Rhythm';
 
 export type AttackTargeting = 'single' | 'aoe';
 
