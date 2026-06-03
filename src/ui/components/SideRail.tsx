@@ -58,6 +58,11 @@ export function SideRail() {
         from="#a23fd0" to="#5f1f96"
         onClick={() => EventBus.emit(GameEvents.OPEN_LAB, {})}
       />
+      <RailButton
+        icon="🏆" label="Trophäen"
+        from="#d0a83f" to="#967a1f"
+        onClick={() => EventBus.emit(GameEvents.OPEN_ACHIEVEMENTS, {})}
+      />
     </div>
   );
 }

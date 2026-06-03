@@ -20,6 +20,7 @@ import {
 import { calculateBreedOutcomes, rollBreedOutcome } from '@systems/BreedingSystem';
 import { getLevelReward } from '@data/levelRewards';
 import { QUESTS, isQuestComplete, type QuestProgressSnapshot } from '@data/quests';
+import { ACHIEVEMENTS, isAchievementComplete, type AchievementSnapshot } from '@data/achievements';
 
 // Simple uid generator (no external dependency)
 function uid(): string {
@@ -82,6 +83,27 @@ function buildQuestSnapshot(s: GameStoreState): QuestProgressSnapshot {
   };
 }
 
+function buildAchievementSnapshot(s: GameStoreState): AchievementSnapshot {
+  const owned = Object.values(s.monsters);
+  let highestRarity = 0;
+  for (const m of owned) {
+    const def = MONSTER_DEFS[m.defId];
+    if (def) highestRarity = Math.max(highestRarity, RARITY_RANK[def.rarity]);
+  }
+  return {
+    evolutions: s.stats.evolutions,
+    rankUps: s.stats.rankUps,
+    bossRaidWins: s.stats.bossRaidWins,
+    battlesWon: s.stats.battlesWon,
+    breeds: s.stats.breeds,
+    hatches: s.stats.hatches,
+    buildingsBuilt: s.stats.buildingsBuilt,
+    feeds: s.stats.feeds,
+    monstersOwned: owned.length,
+    highestRarityOwned: highestRarity,
+  };
+}
+
 interface GameStoreState {
   gold: number;
   diamonds: number;
@@ -112,8 +134,12 @@ interface GameStoreState {
     collects: number;
     battlesWon: number;
     buildingsBuilt: number;
+    evolutions: number;
+    rankUps: number;
+    bossRaidWins: number;
   };
   claimedQuests: string[]; // quest ids already collected
+  claimedAchievements: string[]; // achievement ids whose reward was collected
   redeemedCheatCodes: string[]; // one-time cheat codes already used
 }
 
@@ -209,6 +235,8 @@ interface GameStoreActions {
   recordBattleWon: () => void;
   /** Claim a completed quest's reward. Returns false if not claimable. */
   claimQuest: (questId: string) => boolean;
+  /** Claim a completed achievement's reward. Returns false if not claimable. */
+  claimAchievement: (achievementId: string) => boolean;
 
   // Cheat codes — returns true if the code was valid.
   redeemCheatCode: (code: string) => boolean;
@@ -360,8 +388,9 @@ const INITIAL_STATE: GameStoreState = {
   currentIslandId: 'emerald_isle',
   tutorialStep: 0,
   pendingLevelRewards: [],
-  stats: { feeds: 0, breeds: 0, hatches: 0, collects: 0, battlesWon: 0, buildingsBuilt: 0 },
+  stats: { feeds: 0, breeds: 0, hatches: 0, collects: 0, battlesWon: 0, buildingsBuilt: 0, evolutions: 0, rankUps: 0, bossRaidWins: 0 },
   claimedQuests: [],
+  claimedAchievements: [],
   redeemedCheatCodes: [],
 };
 
@@ -696,6 +725,7 @@ export const useGameStore = create<GameStore>()(
           if (m.name === prevDefaultName || m.name === MONSTER_DEFS[m.defId]?.name) {
             m.name = getEvolutionStageName(m.defId, next);
           }
+          s.stats.evolutions += 1;
           // Ensure knownMoveIds exists before calling pickRandomNewAttack
           if (!m.knownMoveIds) m.knownMoveIds = [...m.equippedMoveIds];
           const newAttack = pickRandomNewAttack(m as MonsterInstance);
@@ -731,6 +761,7 @@ export const useGameStore = create<GameStore>()(
             hab.monsterIds = hab.monsterIds.filter(id => id !== fodderId);
           }
           delete s.monsters[fodderId];
+          s.stats.rankUps += 1;
         });
         return true;
       },
@@ -1059,6 +1090,20 @@ export const useGameStore = create<GameStore>()(
         return true;
       },
 
+      claimAchievement: (achievementId) => {
+        const ach = ACHIEVEMENTS.find(a => a.id === achievementId);
+        if (!ach) return false;
+        if (get().claimedAchievements.includes(achievementId)) return false;
+        if (!isAchievementComplete(ach, buildAchievementSnapshot(get()))) return false;
+        set((s) => {
+          if (ach.reward.gold) s.gold += ach.reward.gold;
+          if (ach.reward.diamonds) s.diamonds += ach.reward.diamonds;
+          if (ach.reward.food) s.food += ach.reward.food;
+          s.claimedAchievements.push(achievementId);
+        });
+        return true;
+      },
+
       addTrophies: (amount) => {
         set((s) => { s.trophies = Math.max(0, s.trophies + amount); });
       },
@@ -1268,6 +1313,13 @@ export const useGameStore = create<GameStore>()(
           // Quest stat counters + claimed-quest list.
           if (!persisted.stats || typeof persisted.stats !== 'object') {
             persisted.stats = { feeds: 0, breeds: 0, hatches: 0, collects: 0, battlesWon: 0, buildingsBuilt: 0 };
+          }
+          // v11: achievement counters.
+          if (typeof persisted.stats.evolutions !== 'number') persisted.stats.evolutions = 0;
+          if (typeof persisted.stats.rankUps !== 'number') persisted.stats.rankUps = 0;
+          if (typeof persisted.stats.bossRaidWins !== 'number') persisted.stats.bossRaidWins = 0;
+          if (!Array.isArray(persisted.claimedAchievements)) {
+            persisted.claimedAchievements = [];
           }
           if (!Array.isArray(persisted.claimedQuests)) {
             persisted.claimedQuests = [];
