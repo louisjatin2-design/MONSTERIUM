@@ -63,6 +63,11 @@ export function SideRail() {
         from="#d0a83f" to="#967a1f"
         onClick={() => EventBus.emit(GameEvents.OPEN_ACHIEVEMENTS, {})}
       />
+      <RailButton
+        icon="🎟️" label="Season Pass"
+        from="#d03f9a" to="#7a1f5f"
+        onClick={() => EventBus.emit(GameEvents.OPEN_SEASON_PASS, {})}
+      />
     </div>
   );
 }
