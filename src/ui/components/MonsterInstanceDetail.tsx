@@ -11,6 +11,7 @@ import { TRAITS } from '@data/traits';
 import { STATUS_EFFECTS } from '@data/statusEffects';
 import { instanceStats } from '@systems/StatSystem';
 import { calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
+import { elementFoodCost, canAffordElementFood, ELEMENT_FOOD_LEVEL, ELEMENT_FOOD_EMOJI } from '@data/elementFood';
 import {
   isEvolutionReady, getNextEvolutionStage, getEvolutionStageName,
   EVOLUTION_LEVELS, getTrainableAttacks, getAttackTrainCost,
@@ -34,6 +35,7 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const buildings = useGameStore(s => s.buildings);
   const food      = useGameStore(s => s.food);
   const gold      = useGameStore(s => s.gold);
+  const elementFood = useGameStore(s => s.elementFood);
   const diamonds  = useGameStore(s => s.diamonds);
   const sellMonster = useGameStore(s => s.sellMonster);
   const evolveMonster = useGameStore(s => s.evolveMonster);
@@ -69,6 +71,10 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
     if (!m || m.level >= getEffectiveMaxLevel(m, st.buildings)) return false;
     const cost = calculateFeedCost(m.level);
     if (st.food < cost) return false;
+    // Gruppe 5 — ab Lv100 zusätzlich Element-Futter nötig.
+    const mdef = MONSTER_DEFS[m.defId];
+    const efCost = elementFoodCost(m.level, (mdef?.elements ?? []) as any);
+    if (!canAffordElementFood(st.elementFood, efCost)) return false;
     st.feedMonster(instanceId, cost);
     return true;
   }, [instanceId]);
@@ -101,7 +107,10 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   // Tempel-begrenzt (noch unter 100), nicht durch Rank/Labor: Hinweis zeigen.
   const templeGated = atMaxLevel && templeCap < 100 && monster.level >= templeCap;
   const feedCost = calculateFeedCost(monster.level);
-  const canFeed = food >= feedCost && !atMaxLevel;
+  // Gruppe 5 — Element-Futter-Gate ab Level 100.
+  const efCost = elementFoodCost(monster.level, def.elements as any);
+  const efOk = canAffordElementFood(elementFood, efCost);
+  const canFeed = food >= feedCost && !atMaxLevel && efOk;
   const sellValue = calculateSellValue(RARITY_RANK[def.rarity], monster.level, monster.isUnique);
   const accent = ELEMENT_CSS_COLORS[def.elements[0]];
 
@@ -327,6 +336,14 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
                 onPointerCancel={stopFeeding}>
                 {atMaxLevel ? 'Max-Level erreicht' : `🌾 Füttern halten (${feedCost})`}
               </button>
+              {/* Gruppe 5 — Element-Futter-Status ab Level 100 */}
+              {monster.level >= ELEMENT_FOOD_LEVEL && Object.keys(efCost).length > 0 && (
+                <div style={{ fontSize: 11, color: efOk ? '#9fd' : '#ff9a9a', textAlign: 'center', marginTop: 8 }}>
+                  {ELEMENT_FOOD_EMOJI} Element-Futter pro Fütterung:{' '}
+                  {Object.entries(efCost).map(([el, q]) => `${el} ${elementFood[el] ?? 0}/${q}`).join(', ')}
+                  {!efOk && ' — baue/verbessere die Element-Tempel, um mehr zu produzieren.'}
+                </div>
+              )}
               {templeGated && (
                 <div style={{ fontSize: 11, color: '#88ccff', textAlign: 'center', marginTop: 8 }}>
                   ⛩️ Levelgrenze {templeCap} erreicht. Baue/verbessere den{def.elements.length > 1 ? 'jeweiligen Element-Tempel beider Elemente' : ' passenden Element-Tempel'} (aktuell Stufe {templeLevel}), um weiter aufzuleveln.

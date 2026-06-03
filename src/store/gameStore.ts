@@ -26,6 +26,7 @@ import {
   SEASON_TIERS, SEASON_DAILY_TASKS, SEASON_LENGTH_DAYS, MS_PER_DAY, dayKeyOf,
 } from '@data/seasonPass';
 import { BOND_TASKS, BOND_COOLDOWN_MS } from '@data/bonds';
+import { elementFoodCost, canAffordElementFood, templeElementFoodPerHour } from '@data/elementFood';
 
 // Simple uid generator (no external dependency)
 function uid(): string {
@@ -154,6 +155,8 @@ interface GameStoreState {
   // Gruppe 4 — Bestiarium: wie oft gegen eine Spezies (defId) gekämpft wurde.
   // Treibt zusammen mit dem Besitz die schrittweise Lore-Freischaltung.
   bestiary: Record<string, number>;
+  // Gruppe 5 — Element-Futter (Element → Menge) für Level 100+, in Tempeln produziert.
+  elementFood: Record<string, number>;
   // Gruppe 5 — Season Pass: zeitlich begrenzter Battle Pass mit Tagesaufgaben
   // und gestaffelten Belohnungen.
   seasonPass: {
@@ -445,6 +448,7 @@ const INITIAL_STATE: GameStoreState = {
   armorInventory: {},
   redeemedCheatCodes: [],
   bestiary: {},
+  elementFood: {},
   seasonPass: {
     startMs: Date.now(),
     xp: 0,
@@ -672,7 +676,17 @@ export const useGameStore = create<GameStore>()(
         const cost = calculateFeedCost(monster.level);
         // One feed cycle per call. Always exactly 4 feed cycles per level-up.
         if (foodAmount < cost) return;
+        // Gruppe 5 — ab Level 100 ist zusätzlich Element-Futter nötig (in Tempeln
+        // produziert). Reicht es nicht, wird gar nicht gefüttert (auch kein Gold/Futter).
+        const def0 = MONSTER_DEFS[monster.defId];
+        const efCost = elementFoodCost(monster.level, (def0?.elements ?? []) as any);
+        if (!canAffordElementFood(get().elementFood, efCost)) return;
         if (!get().spendFood(cost)) return;
+        set((s) => {
+          for (const [el, qty] of Object.entries(efCost)) {
+            s.elementFood[el] = (s.elementFood[el] ?? 0) - qty;
+          }
+        });
         set((s) => {
           const m = s.monsters[instanceId];
           if (m.level >= maxLevel) return;
@@ -1431,6 +1445,19 @@ export const useGameStore = create<GameStore>()(
               }
             }
 
+            // Gruppe 5 — Tempel produzieren element-spezifisches Futter (für Lv100+).
+            // Wird automatisch in den globalen Vorrat gebucht (kein Einsammeln nötig);
+            // lastCollectedMs dient hier nur als Akkumulator-Zeitstempel.
+            if (def?.category === 'Temple' && def.linkedElement && !b.constructionEndMs) {
+              const base = b.lastCollectedMs || now;
+              const elapsedH = (now - base) / 3_600_000;
+              const gain = Math.floor(templeElementFoodPerHour(b.level) * Math.min(elapsedH, 24));
+              if (gain > 0) {
+                s.elementFood[def.linkedElement] = (s.elementFood[def.linkedElement] ?? 0) + gain;
+                b.lastCollectedMs = now;
+              }
+            }
+
             // Accumulate food for Farms (same pattern as gold: player clicks to collect)
             if (def?.category === 'Farm' && !b.constructionEndMs) {
               const levelData = def.levels[b.level - 1];
@@ -1515,7 +1542,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => accountScopedStorage),
-      version: 13,
+      version: 14,
       migrate: (persisted: any, version: number) => {
         // v10: one-time hard reset — wipe every existing save back to a fresh
         // start (all players reset to 0) so the rebalanced egg/monster sale
@@ -1578,6 +1605,10 @@ export const useGameStore = create<GameStore>()(
               startMs: Date.now(), xp: 0, claimedTiers: [],
               dayKey: '', dayBaseline: {}, claimedDailies: [],
             };
+          }
+          // v14: Element-Futter-Vorrat.
+          if (!persisted.elementFood || typeof persisted.elementFood !== 'object') {
+            persisted.elementFood = {};
           }
           // Egg storage (Lager). Existing incubating eggs keep running.
           if (!Array.isArray(persisted.storedEggs)) {
