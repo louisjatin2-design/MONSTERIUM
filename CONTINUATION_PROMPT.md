@@ -25,6 +25,17 @@ Bereits umgesetzt und getestet (`tsc` + `npm run build` grün):
 - **Gruppe 8 (teilw.):** Exponentielle Verkaufswerte (`calculateSellValue`); Daily Chest.
 - **Gruppe 9:** Pokedex-Filter (Element + Fraktion) + Fraktions-Icons.
 - **Gruppe 12:** Super-lineare Futterkosten (`calculateFeedCost`).
+- **Gruppe 1 (VOLLSTÄNDIG):** `World3D.tsx` — layerbasierter Parallax-Himmel
+  (Shader-Gradient-Dome + 3 unabhängige Wolken-Layer, brechen beim Zoomen nicht);
+  zentrale `getDayNightState(date)` (Sonnen-/Mond-Bogen, Lichtfarbe/-stärke,
+  Ambient, Fog, Himmelsfarben) nach Geräteuhrzeit, smooth interpoliert;
+  warmes Lampenlicht pro Gebäude (nachts an). `global.css`: dunklere,
+  scharfkantige Path-to-Nowhere-Panels + animierte Screen-/Panel-Transitions
+  (Slide/Fade/Zoom, respektiert prefers-reduced-motion).
+- **Gruppe 2 (visueller Teil, ohne Persistenz):** Wander-AI der Monster im
+  Habitat, Größe proportional zu Habitat/Seltenheit/Level, Fraktions-Designs
+  (Gut = Heiligenschein, Böse = Glut-Hörner) in `lowpolyMonster.ts`
+  (`MonsterVisualSpec.faction`).
 
 Architektur-Hinweise:
 - React (UI) + Zustand (`src/store/gameStore.ts`, persist v11 + `migrate`) + Phaser
@@ -41,22 +52,18 @@ Architektur-Hinweise:
 Lies zuerst die gesamte Projektstruktur. Nutze Platzhalter-Assets mit `TODO(assets)`.
 Markiere WIP klar im Code. Frag bei grundlegenden Designentscheidungen nach.
 
-### Gruppe 1 — Visuelles & Background (Three.js / `World3D.tsx`)
-- Ersetze Overlay-Hintergründe durch einen **layerbasierten Parallax-Himmel** (mehrere
-  Sky-Domes/Planes mit Tiefe), der beim Zoomen **nicht bricht**.
-- Mehrere unabhängige **Wolken-Layer** (unterschiedliche Geschwindigkeit/Größe/Opazität).
-- **Day/Night-Cycle** nach Geräteuhrzeit (`new Date().getHours()`): 00:00 dunkel + Mond +
-  Lampenlicht, 12:00 Sonne im Zenit; smooth interpolieren (Sonnen-/Mond-Position,
-  Lichtfarbe, Ambient, Fog). Tipp: zentrale `getDayNightState(date)`-Funktion.
-- Gesamtes UI näher an **Path to Nowhere**: dunkel, detailreich, scharfe Kanten,
-  cinematisch (CSS in `src/ui/styles/global.css`, Panel-Stile).
-- Alle Screen-Wechsel animieren (Slide/Fade) — z. B. CSS-Transitions auf Panels.
+### Gruppe 1 — Visuelles & Background ✅ ERLEDIGT (s. o.)
+Optionale Feinpolitur, falls Zeit: Vignetten-/Stern-Overlay nachts, finale
+Texturen (`TODO(assets)`), Sonnen-/Mond-Lensflare. Kern-Anforderungen sind erfüllt.
 
-### Gruppe 2 — Monster & Habitate (Rest, 3D)
-- 3D-Monster-Modelle bewegen sich **zufällig** im Habitat (Wander-AI im World3D).
-- Größe **proportional zur Habitatgröße**; Größe/Level sichtbar unterschiedlich.
-- Designs nach Fraktion anpassen (nutze `getMonsterFaction` aus `factions.ts`).
-- **Wettereffekte** im Habitat beeinflussen sichtbar Verhalten/Stimmung der Monster.
+### Gruppe 2 — Monster & Habitate (REST)
+Erledigt: Wander-AI, proportionale Größe, Fraktions-Designs (s. o.).
+**Offen:**
+- **Wettereffekte** im Habitat beeinflussen sichtbar Verhalten/Stimmung der Monster
+  (z. B. Regen → langsameres Wandern/Ducken, Sturm → Aufregung). Es gibt bereits
+  ein Wetter-Konzept in `src/data/events.ts` / EconomySystem? Prüfen; sonst einen
+  einfachen Wetter-Zustand (sonnig/Regen/Sturm) im Store + Partikel/Tint im World3D.
+  Verhalten an `m.userData.wander.speed` koppeln.
 
 ### Gruppe 3 — Kampfsystem (Rest)
 - **3D-Kampfscreen**: ganzes Monster-Modell sichtbar (nicht nur Avatar), Lebens-/Status-
