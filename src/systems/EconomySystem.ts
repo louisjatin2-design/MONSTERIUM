@@ -33,6 +33,34 @@ export function calculateEggSellValue(rarityRank: number, isUnique = false): num
   return Math.floor(calculateSellValue(rarityRank, 1, isUnique) * 0.6);
 }
 
+// ── Habitat-Einkommen (Gruppe 2) ───────────────────────────────────────────
+// Das Gold eines Habitats hängt jetzt von den BEWOHNENDEN Monstern ab, nicht
+// mehr nur vom Gebäude-Level: Kein Monster ⇒ Einkommen 0. Höheres Level und
+// höhere Seltenheit ⇒ mehr Gold. Das Gebäude-Level wirkt als sanfter
+// Multiplikator (bessere Lebensräume pflegen ihre Bewohner effizienter).
+//
+// Pro-Monster-Rate = rarityGoldRate × (1 + (level-1) × 0.04).
+// Ein Lv1-Common bringt also seine Basisrate, ein Lv100 fast das ~5-fache.
+export function monsterGoldPerHour(rarityGoldRate: number, monsterLevel: number): number {
+  return rarityGoldRate * (1 + (monsterLevel - 1) * 0.04);
+}
+
+/**
+ * Stündliche Goldrate eines Habitats: Summe der Bewohner-Raten, skaliert mit
+ * dem Gebäude-Level. Gibt 0 zurück, wenn kein Monster einzieht.
+ */
+export function habitatGoldPerHour(
+  buildingLevel: number,
+  residents: Array<{ rarityGoldRate: number; level: number }>,
+): number {
+  if (residents.length === 0) return 0;
+  const buildingFactor = 1 + (buildingLevel - 1) * 0.15;
+  const sum = residents.reduce(
+    (acc, r) => acc + monsterGoldPerHour(r.rarityGoldRate, r.level), 0,
+  );
+  return Math.floor(sum * buildingFactor);
+}
+
 export function calculateAccumulatedGold(
   goldPerHour: number,
   lastCollectedMs: number,

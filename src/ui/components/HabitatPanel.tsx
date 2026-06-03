@@ -6,7 +6,8 @@ import { ATTACKS } from '@data/attacks';
 import { RARITY_COLORS } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { RARITY_RANK } from '@data/rarities';
-import { calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
+import { calculateFeedCost, calculateSellValue, habitatGoldPerHour } from '@systems/EconomySystem';
+import { RARITY_GOLD_RATE } from '@data/rarities';
 import {
   isEvolutionReady, getNextEvolutionStage, getEvolutionStageName,
   EVOLUTION_LEVELS, getTrainableAttacks, getAttackTrainCost,
@@ -75,6 +76,8 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
     if (!mDef) return false;
     // Prestige habitats only take monsters of a minimum rarity.
     if (def.minRarityRank != null && RARITY_RANK[mDef.rarity] < def.minRarityRank) return false;
+    // Legendär+ darf nur in Prestige-/Legendär-Habitate (Gruppe 2).
+    if (RARITY_RANK[mDef.rarity] >= 4 && def.minRarityRank == null) return false;
     if (def.linkedElement) return mDef.elements.includes(def.linkedElement);
     return true;
   }).sort((a, b) => b.level - a.level); // highest level first
@@ -95,6 +98,21 @@ export function HabitatPanel({ instanceId, onClose }: HabitatPanelProps) {
       <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
         Level {building.level} · {monsters.length}/{levelData?.monsterCapacity ?? 3} Monster
       </div>
+      {(() => {
+        // Einkommen basiert auf den Bewohnern (Level & Seltenheit). Leer ⇒ 0.
+        const rate = habitatGoldPerHour(
+          building.level,
+          monsters.map(m => {
+            const md = MONSTER_DEFS[m.defId];
+            return { rarityGoldRate: md ? RARITY_GOLD_RATE[md.rarity] : 0, level: m.level };
+          }),
+        );
+        return (
+          <div style={{ fontSize: 12, color: rate > 0 ? '#ffd700' : '#888', marginBottom: 8 }}>
+            🪙 {rate > 0 ? `${rate}/Std` : 'Kein Einkommen — setze ein Monster ein'}
+          </div>
+        );
+      })()}
 
       {building.goldAccumulated > 0 && (
         <button className="btn btn-gold" style={{ width: '100%', marginBottom: 6 }}

@@ -9,7 +9,8 @@ import { BUILDING_DEFS } from '@data/buildings';
 import { ISLAND_DEFS } from '@data/islands';
 import { OBSTACLE_DEFS } from '@data/obstacles';
 import { RARITY_HATCH_TIME_SEC, RARITY_BREED_TIME_SEC, RARITY_RANK } from '@data/rarities';
-import { calculateXpToLevel, calculateFeedCost, calculateSellValue, calculateEggSellValue } from '@systems/EconomySystem';
+import { calculateXpToLevel, calculateFeedCost, calculateSellValue, calculateEggSellValue, habitatGoldPerHour } from '@systems/EconomySystem';
+import { RARITY_GOLD_RATE } from '@data/rarities';
 import {
   getUnlockedMoves, getMaxAttackSlots, getNextEvolutionStage,
   pickRandomNewAttack, getTrainableAttacks, getAttackTrainCost,
@@ -857,6 +858,10 @@ export const useGameStore = create<GameStore>()(
           if (b.monsterIds.length >= cap) return false;
           // Prestige habitats only accept monsters of a minimum rarity.
           if (bd.minRarityRank != null && RARITY_RANK[def.rarity] < bd.minRarityRank) return false;
+          // Legendär+ (Rang ≥ 4) dürfen NICHT in Element-Lebensräume, sondern
+          // nur in ihre seltenheitsspezifischen Prestige-/Legendär-Habitate
+          // (die ein minRarityRank tragen). Siehe Gruppe 2.
+          if (RARITY_RANK[def.rarity] >= 4 && bd.minRarityRank == null) return false;
           if (bd.linkedElement) return def.elements.includes(bd.linkedElement);
           return true; // legendary / prestige habitat (any element)
         }).map(b => b.instanceId);
@@ -1089,14 +1094,24 @@ export const useGameStore = create<GameStore>()(
               b.upgradeEndMs = null;
             }
 
-            // Accumulate gold for Habitats
+            // Accumulate gold for Habitats — driven by the resident monsters'
+            // level & rarity (Gruppe 2). Empty habitat ⇒ no income.
             const def = BUILDING_DEFS[b.defId];
             if (def?.category === 'Habitat' && !b.constructionEndMs) {
-              const levelData = def.levels[b.level - 1];
-              if (levelData?.goldPerHour) {
+              const residents = b.monsterIds
+                .map(id => s.monsters[id])
+                .filter(Boolean)
+                .map(m => {
+                  const md = MONSTER_DEFS[m.defId];
+                  return { rarityGoldRate: md ? RARITY_GOLD_RATE[md.rarity] : 0, level: m.level };
+                });
+              const rate = habitatGoldPerHour(b.level, residents);
+              if (rate > 0) {
                 const elapsed = (now - b.lastCollectedMs) / 3_600_000;
-                const maxAccum = levelData.goldPerHour * 12;
-                b.goldAccumulated = Math.min(levelData.goldPerHour * elapsed, maxAccum);
+                const maxAccum = rate * 12;
+                b.goldAccumulated = Math.min(rate * elapsed, maxAccum);
+              } else {
+                b.goldAccumulated = 0;
               }
             }
 
