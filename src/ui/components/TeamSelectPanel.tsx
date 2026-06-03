@@ -3,6 +3,7 @@ import { useGameStore } from '@store/gameStore';
 import { MONSTER_DEFS } from '@data/monsters';
 import { RARITY_COLORS } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
+import { getMonsterFaction, mixedTeamPenalty, pureTeamBonus, FACTION_ICONS, type Faction } from '@data/factions';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { HelpButton } from './HelpButton';
 import '../styles/global.css';
@@ -32,6 +33,20 @@ export function TeamSelectPanel({ battlePayload, onClose }: Props) {
 
   // Highest-level monsters first so the strongest options are at the top.
   const allMonsters = Object.values(monsters).sort((a, b) => b.level - a.level);
+
+  // Gruppe 3 — Gut/Böse-Synergie: dieselbe Rechnung wie im Kampf, damit der
+  // Spieler den Mali/Bonus seines Teams schon bei der Auswahl sieht.
+  const selectedFactions: Faction[] = selected
+    .map(id => monsters[id])
+    .filter(Boolean)
+    .map(m => { const d = MONSTER_DEFS[m.defId]; return d ? getMonsterFaction(d) : 'Neutral'; });
+  const synergyMult = mixedTeamPenalty(selectedFactions) * pureTeamBonus(selectedFactions);
+  const synergy = (() => {
+    if (selected.length < 2) return null;
+    if (synergyMult < 1) return { txt: `Gemischtes Team (${FACTION_ICONS.Good}+${FACTION_ICONS.Evil}) — Schaden ${Math.round((1 - synergyMult) * 100)}% reduziert`, col: '#ff6b6b' };
+    if (synergyMult > 1) return { txt: `Reines Team — Schaden +${Math.round((synergyMult - 1) * 100)}%`, col: '#7fe07f' };
+    return { txt: 'Neutrales Team — keine Synergie', col: '#9aa4b2' };
+  })();
 
   const toggle = (id: string) => {
     setSelected(prev => {
@@ -117,6 +132,18 @@ export function TeamSelectPanel({ battlePayload, onClose }: Props) {
       <div style={{ fontSize: 11, color: '#888', textAlign: 'center' }}>
         {selected.length}/{MAX_TEAM} ausgewählt — tippe auf ein Monster um es hinzuzufügen
       </div>
+
+      {/* Gruppe 3 — Fraktions-Synergie-Hinweis (live) */}
+      {synergy && (
+        <div style={{
+          fontSize: 11, fontWeight: 700, textAlign: 'center',
+          color: synergy.col,
+          background: 'rgba(0,0,0,0.35)', border: `1px solid ${synergy.col}55`,
+          borderRadius: 6, padding: '5px 8px',
+        }}>
+          {synergy.txt}
+        </div>
+      )}
 
       {/* Monster list */}
       <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
