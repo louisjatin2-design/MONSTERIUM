@@ -9,6 +9,7 @@ import { AimClickScene } from '@game/scenes/minigames/AimClickScene';
 import { ButtonSequenceScene } from '@game/scenes/minigames/ButtonSequenceScene';
 import { MashButtonScene } from '@game/scenes/minigames/MashButtonScene';
 import { SwipePathScene } from '@game/scenes/minigames/SwipePathScene';
+import { RhythmScene } from '@game/scenes/minigames/RhythmScene';
 
 export const GameConfig: Phaser.Types.Core.GameConfig = {
   // Prefer WebGL (enables lighting, bloom & post-FX) with a Canvas fallback.
@@ -19,7 +20,7 @@ export const GameConfig: Phaser.Types.Core.GameConfig = {
   // instead of showing as black bars.
   backgroundColor: '#5ab4e0',
   parent: 'game-container',
-  scene: [Boot, Preload, MainMenu, Island, Battle, TimingBarScene, AimClickScene, ButtonSequenceScene, MashButtonScene, SwipePathScene],
+  scene: [Boot, Preload, MainMenu, Island, Battle, TimingBarScene, AimClickScene, ButtonSequenceScene, MashButtonScene, SwipePathScene, RhythmScene],
   scale: {
     // RESIZE: the canvas always fills its parent (the full screen) in BOTH
     // portrait and landscape — no letterbox bars. Scenes lay themselves out
