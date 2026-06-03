@@ -341,6 +341,8 @@ export function World3D({ hidden }: { hidden: boolean }) {
     const pickMonsters: THREE.Object3D[] = [];
     let groundMeshes: THREE.Object3D[] = [];
     const monsterBodies: THREE.Group[] = [];
+    // Kurzlebige Emote-Symbole (❤️/✨/…), die über glücklichen Monstern aufsteigen.
+    const emoteSprites: THREE.Sprite[] = [];
 
     function clearWorld() {
       scene.remove(world);
@@ -354,6 +356,7 @@ export function World3D({ hidden }: { hidden: boolean }) {
       // Lampen werden pro Gebäude neu gesetzt → bei jedem Rebuild leeren.
       lampGroup.children.slice().forEach((l) => lampGroup.remove(l));
       pickBuildings.length = 0; pickMonsters.length = 0; monsterBodies.length = 0;
+      emoteSprites.length = 0;
       groundMeshes = [];
     }
 
@@ -405,9 +408,12 @@ export function World3D({ hidden }: { hidden: boolean }) {
           if (!inst) return;
           const def0 = MONSTER_DEFS[inst.defId];
           const rarityRank = RARITY_RANK[def0?.rarity ?? 'Common'];
-          // Habitat-relative Grundgröße + Seltenheits-/Level-Aufschlag.
+          // Habitat-relative Grundgröße + Seltenheits-/Level-/Evolutions-Aufschlag,
+          // damit ein ausgewachsener, seltener Bewohner sichtbar größer wirkt als
+          // ein Jungtier — realistische Proportionen im Lebensraum.
           const habitatScale = 0.28 + Math.min(def.tilesW, def.tilesH) * 0.04;
-          const sizeMul = habitatScale * (1 + rarityRank * 0.08 + Math.min(inst.level ?? 1, 100) * 0.0015);
+          const stageMul = inst.stage === 'Baby' ? 0.8 : inst.stage === 'Juvenile' ? 0.92 : inst.stage === 'Elder' ? 1.12 : 1;
+          const sizeMul = habitatScale * stageMul * (1 + rarityRank * 0.08 + Math.min(inst.level ?? 1, 100) * 0.0015);
           const m = buildLowPolyMonster(monsterSpec(inst.defId, mid));
           m.scale.setScalar(sizeMul);
           const a = (i / Math.max(1, residents.length)) * Math.PI * 2;
@@ -422,6 +428,9 @@ export function World3D({ hidden }: { hidden: boolean }) {
             speed: 0.5 + Math.random() * 0.6,
             phase: Math.random() * Math.PI * 2,
           };
+          // Lustige Extra-Animationen: gelegentliches Hüpfen, Drehen oder ein
+          // aufsteigendes Emote-Symbol. `cd` zählt bis zur nächsten Aktion runter.
+          m.userData.fun = { cd: 1 + Math.random() * 5, mode: 'none' as 'none' | 'hop' | 'spin', tp: 0, dur: 0 };
           world.add(m);
           pickMonsters.push(m);
           monsterBodies.push(m);
@@ -603,6 +612,35 @@ export function World3D({ hidden }: { hidden: boolean }) {
     renderer.domElement.addEventListener('pointermove', onMove);
     renderer.domElement.addEventListener('pointerup', onUp);
 
+    // --- Emote-Symbole (kleine Stimmungs-Sprites über den Monstern) --------
+    // Jedes Symbol wird einmal in eine Canvas-Textur gebacken und geteilt.
+    const EMOTES = ['❤️', '✨', '🎵', '😄', '💤', '⭐'];
+    const emoteTex: Record<string, THREE.Texture> = {};
+    for (const ch of EMOTES) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 64;
+      const ctx = c.getContext('2d')!;
+      ctx.font = '48px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ch, 32, 36);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      emoteTex[ch] = tex;
+    }
+    // Lasse ein zufälliges Emote über dem Monster aufsteigen und ausblenden.
+    const spawnEmote = (m: THREE.Group) => {
+      const ch = EMOTES[Math.floor(Math.random() * EMOTES.length)];
+      const spMat = new THREE.SpriteMaterial({ map: emoteTex[ch], transparent: true, depthWrite: false, fog: false });
+      const sp = new THREE.Sprite(spMat);
+      sp.scale.set(0.9, 0.9, 1);
+      // Kopfhöhe grob aus der Monstergröße ableiten, damit das Symbol darüber sitzt.
+      sp.userData = { life: 0, dur: 1.5, mon: m, top: 2.3 * (m.scale.x || 1) };
+      sp.position.set(m.position.x, m.position.y + sp.userData.top, m.position.z);
+      world.add(sp);
+      emoteSprites.push(sp);
+    };
+
     // --- animation loop ----------------------------------------------------
     const clock = new THREE.Clock();
     let raf = 0;
@@ -660,10 +698,55 @@ export function World3D({ hidden }: { hidden: boolean }) {
           }
         }
         const body = m.userData.body as THREE.Group | undefined;
-        if (body) body.position.y = Math.sin(t * 2 + i) * 0.05;
+
+        // Gruppe 2: lustige Extra-Animationen (Hüpfen / Drehen / Emote).
+        const fun = m.userData.fun as
+          | { cd: number; mode: 'none' | 'hop' | 'spin'; tp: number; dur: number }
+          | undefined;
+        let hopOffset = 0;
+        if (fun) {
+          if (fun.mode === 'none') {
+            fun.cd -= dt;
+            if (fun.cd <= 0) {
+              const r = Math.random();
+              if (r < 0.4) { fun.mode = 'hop'; fun.tp = 0; fun.dur = 0.5; }
+              else if (r < 0.7) { fun.mode = 'spin'; fun.tp = 0; fun.dur = 0.7; }
+              else { spawnEmote(m); fun.cd = 3 + Math.random() * 5; }
+            }
+          } else if (fun.mode === 'hop') {
+            fun.tp += dt;
+            const k = Math.min(1, fun.tp / fun.dur);
+            hopOffset = Math.sin(k * Math.PI) * 0.6;   // sanfter Sprungbogen
+            if (fun.tp >= fun.dur) { fun.mode = 'none'; fun.cd = 2.5 + Math.random() * 5; }
+          } else if (fun.mode === 'spin') {
+            fun.tp += dt;
+            const k = Math.min(1, fun.tp / fun.dur);
+            if (body) body.rotation.y = k * Math.PI * 2;   // eine fröhliche Pirouette
+            if (fun.tp >= fun.dur) { if (body) body.rotation.y = 0; fun.mode = 'none'; fun.cd = 2.5 + Math.random() * 5; }
+          }
+        }
+
+        // Sanftes Idle-Wippen, kombiniert mit einem laufenden Hüpfer.
+        if (body) body.position.y = Math.sin(t * 2 + i) * 0.05 + hopOffset;
         const orbit = body?.getObjectByName('rarityOrbit');
         if (orbit) orbit.rotation.y = t * 1.2;
       });
+
+      // Emote-Symbole steigen auf und blenden aus; folgen dabei ihrem Monster.
+      for (let i = emoteSprites.length - 1; i >= 0; i--) {
+        const sp = emoteSprites[i];
+        const ud = sp.userData as { life: number; dur: number; mon: THREE.Group; top: number };
+        ud.life += dt;
+        const k = ud.life / ud.dur;
+        if (k >= 1) {
+          world.remove(sp);
+          (sp.material as THREE.Material).dispose();
+          emoteSprites.splice(i, 1);
+          continue;
+        }
+        sp.position.set(ud.mon.position.x, ud.mon.position.y + ud.top + k * 0.9, ud.mon.position.z);
+        (sp.material as THREE.SpriteMaterial).opacity = 1 - k * k;
+      }
       controls.update();
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
@@ -698,6 +781,7 @@ export function World3D({ hidden }: { hidden: boolean }) {
       }));
       cloudLayers.forEach((l) => l.sprites.forEach((sp) => (sp.material as THREE.Material).dispose()));
       cloudTex.dispose();
+      Object.values(emoteTex).forEach((t) => t.dispose());
       rainGeo.dispose(); (rain.material as THREE.Material).dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
