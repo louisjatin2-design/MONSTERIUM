@@ -161,7 +161,7 @@ export class Battle extends Phaser.Scene {
     this.playerCombatants = this.data_.playerTeam.slice(0, 3).map((id, i) => {
       const inst = store.monsters[id];
       if (!inst) return null;
-      return buildCombatant(inst.instanceId, inst.defId, inst.level, inst.equippedMoveIds, true, inst.name);
+      return buildCombatant(inst.instanceId, inst.defId, inst.level, inst.equippedMoveIds, true, inst.name, inst.rankStars ?? 0);
     }).filter(Boolean) as BattleCombatant[];
 
     // Resolve the wave line-up: an explicit waves[] (boss gauntlets) wins,

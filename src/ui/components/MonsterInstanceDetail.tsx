@@ -5,6 +5,7 @@ import { ATTACKS } from '@data/attacks';
 import { RARITY_COLORS, RARITY_RANK } from '@data/rarities';
 import { ELEMENT_CSS_COLORS } from '@data/elements';
 import { getMonsterFaction, type Faction } from '@data/factions';
+import { getActivePassives } from '@data/passives';
 import { TRAITS } from '@data/traits';
 import { STATUS_EFFECTS } from '@data/statusEffects';
 import { instanceStats } from '@systems/StatSystem';
@@ -222,6 +223,32 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
             <StatPill icon="👟" label="TEMPO"   value={stats.speed}   color="#55ccff" />
             <StatPill icon="🛡️" label="ABWEHR"  value={stats.defense} color="#88aaff" />
           </div>
+
+          {/* Passive Fähigkeiten (über Rang-Ups freigeschaltet, im Kampf aktiv) */}
+          <div className="dossier-sec"><span className="dossier-sec-t">PASSIVE</span><span className="dossier-sec-line" /></div>
+          {(() => {
+            const passives = getActivePassives(monster.rankStars ?? 0);
+            if (passives.length === 0) {
+              return <div style={{ fontSize: 12, color: '#7d8694' }}>Keine — Rang-Up im Labor schaltet permanente Kampf-Boni frei (★ = 1 Passiv).</div>;
+            }
+            return (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {passives.map(p => (
+                  <div key={p.star} title={p.description} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    background: 'rgba(255,255,255,0.05)', border: `1px solid ${accent}55`,
+                    borderRadius: 6, padding: '6px 10px',
+                  }}>
+                    <span style={{ fontSize: 18 }}>{p.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: '#eef2f8' }}>{p.name}</div>
+                      <div style={{ fontSize: 10, color: '#9fb0c2' }}>{p.description}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Tab-Karte: Fortschritt / Fähigkeiten / Rüstung */}
           <div className="dossier-sec"><span className="dossier-sec-t">AKTE</span><span className="dossier-sec-line" /></div>
