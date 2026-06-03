@@ -7,14 +7,24 @@ Kopiere den folgenden Block als neue Aufgabe für die nächste Session.
 Gemergt nach `claude/monster-breeding-game-53GjL`:
 - ✅ **Gruppe 1** komplett (Parallax-Himmel, Day/Night, Path-to-Nowhere-UI/Transitions) — PR #54
 - ✅ **Gruppe 2** komplett (Wander-AI, prop. Größe, Fraktions-Designs, Wettereffekte) — PR #54/#56
-- ✅ **Gruppe 3**: Gut/Böse-Kampf-Synergien (PR #55) + Passive über Rang-Ups (PR #58).
-     Offen: Attacken-Detail-Screen, Energie→„Zug überspringen", Rhythm-Minigame, 3D-Kampf.
-- ✅ **Gruppe 4**: Bestiarium-Freischaltung (PR #59) + Vorkampf-Cutscenes (PR #61).
+- ✅ **Gruppe 3**: Synergien (#55), Passive über Rang-Ups (#58), Attacken-Detail-Screen +
+     Energie→„Zug überspringen" (#66), Rhythm-Minigame (#67).
+     Offen: echter 3D-Kampf, Boss-Raids (Multiplayer-Backend).
+- ✅ **Gruppe 4**: Bestiarium-Freischaltung (#59) + Vorkampf-Cutscenes (#61).
      Offen: Nachkampf-Outro (Battle-Ende-Wiring).
-- ✅ **Gruppe 5**: Season Pass (PR #60). Offen: Element-Futter Lv100+, Relationship-/Interrogation-Tasks.
-- ✅ **Gruppe 13**: Monster-Detail als MBCC-Dossier (PR #57). Offen: echte Artworks, restl. Mobiloptimierung.
-- ⏳ **Gruppe 10** (Multiplayer/Clans/PvP/Auktion/Leaderboards): Backend-Entscheidung offen.
-- ⏳ **Gruppe 8/11** (Crate-Shop, Glücksrad-Politur, Auktion, Saisonale Monster/Events): offen.
+- ✅ **Gruppe 5** komplett: Season Pass (#60), Relationship-/Bindungs-Tasks (#63),
+     Element-Futter Lv100+ über Tempel (#64). (TODO: ab Legendär+ seltenheitsspezifisch.)
+- ✅ **Gruppe 8**: Crate-Shop + Glücksrad-Politur (#65). Offen: Auktionshaus (mit Gr. 10-Backend).
+- ✅ **Gruppe 10**: Multiplayer-Grundgerüst (Service-Abstraktion + lokaler Mock; Bestenliste/
+     Freunde/Clans) (#68). Offen: echtes Firebase/Supabase-Backend, PvP/Trading/Clan-Kriege.
+- ✅ **Gruppe 13**: Monster-Detail als MBCC-Dossier (#57). Offen: echte Artworks, restl. Mobiloptimierung.
+- ⏳ **Gruppe 11** (Saisonale Monster/Events): offen.
+
+### Nächste Schritte (Backend erforderlich / größer)
+- Firebase/Supabase-Adapter für `OnlineService` (`src/net/onlineService.ts`): Auth, Firestore
+  (profiles/leaderboards/clans), Realtime für PvP & Clan-Kriege; Auktionshaus + Trading.
+- Echter 3D-Kampf (Three.js) und Boss-Raids.
+- Gruppe 11: saisonale Fang-Fenster + zeitbegrenzte Event-Kapitel.
 
 ---
 
