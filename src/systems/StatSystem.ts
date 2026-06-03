@@ -1,5 +1,6 @@
 import type { MonsterInstance, MonsterBaseStats } from '@gtypes/game';
 import { MONSTER_DEFS } from '@data/monsters';
+import { getArmorBonus } from '@data/armor';
 
 // Per-level stat growth. Kept in one place so the battle engine and the
 // monster detail screen always show the same numbers.
@@ -29,9 +30,18 @@ export function scaledStats(base: MonsterBaseStats, level: number): ScaledStats 
   };
 }
 
-// Convenience: scaled stats for a live monster instance.
+// Convenience: scaled stats for a live monster instance, including any equipped
+// armor's flat bonuses (Gruppe 7).
 export function instanceStats(m: MonsterInstance): ScaledStats {
   const def = MONSTER_DEFS[m.defId];
   if (!def) return { hp: m.maxHp, attack: 0, defense: 0, speed: 0, energy: 0 };
-  return scaledStats(def.baseStats, m.level);
+  const base = scaledStats(def.baseStats, m.level);
+  const armor = getArmorBonus(m.equippedArmorId);
+  return {
+    hp: base.hp + (armor.hp ?? 0),
+    attack: base.attack + (armor.attack ?? 0),
+    defense: base.defense,
+    speed: base.speed + (armor.speed ?? 0),
+    energy: base.energy + (armor.energy ?? 0),
+  };
 }

@@ -2,12 +2,15 @@ export function calculateXpToLevel(level: number): number {
   return Math.floor(100 * Math.pow(level, 1.5));
 }
 
-// Feeding cost — Monster-Legends-style gentle growth.
-// The old exponential curve (50 * 1.5^level) made high-level feeding absurdly
-// expensive (level 20 cost >160k food). This linear-ish curve keeps food a
-// meaningful sink without becoming a hard wall.
+// Feeding cost (Gruppe 12: Spielgeschwindigkeit deutlich verlangsamen).
+// Es bleiben 4 Fütterungen pro Level (UI-Pips), aber die Futterkosten wachsen
+// nun super-linear: frühe Level bleiben günstig, hohe Level werden zu einer
+// echten Futter-Senke, sodass das Maximieren eines Monsters Wochen statt Tage
+// dauert. Zusammen mit den teuren Tempel-Toren (Gruppe 6) verlangsamt das den
+// Weg zu Transcendental-Leveln drastisch.
+//   Lv1≈18 · Lv20≈540 · Lv50≈3.9k · Lv100≈25k (×4 Fütterungen ≈ 100k/Level)
 export function calculateFeedCost(level: number): number {
-  return Math.floor(10 + level * 8);
+  return Math.floor(10 + level * 8 + Math.pow(level, 2.2));
 }
 
 // Unique ("✨") monsters are special and sell for more than their regular
@@ -16,11 +19,14 @@ export function calculateFeedCost(level: number): number {
 export const UNIQUE_SELL_MULTIPLIER = 2;
 
 // Gold earned when selling a monster from a habitat.
-// Scales with rarity (the dominant factor) and a clear per-level bonus — a
-// higher-level monster is worth noticeably more, so leveling before selling pays
-// off (+25% of the base value per level above 1).
+// Scales EXPONENTIALLY with rarity (the dominant factor) so rare monsters/eggs
+// are dramatically more valuable than common ones (Gruppe 8), plus a clear
+// per-level bonus (+25% of base per level above 1) so leveling before selling
+// pays off.
+//   Common(0)=120, Rare(1)=~260, SR(2)=~575, Epic(3)=~1265,
+//   Legendary(4)=~2780, Elite(5)=~6120, Mythic(6)=~13460, Transcendent(7)=~29620
 export function calculateSellValue(rarityRank: number, level: number, isUnique = false): number {
-  const base = 80 + rarityRank * 220;
+  const base = 120 * Math.pow(2.2, rarityRank);
   const value = base * (1 + (level - 1) * 0.25);
   return Math.floor(value * (isUnique ? UNIQUE_SELL_MULTIPLIER : 1));
 }
@@ -31,6 +37,34 @@ export function calculateSellValue(rarityRank: number, level: number, isUnique =
 // unique eggs, since the unique bonus is applied to both sides identically.
 export function calculateEggSellValue(rarityRank: number, isUnique = false): number {
   return Math.floor(calculateSellValue(rarityRank, 1, isUnique) * 0.6);
+}
+
+// ── Habitat-Einkommen (Gruppe 2) ───────────────────────────────────────────
+// Das Gold eines Habitats hängt jetzt von den BEWOHNENDEN Monstern ab, nicht
+// mehr nur vom Gebäude-Level: Kein Monster ⇒ Einkommen 0. Höheres Level und
+// höhere Seltenheit ⇒ mehr Gold. Das Gebäude-Level wirkt als sanfter
+// Multiplikator (bessere Lebensräume pflegen ihre Bewohner effizienter).
+//
+// Pro-Monster-Rate = rarityGoldRate × (1 + (level-1) × 0.04).
+// Ein Lv1-Common bringt also seine Basisrate, ein Lv100 fast das ~5-fache.
+export function monsterGoldPerHour(rarityGoldRate: number, monsterLevel: number): number {
+  return rarityGoldRate * (1 + (monsterLevel - 1) * 0.04);
+}
+
+/**
+ * Stündliche Goldrate eines Habitats: Summe der Bewohner-Raten, skaliert mit
+ * dem Gebäude-Level. Gibt 0 zurück, wenn kein Monster einzieht.
+ */
+export function habitatGoldPerHour(
+  buildingLevel: number,
+  residents: Array<{ rarityGoldRate: number; level: number }>,
+): number {
+  if (residents.length === 0) return 0;
+  const buildingFactor = 1 + (buildingLevel - 1) * 0.15;
+  const sum = residents.reduce(
+    (acc, r) => acc + monsterGoldPerHour(r.rarityGoldRate, r.level), 0,
+  );
+  return Math.floor(sum * buildingFactor);
 }
 
 export function calculateAccumulatedGold(

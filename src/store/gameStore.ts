@@ -9,15 +9,19 @@ import { BUILDING_DEFS } from '@data/buildings';
 import { ISLAND_DEFS } from '@data/islands';
 import { OBSTACLE_DEFS } from '@data/obstacles';
 import { RARITY_HATCH_TIME_SEC, RARITY_BREED_TIME_SEC, RARITY_RANK } from '@data/rarities';
-import { calculateXpToLevel, calculateFeedCost, calculateSellValue, calculateEggSellValue } from '@systems/EconomySystem';
+import { calculateXpToLevel, calculateFeedCost, calculateSellValue, calculateEggSellValue, habitatGoldPerHour } from '@systems/EconomySystem';
+import { RARITY_GOLD_RATE } from '@data/rarities';
 import {
   getUnlockedMoves, getMaxAttackSlots, getNextEvolutionStage,
   pickRandomNewAttack, getTrainableAttacks, getAttackTrainCost,
+  getEvolutionStageName, getEffectiveMaxLevel, canRankUp,
   EVOLUTION_LEVELS,
 } from '@systems/ProgressionSystem';
 import { calculateBreedOutcomes, rollBreedOutcome } from '@systems/BreedingSystem';
 import { getLevelReward } from '@data/levelRewards';
 import { QUESTS, isQuestComplete, type QuestProgressSnapshot } from '@data/quests';
+import { ACHIEVEMENTS, isAchievementComplete, type AchievementSnapshot } from '@data/achievements';
+import { ARMOR_DEFS, rollMaterialDrops } from '@data/armor';
 
 // Simple uid generator (no external dependency)
 function uid(): string {
@@ -80,6 +84,27 @@ function buildQuestSnapshot(s: GameStoreState): QuestProgressSnapshot {
   };
 }
 
+function buildAchievementSnapshot(s: GameStoreState): AchievementSnapshot {
+  const owned = Object.values(s.monsters);
+  let highestRarity = 0;
+  for (const m of owned) {
+    const def = MONSTER_DEFS[m.defId];
+    if (def) highestRarity = Math.max(highestRarity, RARITY_RANK[def.rarity]);
+  }
+  return {
+    evolutions: s.stats.evolutions,
+    rankUps: s.stats.rankUps,
+    bossRaidWins: s.stats.bossRaidWins,
+    battlesWon: s.stats.battlesWon,
+    breeds: s.stats.breeds,
+    hatches: s.stats.hatches,
+    buildingsBuilt: s.stats.buildingsBuilt,
+    feeds: s.stats.feeds,
+    monstersOwned: owned.length,
+    highestRarityOwned: highestRarity,
+  };
+}
+
 interface GameStoreState {
   gold: number;
   diamonds: number;
@@ -110,8 +135,17 @@ interface GameStoreState {
     collects: number;
     battlesWon: number;
     buildingsBuilt: number;
+    evolutions: number;
+    rankUps: number;
+    bossRaidWins: number;
   };
   claimedQuests: string[]; // quest ids already collected
+  claimedAchievements: string[]; // achievement ids whose reward was collected
+  lastDailyChestMs: number; // epoch ms of the last claimed daily chest (0 = never)
+  // Rüstungs-System (Gruppe 7): Kampf-Drop-Materialien und gecraftete, noch
+  // nicht angelegte Rüstungen (armorId → Anzahl).
+  materials: Record<string, number>;
+  armorInventory: Record<string, number>;
   redeemedCheatCodes: string[]; // one-time cheat codes already used
 }
 
@@ -151,6 +185,10 @@ interface GameStoreActions {
   removeFromHabitat: (monsterId: string) => void;
   addXpToMonster: (instanceId: string, amount: number) => void;
   evolveMonster: (instanceId: string) => void;
+  /** Labor: merge two identical max-level monsters into one with +1 rank star
+   *  (+10 level cap). The keeper resets to level 1; the fodder is consumed.
+   *  Returns true on success. */
+  rankUpMonster: (keeperId: string, fodderId: string) => boolean;
   equipMove: (instanceId: string, moveId: string, replaceSlot?: number) => void;
   updateRelationship: (id1: string, id2: string, delta: number) => void;
 
@@ -199,10 +237,27 @@ interface GameStoreActions {
   tickTimers: () => void;
 
   // Quests
-  /** Mark a battle as won (drives combat quests). */
-  recordBattleWon: () => void;
+  /** Mark a battle as won (drives combat quests). Grants material drops. */
+  recordBattleWon: (tier?: number) => void;
+
+  // Armor (Gruppe 7)
+  /** Add material drops to the inventory. */
+  addMaterials: (drops: Record<string, number>) => void;
+  /** Craft an armor from materials + gold. Returns false if unaffordable. */
+  craftArmor: (armorId: string) => boolean;
+  /** Equip a crafted armor onto a monster (previous armor returns to inventory). */
+  equipArmor: (monsterId: string, armorId: string) => boolean;
+  /** Remove a monster's armor back into the inventory. */
+  unequipArmor: (monsterId: string) => void;
   /** Claim a completed quest's reward. Returns false if not claimable. */
   claimQuest: (questId: string) => boolean;
+  /** Claim a completed achievement's reward. Returns false if not claimable. */
+  claimAchievement: (achievementId: string) => boolean;
+
+  /** Whether the daily chest is currently claimable (20h cooldown). */
+  canClaimDailyChest: () => boolean;
+  /** Claim the daily chest. Returns the granted reward, or null if on cooldown. */
+  claimDailyChest: () => { gold: number; diamonds: number; food: number } | null;
 
   // Cheat codes — returns true if the code was valid.
   redeemCheatCode: (code: string) => boolean;
@@ -354,8 +409,12 @@ const INITIAL_STATE: GameStoreState = {
   currentIslandId: 'emerald_isle',
   tutorialStep: 0,
   pendingLevelRewards: [],
-  stats: { feeds: 0, breeds: 0, hatches: 0, collects: 0, battlesWon: 0, buildingsBuilt: 0 },
+  stats: { feeds: 0, breeds: 0, hatches: 0, collects: 0, battlesWon: 0, buildingsBuilt: 0, evolutions: 0, rankUps: 0, bossRaidWins: 0 },
   claimedQuests: [],
+  claimedAchievements: [],
+  lastDailyChestMs: 0,
+  materials: {},
+  armorInventory: {},
   redeemedCheatCodes: [],
 };
 
@@ -557,6 +616,7 @@ export const useGameStore = create<GameStore>()(
           isUnique,
           parentIds,
           name: def.name,
+          rankStars: 0,
         };
         set((s) => {
           s.monsters[id] = instance;
@@ -570,20 +630,21 @@ export const useGameStore = create<GameStore>()(
       feedMonster: (instanceId, foodAmount) => {
         const monster = get().monsters[instanceId];
         if (!monster) return;
-        if (monster.level >= 100) return;
+        const maxLevel = getEffectiveMaxLevel(monster, get().buildings);
+        if (monster.level >= maxLevel) return;
         const cost = calculateFeedCost(monster.level);
         // One feed cycle per call. Always exactly 4 feed cycles per level-up.
         if (foodAmount < cost) return;
         if (!get().spendFood(cost)) return;
         set((s) => {
           const m = s.monsters[instanceId];
-          if (m.level >= 100) return;
+          if (m.level >= maxLevel) return;
           s.stats.feeds += 1;
           // Each feed grants a quarter of the XP needed for the current level,
           // so a level always takes 4 feed cycles (Monster-Legends style steps).
           m.xp += Math.ceil(calculateXpToLevel(m.level) / 4);
           let xpNeeded = calculateXpToLevel(m.level);
-          while (m.xp >= xpNeeded && m.level < 100) {
+          while (m.xp >= xpNeeded && m.level < maxLevel) {
             m.xp -= xpNeeded;
             m.level++;
             xpNeeded = calculateXpToLevel(m.level);
@@ -653,9 +714,10 @@ export const useGameStore = create<GameStore>()(
         set((s) => {
           const m = s.monsters[instanceId];
           if (!m) return;
+          const maxLevel = getEffectiveMaxLevel(m, s.buildings);
           m.xp += amount;
           let xpNeeded = calculateXpToLevel(m.level);
-          while (m.xp >= xpNeeded && m.level < 100) {
+          while (m.xp >= xpNeeded && m.level < maxLevel) {
             m.xp -= xpNeeded;
             m.level++;
             xpNeeded = calculateXpToLevel(m.level);
@@ -679,8 +741,15 @@ export const useGameStore = create<GameStore>()(
           const next = getNextEvolutionStage(m.stage);
           if (!next) return;
           if (m.level < EVOLUTION_LEVELS[next]) return;
+          const prevDefaultName = getEvolutionStageName(m.defId, m.stage);
           m.stage = next;
           m.maxAttackSlots = getMaxAttackSlots(next);
+          // Bei Entwicklung aktualisiert sich der Name (z. B. Flameling →
+          // Flamejaw), sofern der Spieler ihn nicht eigens umbenannt hat.
+          if (m.name === prevDefaultName || m.name === MONSTER_DEFS[m.defId]?.name) {
+            m.name = getEvolutionStageName(m.defId, next);
+          }
+          s.stats.evolutions += 1;
           // Ensure knownMoveIds exists before calling pickRandomNewAttack
           if (!m.knownMoveIds) m.knownMoveIds = [...m.equippedMoveIds];
           const newAttack = pickRandomNewAttack(m as MonsterInstance);
@@ -691,6 +760,34 @@ export const useGameStore = create<GameStore>()(
             }
           }
         });
+      },
+
+      rankUpMonster: (keeperId, fodderId) => {
+        const keeper = get().monsters[keeperId];
+        const fodder = get().monsters[fodderId];
+        if (!keeper || !fodder) return false;
+        if (!canRankUp(keeper, fodder)) return false;
+        set((s) => {
+          const k = s.monsters[keeperId];
+          if (!k) return;
+          k.rankStars = (k.rankStars ?? 0) + 1;
+          // Nach dem Rank-Up startet das Monster wieder bei Level 1.
+          k.level = 1;
+          k.xp = 0;
+          k.stage = 'Baby';
+          k.maxAttackSlots = getMaxAttackSlots('Baby');
+          const def = MONSTER_DEFS[k.defId];
+          if (def) { k.maxHp = def.baseStats.hp; k.currentHp = def.baseStats.hp; }
+          // Das Futter-Monster wird verbraucht.
+          const f = s.monsters[fodderId];
+          if (f?.habitatId && s.buildings[f.habitatId]) {
+            const hab = s.buildings[f.habitatId];
+            hab.monsterIds = hab.monsterIds.filter(id => id !== fodderId);
+          }
+          delete s.monsters[fodderId];
+          s.stats.rankUps += 1;
+        });
+        return true;
       },
 
       equipMove: (instanceId, moveId, replaceSlot) => {
@@ -857,6 +954,10 @@ export const useGameStore = create<GameStore>()(
           if (b.monsterIds.length >= cap) return false;
           // Prestige habitats only accept monsters of a minimum rarity.
           if (bd.minRarityRank != null && RARITY_RANK[def.rarity] < bd.minRarityRank) return false;
+          // Legendär+ (Rang ≥ 4) dürfen NICHT in Element-Lebensräume, sondern
+          // nur in ihre seltenheitsspezifischen Prestige-/Legendär-Habitate
+          // (die ein minRarityRank tragen). Siehe Gruppe 2.
+          if (RARITY_RANK[def.rarity] >= 4 && bd.minRarityRank == null) return false;
           if (bd.linkedElement) return def.elements.includes(bd.linkedElement);
           return true; // legendary / prestige habitat (any element)
         }).map(b => b.instanceId);
@@ -993,8 +1094,65 @@ export const useGameStore = create<GameStore>()(
         }
       },
 
-      recordBattleWon: () => {
+      recordBattleWon: (tier = 1) => {
         set((s) => { s.stats.battlesWon += 1; });
+        // Materialien droppen nach dem Sieg (Gruppe 7).
+        get().addMaterials(rollMaterialDrops(tier));
+      },
+
+      addMaterials: (drops) => {
+        set((s) => {
+          for (const [id, qty] of Object.entries(drops)) {
+            if (qty > 0) s.materials[id] = (s.materials[id] ?? 0) + qty;
+          }
+        });
+      },
+
+      craftArmor: (armorId) => {
+        const def = ARMOR_DEFS[armorId];
+        if (!def) return false;
+        const st = get();
+        // Genug Materialien?
+        for (const [mid, qty] of Object.entries(def.craft.materials)) {
+          if ((st.materials[mid] ?? 0) < qty) return false;
+        }
+        if (st.gold < def.craft.gold) return false;
+        set((s) => {
+          s.gold -= def.craft.gold;
+          for (const [mid, qty] of Object.entries(def.craft.materials)) {
+            s.materials[mid] = (s.materials[mid] ?? 0) - qty;
+          }
+          s.armorInventory[armorId] = (s.armorInventory[armorId] ?? 0) + 1;
+        });
+        return true;
+      },
+
+      equipArmor: (monsterId, armorId) => {
+        const m = get().monsters[monsterId];
+        if (!m) return false;
+        if ((get().armorInventory[armorId] ?? 0) <= 0) return false;
+        if (!ARMOR_DEFS[armorId]) return false;
+        set((s) => {
+          const mon = s.monsters[monsterId];
+          if (!mon) return;
+          // Vorherige Rüstung zurück ins Inventar.
+          if (mon.equippedArmorId) {
+            s.armorInventory[mon.equippedArmorId] = (s.armorInventory[mon.equippedArmorId] ?? 0) + 1;
+          }
+          s.armorInventory[armorId] = (s.armorInventory[armorId] ?? 0) - 1;
+          mon.equippedArmorId = armorId;
+          // maxHp ggf. anheben, damit der Leben-Buff sofort verfügbar ist.
+        });
+        return true;
+      },
+
+      unequipArmor: (monsterId) => {
+        set((s) => {
+          const mon = s.monsters[monsterId];
+          if (!mon || !mon.equippedArmorId) return;
+          s.armorInventory[mon.equippedArmorId] = (s.armorInventory[mon.equippedArmorId] ?? 0) + 1;
+          mon.equippedArmorId = null;
+        });
       },
 
       claimQuest: (questId) => {
@@ -1011,6 +1169,44 @@ export const useGameStore = create<GameStore>()(
         });
         if (quest.reward.eggDefId) get().addEgg(quest.reward.eggDefId, undefined, false);
         return true;
+      },
+
+      claimAchievement: (achievementId) => {
+        const ach = ACHIEVEMENTS.find(a => a.id === achievementId);
+        if (!ach) return false;
+        if (get().claimedAchievements.includes(achievementId)) return false;
+        if (!isAchievementComplete(ach, buildAchievementSnapshot(get()))) return false;
+        set((s) => {
+          if (ach.reward.gold) s.gold += ach.reward.gold;
+          if (ach.reward.diamonds) s.diamonds += ach.reward.diamonds;
+          if (ach.reward.food) s.food += ach.reward.food;
+          s.claimedAchievements.push(achievementId);
+        });
+        return true;
+      },
+
+      // ── Daily Chest (Gruppe 8) ──────────────────────────────────────────
+      canClaimDailyChest: () => {
+        const DAY_MS = 20 * 3600 * 1000; // 20h Abklingzeit
+        return Date.now() - get().lastDailyChestMs >= DAY_MS;
+      },
+
+      claimDailyChest: () => {
+        if (!get().canClaimDailyChest()) return null;
+        const lvl = get().playerLevel;
+        // Kleine, mit dem Spieler-Level leicht wachsende Tagesbelohnung.
+        const reward = {
+          gold: 500 + lvl * 100,
+          diamonds: 2 + Math.floor(lvl / 5),
+          food: 300 + lvl * 50,
+        };
+        set((s) => {
+          s.gold += reward.gold;
+          s.diamonds += reward.diamonds;
+          s.food += reward.food;
+          s.lastDailyChestMs = Date.now();
+        });
+        return reward;
       },
 
       addTrophies: (amount) => {
@@ -1089,14 +1285,24 @@ export const useGameStore = create<GameStore>()(
               b.upgradeEndMs = null;
             }
 
-            // Accumulate gold for Habitats
+            // Accumulate gold for Habitats — driven by the resident monsters'
+            // level & rarity (Gruppe 2). Empty habitat ⇒ no income.
             const def = BUILDING_DEFS[b.defId];
             if (def?.category === 'Habitat' && !b.constructionEndMs) {
-              const levelData = def.levels[b.level - 1];
-              if (levelData?.goldPerHour) {
+              const residents = b.monsterIds
+                .map(id => s.monsters[id])
+                .filter(Boolean)
+                .map(m => {
+                  const md = MONSTER_DEFS[m.defId];
+                  return { rarityGoldRate: md ? RARITY_GOLD_RATE[md.rarity] : 0, level: m.level };
+                });
+              const rate = habitatGoldPerHour(b.level, residents);
+              if (rate > 0) {
                 const elapsed = (now - b.lastCollectedMs) / 3_600_000;
-                const maxAccum = levelData.goldPerHour * 12;
-                b.goldAccumulated = Math.min(levelData.goldPerHour * elapsed, maxAccum);
+                const maxAccum = rate * 12;
+                b.goldAccumulated = Math.min(rate * elapsed, maxAccum);
+              } else {
+                b.goldAccumulated = 0;
               }
             }
 
@@ -1184,7 +1390,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => accountScopedStorage),
-      version: 10,
+      version: 11,
       migrate: (persisted: any, version: number) => {
         // v10: one-time hard reset — wipe every existing save back to a fresh
         // start (all players reset to 0) so the rebalanced egg/monster sale
@@ -1212,6 +1418,23 @@ export const useGameStore = create<GameStore>()(
           // Quest stat counters + claimed-quest list.
           if (!persisted.stats || typeof persisted.stats !== 'object') {
             persisted.stats = { feeds: 0, breeds: 0, hatches: 0, collects: 0, battlesWon: 0, buildingsBuilt: 0 };
+          }
+          // v11: achievement counters.
+          if (typeof persisted.stats.evolutions !== 'number') persisted.stats.evolutions = 0;
+          if (typeof persisted.stats.rankUps !== 'number') persisted.stats.rankUps = 0;
+          if (typeof persisted.stats.bossRaidWins !== 'number') persisted.stats.bossRaidWins = 0;
+          if (!Array.isArray(persisted.claimedAchievements)) {
+            persisted.claimedAchievements = [];
+          }
+          if (typeof persisted.lastDailyChestMs !== 'number') {
+            persisted.lastDailyChestMs = 0;
+          }
+          // v11: Rüstungs-System (Materialien + Rüstungs-Inventar).
+          if (!persisted.materials || typeof persisted.materials !== 'object') {
+            persisted.materials = {};
+          }
+          if (!persisted.armorInventory || typeof persisted.armorInventory !== 'object') {
+            persisted.armorInventory = {};
           }
           if (!Array.isArray(persisted.claimedQuests)) {
             persisted.claimedQuests = [];
@@ -1241,6 +1464,10 @@ export const useGameStore = create<GameStore>()(
               }
               if (typeof m.maxAttackSlots !== 'number') {
                 m.maxAttackSlots = 2;
+              }
+              // v11: Rank-Up-Sterne (Labor). Bestehende Monster starten bei 0.
+              if (typeof m.rankStars !== 'number') {
+                m.rankStars = 0;
               }
             }
           }

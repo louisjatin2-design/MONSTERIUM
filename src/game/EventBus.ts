@@ -31,4 +31,6 @@ export const GameEvents = {
   OPEN_EVENTS:          'open-events',         // limited-time briefing events
   OPEN_STORAGE:         'open-storage',        // egg storage (Lager)
   OPEN_COMPENDIUM:      'open-compendium',     // traits & battle-effects glossary
+  OPEN_LAB:             'open-lab',            // Labor: rank-up two identical max monsters
+  OPEN_ACHIEVEMENTS:    'open-achievements',   // achievements / trophies panel
 } as const;
