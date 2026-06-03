@@ -441,3 +441,78 @@ button, .btn, .monster-card, .close-btn {
   line-height: 1.45;
   color: #d8d4ee;
 }
+
+/* ═══════════════════════════════════════════════════════
+   GRUPPE 1 — Path-to-Nowhere-Ästhetik + Screen-Transitions
+
+   Dunklere, detailreichere Panels mit schärferen Kanten und kühler,
+   cinematischer Atmosphäre. Bewusst als ergänzende Schicht ans Ende
+   gestellt, damit sie die bestehenden Panel-Regeln gezielt überschreibt,
+   ohne die responsiven/strukturellen Regeln oben anzutasten.
+   TODO(assets): finale Texturen/Vignetten-PNGs für noch mehr Tiefe.
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  --ptn-ink:    #05060a;   /* fast schwarzes Grundgrau-blau   */
+  --ptn-panel:  #0c1018;   /* Panel-Korpus                    */
+  --ptn-edge:   #2a3346;   /* kühle, scharfe Kante            */
+  --ptn-accent: #d9b15a;   /* gedämpftes Gold (Akzent)        */
+  --ptn-text:   #e7ecf4;   /* heller, leicht kühler Text      */
+}
+
+/* Panels: dunkler, schärfere Kanten, kühlere Tiefe, cinematische Vignette. */
+.panel,
+.help-card {
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(90,120,180,0.10), transparent 62%),
+    linear-gradient(165deg, #121826 0%, #0a0e16 58%, var(--ptn-ink) 100%) !important;
+  border: 1px solid var(--ptn-edge) !important;
+  border-radius: 8px !important;
+  color: var(--ptn-text);
+  box-shadow:
+    0 24px 60px rgba(0,0,0,0.92),
+    0 0 0 1px rgba(0,0,0,0.7),
+    inset 0 0 0 1px rgba(217,177,90,0.10),
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 -40px 70px rgba(0,0,0,0.55) !important;
+}
+
+.mdetail {
+  background:
+    radial-gradient(70% 55% at 24% 42%, rgba(90,120,180,0.14), transparent 74%),
+    linear-gradient(165deg, #121826 0%, #0a0e16 58%, var(--ptn-ink) 100%) !important;
+}
+
+.panel-title {
+  color: var(--ptn-accent);
+  border-bottom: 1px solid rgba(217,177,90,0.22);
+  text-shadow: 0 1px 8px rgba(0,0,0,0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Schärfere Kanten auf den Standard-Controls (weniger "weich/cartoonig"). */
+.btn { border-radius: 6px; }
+.monster-card { border-radius: 6px; border-color: var(--ptn-edge); background: rgba(20,28,42,0.55); }
+.monster-card:hover { border-color: var(--ptn-accent); background: rgba(30,40,58,0.7); }
+
+/* ── Screen-/Panel-Transitions: alle Wechsel animieren ─────────────────
+   Floating-Side-Panels gleiten von rechts herein, Modals/Vollbild-Screens
+   faden + skalieren sanft auf. Respektiert prefers-reduced-motion. */
+@keyframes ptnSlideIn  { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes ptnFadeZoom { from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes ptnFadeIn   { from { opacity: 0; } to { opacity: 1; } }
+
+.panel-side,
+.panel-side-narrow,
+.panel-side-xs { animation: ptnSlideIn 0.22s ease both; }
+
+.panel-modal { animation: ptnFadeZoom 0.22s ease both; }
+
+/* Vollbild-Screens (eigenständige Screens, keine Tab-Overlays). */
+.mdetail { animation: ptnFadeIn 0.24s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-side, .panel-side-narrow, .panel-side-xs,
+  .panel-modal, .mdetail { animation: none; }
+}

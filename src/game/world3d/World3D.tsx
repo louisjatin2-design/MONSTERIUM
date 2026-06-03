@@ -20,6 +20,7 @@ import { RARITY_COLORS, RARITY_RANK } from '@data/rarities';
 import { MONSTER_DEFS } from '@data/monsters';
 import { BUILDING_DEFS } from '@data/buildings';
 import { ISLAND_DEFS } from '@data/islands';
+import { getMonsterFaction } from '@data/factions';
 import type { BuildingInstance } from '@gtypes/game';
 import { buildLowPolyMonster, type MonsterVisualSpec } from '../../proto3d/lowpolyMonster';
 import { buildLowPolyBuilding } from '../../proto3d/lowpolyBuilding';
@@ -34,7 +35,90 @@ function monsterSpec(defId: string, id: string): MonsterVisualSpec {
     elementColor: (ELEMENT_COLORS as Record<string, number>)[el] ?? 0x888888,
     accentColor: parseInt((RARITY_COLORS[def?.rarity ?? 'Common']).replace('#', ''), 16),
     rarityRank: RARITY_RANK[def?.rarity ?? 'Common'],
+    // Gruppe 2: Fraktion treibt die sichtbaren Gut/Böse-Designmerkmale.
+    faction: def ? getMonsterFaction(def) : 'Neutral',
   };
+}
+
+// ── Gruppe 1: Day/Night-Cycle nach Geräteuhrzeit ───────────────────────────
+// Zentrale Funktion, die aus einem Date den kompletten Beleuchtungs-/Himmel-
+// Zustand ableitet: Sonnenstand, Lichtfarbe/-stärke, Ambient, Fog- und
+// Himmelsfarben sowie ein Nacht-/Lampenlicht-Faktor. Alles smooth über die
+// Sonnenhöhe interpoliert, damit Übergänge (Dämmerung etc.) fließend sind.
+export interface DayNightState {
+  sun: THREE.Vector3;       // Richtung zur Sonne (normalisiert × Radius)
+  altitude: number;         // -1 (tiefe Nacht) … +1 (Zenit)
+  light: number;            // 0 = Nacht, 1 = Tag (smooth)
+  night: number;            // 1 - light, für Lampen/Mond
+  lightColor: THREE.Color;  // Farbe des Richtungslichts (Sonne/Mond)
+  lightIntensity: number;
+  ambientColor: THREE.Color;
+  ambientIntensity: number;
+  skyTop: THREE.Color;
+  skyHorizon: THREE.Color;
+  fog: THREE.Color;
+  moonVisible: boolean;
+}
+
+function smoothstep(a: number, b: number, x: number): number {
+  const t = THREE.MathUtils.clamp((x - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+// Schlüsselfarben (HEX) für Tag / Nacht / Dämmerung.
+const SKY = {
+  dayTop: 0x2b6fd6, dayHorizon: 0xbfe3ff,
+  nightTop: 0x070518, nightHorizon: 0x191240,
+  sunset: 0xff8c42, sunColor: 0xfff2cc, moonColor: 0x9fb4ff,
+};
+
+export function getDayNightState(date: Date): DayNightState {
+  const hours = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+  // 6:00 = Sonnenaufgang (Horizont), 12:00 = Zenit, 18:00 = Untergang, 0:00 = tiefe Nacht.
+  const dayT = ((hours - 6) / 24) * Math.PI * 2;
+  const altitude = Math.sin(dayT);
+  const R = 120;
+  const sun = new THREE.Vector3(-Math.cos(dayT) * R, altitude * R, -38);
+
+  const light = smoothstep(-0.18, 0.22, altitude);     // Nacht → Tag
+  const night = 1 - light;
+  // Dämmerungs-Glut, wenn die Sonne nahe am Horizont steht.
+  const twilight = THREE.MathUtils.clamp(1 - Math.abs(altitude) / 0.28, 0, 1)
+    * (altitude > -0.32 ? 1 : 0);
+
+  const lerpC = (a: number, b: number, t: number) => new THREE.Color(a).lerp(new THREE.Color(b), t);
+  const skyTop = lerpC(SKY.nightTop, SKY.dayTop, light);
+  const skyHorizon = lerpC(SKY.nightHorizon, SKY.dayHorizon, light)
+    .lerp(new THREE.Color(SKY.sunset), twilight * 0.7);
+  const lightColor = lerpC(SKY.moonColor, SKY.sunColor, light)
+    .lerp(new THREE.Color(SKY.sunset), twilight * 0.55);
+  const ambientColor = skyTop.clone().lerp(new THREE.Color(0xffffff), 0.25);
+
+  return {
+    sun, altitude, light, night, lightColor,
+    lightIntensity: 0.18 + light * 1.35,
+    ambientColor,
+    ambientIntensity: 0.35 + light * 0.7,
+    skyTop, skyHorizon,
+    fog: skyHorizon.clone(),
+    moonVisible: altitude < 0.12,
+  };
+}
+
+// Weiche Wolken-Textur (radialer Alpha-Verlauf) — einmal erzeugt, geteilt.
+function makeCloudTexture(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(64, 64, 6, 64, 64, 62);
+  g.addColorStop(0, 'rgba(255,255,255,0.95)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0.55)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 function panelForBuilding(b: BuildingInstance) {
@@ -64,10 +148,9 @@ export function World3D({ hidden }: { hidden: boolean }) {
     renderer.domElement.style.display = 'block';
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x141033);
-    scene.fog = new THREE.Fog(0x141033, 34, 70);
+    scene.fog = new THREE.Fog(0x141033, 38, 95);
 
-    const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 300);
+    const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 400);
     camera.position.set(0, 16, 22);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -77,14 +160,112 @@ export function World3D({ hidden }: { hidden: boolean }) {
     controls.minDistance = 8;
     controls.maxDistance = 48;
 
-    scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x402a55, 0.95));
-    const key = new THREE.DirectionalLight(0xffffff, 1.4);
-    key.position.set(16, 28, 18);
+    // ── Gruppe 1: Lichter (vom Day/Night-Cycle pro Frame angesteuert) ───────
+    const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x402a55, 0.95);
+    scene.add(hemi);
+    const key = new THREE.DirectionalLight(0xffffff, 1.4);   // Sonne/Mond
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     const sc = key.shadow.camera as THREE.OrthographicCamera;
-    sc.near = 1; sc.far = 90; sc.left = -24; sc.right = 24; sc.top = 24; sc.bottom = -24;
+    sc.near = 1; sc.far = 200; sc.left = -28; sc.right = 28; sc.top = 28; sc.bottom = -28;
     scene.add(key);
+    // Sanftes Fülllicht (wird nachts zu kühlem Mondlicht).
+    const fill = new THREE.DirectionalLight(0x9fb4ff, 0.25);
+    fill.position.set(-12, 10, -16);
+    scene.add(fill);
+
+    // ── Gruppe 1: layerbasierter Parallax-Himmel (bricht beim Zoomen nicht) ──
+    // Großer nach innen gerichteter Sky-Dome mit Vertikal-Gradient via Shader.
+    // Keine Overlays — der Verlauf ist Teil der 3D-Szene und skaliert sauber.
+    const skyUniforms = {
+      topColor: { value: new THREE.Color(SKY.nightTop) },
+      bottomColor: { value: new THREE.Color(SKY.nightHorizon) },
+      offset: { value: 20 },
+      exponent: { value: 0.7 },
+    };
+    const sky = new THREE.Mesh(
+      new THREE.SphereGeometry(200, 32, 16),
+      new THREE.ShaderMaterial({
+        uniforms: skyUniforms,
+        side: THREE.BackSide,
+        depthWrite: false,
+        vertexShader: `varying vec3 vW; void main(){ vec4 wp = modelMatrix * vec4(position,1.0); vW = wp.xyz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+        fragmentShader: `uniform vec3 topColor; uniform vec3 bottomColor; uniform float offset; uniform float exponent; varying vec3 vW; void main(){ float hgt = normalize(vW + vec3(0.0, offset, 0.0)).y; gl_FragColor = vec4(mix(bottomColor, topColor, pow(max(hgt,0.0), exponent)), 1.0); }`,
+      }),
+    );
+    scene.add(sky);
+
+    // Sonne + Mond (emissive Scheiben mit Halo) — Position folgt der Uhrzeit.
+    const makeOrb = (color: number, r: number, haloColor: number) => {
+      const grp = new THREE.Group();
+      grp.add(new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), new THREE.MeshBasicMaterial({ color })));
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(r * 2.4, 16, 12), new THREE.MeshBasicMaterial({ color: haloColor, transparent: true, opacity: 0.25, depthWrite: false }));
+      grp.add(halo);
+      return grp;
+    };
+    const sunOrb = makeOrb(0xfff2cc, 7, 0xffcf6a);
+    const moonOrb = makeOrb(0xeaf0ff, 5, 0x8fa6ff);
+    scene.add(sunOrb, moonOrb);
+
+    // Mehrere unabhängige Wolken-Layer (Tiefe durch verschiedene Höhe, Größe,
+    // Geschwindigkeit, Opazität). Sprites stehen immer zur Kamera → Fernwolken.
+    const cloudTex = makeCloudTexture();
+    const cloudLayers: { sprites: THREE.Sprite[]; speed: number; baseOpacity: number; spanX: number }[] = [];
+    const CLOUD_DEFS = [
+      { count: 7, y: 42, radius: 95, scale: 30, speed: 0.6, opacity: 0.75 },
+      { count: 6, y: 55, radius: 120, scale: 46, speed: 0.35, opacity: 0.55 },
+      { count: 5, y: 70, radius: 150, scale: 64, speed: 0.18, opacity: 0.4 },
+    ];
+    for (const cd of CLOUD_DEFS) {
+      const sprites: THREE.Sprite[] = [];
+      const spanX = cd.radius * 2;
+      for (let i = 0; i < cd.count; i++) {
+        const spMat = new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: cd.opacity, depthWrite: false, fog: false });
+        const sp = new THREE.Sprite(spMat);
+        const s = cd.scale * (0.7 + Math.random() * 0.6);
+        sp.scale.set(s * 1.7, s, 1);
+        sp.position.set((Math.random() - 0.5) * spanX, cd.y + (Math.random() - 0.5) * 10, -cd.radius * (0.5 + Math.random() * 0.5));
+        scene.add(sp);
+        sprites.push(sp);
+      }
+      cloudLayers.push({ sprites, speed: cd.speed, baseOpacity: cd.opacity, spanX });
+    }
+
+    // Day/Night auf Lichter, Himmel, Fog, Sonne/Mond & Wolken anwenden.
+    const applyDayNight = () => {
+      const st = getDayNightState(new Date());
+      key.position.copy(st.sun);
+      key.intensity = st.lightIntensity;
+      key.color.copy(st.lightColor);
+      fill.intensity = 0.12 + st.night * 0.45;
+      hemi.color.copy(st.skyTop);
+      hemi.groundColor.set(0x2a1d3a);
+      hemi.intensity = st.ambientIntensity;
+      skyUniforms.topColor.value.copy(st.skyTop);
+      skyUniforms.bottomColor.value.copy(st.skyHorizon);
+      scene.background = st.skyHorizon.clone();
+      (scene.fog as THREE.Fog).color.copy(st.fog);
+      sunOrb.position.copy(st.sun);
+      sunOrb.visible = st.altitude > -0.18;
+      moonOrb.position.copy(st.sun).multiplyScalar(-1); // dem Sonnenstand gegenüber
+      moonOrb.visible = st.moonVisible;
+      // Wolken nachts dunkler/leiser; Lampenlicht-Faktor liegt in st.night.
+      for (const layer of cloudLayers) {
+        const op = layer.baseOpacity * (0.25 + st.light * 0.75);
+        const tint = 0.45 + st.light * 0.55;
+        for (const sp of layer.sprites) {
+          (sp.material as THREE.SpriteMaterial).opacity = op;
+          (sp.material as THREE.SpriteMaterial).color.setRGB(tint, tint, tint * 1.02);
+        }
+      }
+      lampGroup.visible = st.night > 0.25;
+      lampGroup.children.forEach((l) => { (l as THREE.PointLight).intensity = st.night * 1.4; });
+    };
+
+    // Warmes Lampenlicht für die Nacht — pro Gebäude eine Punktlichtquelle, die
+    // mit dem Nacht-Faktor heller wird (siehe applyDayNight / rebuild).
+    const lampGroup = new THREE.Group();
+    scene.add(lampGroup);
 
     // World group is rebuilt whenever the relevant store slices change.
     let world = new THREE.Group();
@@ -103,6 +284,8 @@ export function World3D({ hidden }: { hidden: boolean }) {
       });
       world = new THREE.Group();
       scene.add(world);
+      // Lampen werden pro Gebäude neu gesetzt → bei jedem Rebuild leeren.
+      lampGroup.children.slice().forEach((l) => lampGroup.remove(l));
       pickBuildings.length = 0; pickMonsters.length = 0; monsterBodies.length = 0;
       groundMeshes = [];
     }
@@ -139,16 +322,39 @@ export function World3D({ hidden }: { hidden: boolean }) {
         world.add(grp);
         pickBuildings.push(grp);
 
-        // Residents roam just outside their habitat.
+        // Gruppe 1: warmes Lampenlicht pro Gebäude (nachts hell, tags aus).
+        const lamp = new THREE.PointLight(0xffcf8a, 0, 9, 1.6);
+        lamp.position.set(w0.x, TOP_Y + 2.4, w0.z);
+        lampGroup.add(lamp);
+
+        // Gruppe 2: Bewohner streifen frei im Habitat umher (Wander-AI).
+        // Größe proportional zur Habitatgröße + Seltenheit + Level, damit der
+        // Lebensraum natürlich wirkt (große/seltene Monster sind sichtbar größer).
         const residents = b.monsterIds ?? [];
+        // Radius des Habitat-Areals (in Welt-Einheiten), in dem gewandert wird.
+        const roamR = Math.max(def.tilesW, def.tilesH) * 0.8 + 0.6;
         residents.slice(0, 4).forEach((mid, i) => {
           const inst = s.monsters[mid];
           if (!inst) return;
+          const def0 = MONSTER_DEFS[inst.defId];
+          const rarityRank = RARITY_RANK[def0?.rarity ?? 'Common'];
+          // Habitat-relative Grundgröße + Seltenheits-/Level-Aufschlag.
+          const habitatScale = 0.28 + Math.min(def.tilesW, def.tilesH) * 0.04;
+          const sizeMul = habitatScale * (1 + rarityRank * 0.08 + Math.min(inst.level ?? 1, 100) * 0.0015);
           const m = buildLowPolyMonster(monsterSpec(inst.defId, mid));
-          m.scale.setScalar(0.4);
+          m.scale.setScalar(sizeMul);
           const a = (i / Math.max(1, residents.length)) * Math.PI * 2;
-          m.position.set(w0.x + Math.cos(a) * (def.tilesW * 0.6), TOP_Y, w0.z + Math.sin(a) * (def.tilesH * 0.6) + def.tilesH * 0.5);
+          const hx = w0.x + Math.cos(a) * roamR * 0.6;
+          const hz = w0.z + Math.sin(a) * roamR * 0.6;
+          m.position.set(hx, TOP_Y, hz);
           m.userData.monsterInstanceId = mid;
+          // Wander-Zustand: Heimatzentrum, aktuelles Ziel, Tempo, Phasen-Offset.
+          m.userData.wander = {
+            cx: w0.x, cz: w0.z, r: roamR,
+            tx: hx, tz: hz,
+            speed: 0.5 + Math.random() * 0.6,
+            phase: Math.random() * Math.PI * 2,
+          };
           world.add(m);
           pickMonsters.push(m);
           monsterBodies.push(m);
@@ -333,13 +539,55 @@ export function World3D({ hidden }: { hidden: boolean }) {
     // --- animation loop ----------------------------------------------------
     const clock = new THREE.Clock();
     let raf = 0;
+    applyDayNight();        // initialer Himmel-/Lichtzustand
+    let dnAccum = 0;        // Day/Night nur ~2× pro Sekunde neu berechnen
     const tick = () => {
       const t = clock.getElapsedTime();
+      const dt = clock.getDelta();
+
+      // Gruppe 1: Day/Night-Cycle (Uhrzeit) — günstig, daher gedrosselt.
+      dnAccum += dt;
+      if (dnAccum > 0.5) { dnAccum = 0; applyDayNight(); }
+
+      // Gruppe 1: Wolken driften je Layer unterschiedlich schnell und wrappen.
+      for (const layer of cloudLayers) {
+        for (const sp of layer.sprites) {
+          sp.position.x += layer.speed * dt;
+          if (sp.position.x > layer.spanX / 2) sp.position.x = -layer.spanX / 2;
+        }
+      }
+
       world.traverse((o) => {
         if (o.name === 'spin') o.rotation.z = t * 1.2;
         else if (o.name === 'pulse') { const sc2 = 1 + Math.sin(t * 2) * 0.08; o.scale.setScalar(sc2); }
       });
+
+      // Gruppe 2: Monster wandern zufällig im Habitat + sanftes Wippen.
       monsterBodies.forEach((m, i) => {
+        const w = m.userData.wander as
+          | { cx: number; cz: number; r: number; tx: number; tz: number; speed: number; phase: number }
+          | undefined;
+        if (w) {
+          const dx = w.tx - m.position.x, dz = w.tz - m.position.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist < 0.25) {
+            // Neues Ziel innerhalb des Habitat-Radius wählen.
+            const a = Math.random() * Math.PI * 2;
+            const rr = Math.sqrt(Math.random()) * w.r;
+            w.tx = w.cx + Math.cos(a) * rr;
+            w.tz = w.cz + Math.sin(a) * rr;
+          } else {
+            const step = Math.min(w.speed * dt, dist);
+            m.position.x += (dx / dist) * step;
+            m.position.z += (dz / dist) * step;
+            // In Laufrichtung drehen (sanft).
+            const targetRot = Math.atan2(dx, dz);
+            let d = targetRot - m.rotation.y;
+            while (d > Math.PI) d -= Math.PI * 2;
+            while (d < -Math.PI) d += Math.PI * 2;
+            m.rotation.y += d * Math.min(1, dt * 6);
+          }
+        }
         const body = m.userData.body as THREE.Group | undefined;
         if (body) body.position.y = Math.sin(t * 2 + i) * 0.05;
         const orbit = body?.getObjectByName('rarityOrbit');
@@ -370,6 +618,15 @@ export function World3D({ hidden }: { hidden: boolean }) {
       unsub();
       controls.dispose();
       clearWorld();
+      // Gruppe 1: Himmel/Sonne/Mond/Wolken (einmalig, an scene) aufräumen.
+      sky.geometry.dispose(); (sky.material as THREE.Material).dispose();
+      [sunOrb, moonOrb].forEach((g) => g.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.geometry) m.geometry.dispose();
+        if (m.material) (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => x.dispose());
+      }));
+      cloudLayers.forEach((l) => l.sprites.forEach((sp) => (sp.material as THREE.Material).dispose()));
+      cloudTex.dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
     };
