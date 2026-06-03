@@ -97,6 +97,10 @@ export function calculateDamage(params: {
   attackerLevel?: number;        // monster level (attacks scale with it)
   attackerRarityRank?: number;   // RARITY_RANK of the attacker's species
   campaignDamageMultiplier?: number; // early-campaign boost for the player
+  // Gruppe 3 — Gut/Böse-Synergien: gemischte Teams (gut + böse) verursachen
+  // weniger Schaden (mixedTeamPenalty), reine Teams etwas mehr (pureTeamBonus).
+  // Default 1 = neutral, damit ältere Aufrufer unverändert bleiben.
+  teamSynergyMultiplier?: number;
 }): number {
   const {
     attackerATK, movePower, minigameScore,
@@ -106,6 +110,7 @@ export function calculateDamage(params: {
     attackerLevel = 1,
     attackerRarityRank = 0,
     campaignDamageMultiplier = 1,
+    teamSynergyMultiplier = 1,
   } = params;
 
   let atk = attackerATK;
@@ -132,7 +137,7 @@ export function calculateDamage(params: {
 
   const damage = Math.floor(
     (atk * movePower * (minigameScore / 100) * (1 + elementBonus)) / defenderDEF * 10
-    * scale * Math.max(0, campaignDamageMultiplier)
+    * scale * Math.max(0, campaignDamageMultiplier) * Math.max(0, teamSynergyMultiplier)
   );
   return Math.max(0, damage);
 }

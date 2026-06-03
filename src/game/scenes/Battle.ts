@@ -8,6 +8,7 @@ import { ELEMENT_CSS_COLORS, ELEMENT_COLORS, getElementBonus } from '@data/eleme
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { TRAITS } from '@data/traits';
 import { STATUS_EFFECTS } from '@data/statusEffects';
+import { getMonsterFaction, mixedTeamPenalty, pureTeamBonus, type Faction } from '@data/factions';
 import {
   buildTurnQueue, calculateDamage, generateAiAttack,
   processStatusTick, buildCombatant, gainUltCharge, ultChargeCostFor,
@@ -1381,6 +1382,7 @@ export class Battle extends Phaser.Scene {
       attackerLevel: attacker.level,
       attackerRarityRank: RARITY_RANK[attackerDef.rarity],
       campaignDamageMultiplier: this.campaignDamageMultiplierFor(attacker),
+      teamSynergyMultiplier: this.teamSynergyFor(attacker),
     });
   }
 
@@ -1489,6 +1491,22 @@ export class Battle extends Phaser.Scene {
     return earlyCampaignDamageBonus(this.data_.storyIndex);
   }
 
+  // Gruppe 3 — Gut/Böse-Synergien: leitet aus den Fraktionen der LEBENDEN
+  // Teamkameraden des Angreifers einen Schadensfaktor ab. Gemischte Teams
+  // (gut + böse) erhalten einen Mali, reine Teams einen kleinen Bonus.
+  // TODO: Story-/Beziehungs-Events können später Ausnahmen (Buff) gewähren —
+  //       z. B. "Monster A liebt Monster B" → mixedTeamPenalty aufheben.
+  private teamSynergyFor(attacker: BattleCombatant): number {
+    const side = attacker.isPlayer ? this.playerCombatants : this.enemyCombatants;
+    const factions: Faction[] = side
+      .filter(c => c.currentHp > 0)
+      .map(c => {
+        const d = MONSTER_DEFS[c.defId];
+        return d ? getMonsterFaction(d) : 'Neutral';
+      });
+    return mixedTeamPenalty(factions) * pureTeamBonus(factions);
+  }
+
   private applyAttack(attacker: BattleCombatant, primaryTarget: BattleCombatant, move: MoveDef, score: number) {
     // Blind: a blinded attacker may miss the whole action.
     if (attacker.statusEffects.some(e => e.effect === 'Blind') && Math.random() < 0.3) {
@@ -1557,6 +1575,7 @@ export class Battle extends Phaser.Scene {
       attackerLevel: attacker.level,
       attackerRarityRank: RARITY_RANK[attackerDef.rarity],
       campaignDamageMultiplier: this.campaignDamageMultiplierFor(attacker),
+      teamSynergyMultiplier: this.teamSynergyFor(attacker),
     });
 
     // Echo trait: hit twice at 60%
@@ -1763,6 +1782,7 @@ export class Battle extends Phaser.Scene {
       attackerLevel: attacker.level,
       attackerRarityRank: RARITY_RANK[def.rarity],
       campaignDamageMultiplier: this.campaignDamageMultiplierFor(attacker),
+      teamSynergyMultiplier: this.teamSynergyFor(attacker),
     });
 
     // Screen flash + a hefty shake to sell the ultimate.
