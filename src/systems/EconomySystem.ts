@@ -2,12 +2,15 @@ export function calculateXpToLevel(level: number): number {
   return Math.floor(100 * Math.pow(level, 1.5));
 }
 
-// Feeding cost — Monster-Legends-style gentle growth.
-// The old exponential curve (50 * 1.5^level) made high-level feeding absurdly
-// expensive (level 20 cost >160k food). This linear-ish curve keeps food a
-// meaningful sink without becoming a hard wall.
+// Feeding cost (Gruppe 12: Spielgeschwindigkeit deutlich verlangsamen).
+// Es bleiben 4 Fütterungen pro Level (UI-Pips), aber die Futterkosten wachsen
+// nun super-linear: frühe Level bleiben günstig, hohe Level werden zu einer
+// echten Futter-Senke, sodass das Maximieren eines Monsters Wochen statt Tage
+// dauert. Zusammen mit den teuren Tempel-Toren (Gruppe 6) verlangsamt das den
+// Weg zu Transcendental-Leveln drastisch.
+//   Lv1≈18 · Lv20≈540 · Lv50≈3.9k · Lv100≈25k (×4 Fütterungen ≈ 100k/Level)
 export function calculateFeedCost(level: number): number {
-  return Math.floor(10 + level * 8);
+  return Math.floor(10 + level * 8 + Math.pow(level, 2.2));
 }
 
 // Unique ("✨") monsters are special and sell for more than their regular
