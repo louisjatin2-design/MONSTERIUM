@@ -267,6 +267,73 @@ export function World3D({ hidden }: { hidden: boolean }) {
     const lampGroup = new THREE.Group();
     scene.add(lampGroup);
 
+    // ── Gruppe 2: Wettereffekte ────────────────────────────────────────────
+    // Rein visueller, NICHT persistierter Wetter-Zyklus (klar → Regen → Sturm).
+    // Beeinflusst sichtbar Stimmung/Verhalten der Monster: bei Regen ducken sie
+    // sich und wandern langsamer, bei Sturm sind sie aufgewühlt (schneller).
+    // TODO: später echten Wetter-Zustand in den Store (mit migrate) + Kopplung
+    //       an Habitat/Insel; aktuell deterministisch über einen Timer.
+    type Weather = 'clear' | 'rain' | 'storm';
+    const weather = { kind: 'clear' as Weather, timer: 14, rain: 0 /* 0..1 sichtbare Stärke */ };
+    let weatherSpeedMul = 1; // an die Wander-AI gekoppelt
+    // Regen als Punktwolke um das Kamera-Ziel.
+    const RAIN_N = 1400;
+    const rainGeo = new THREE.BufferGeometry();
+    const rainPos = new Float32Array(RAIN_N * 3);
+    for (let i = 0; i < RAIN_N; i++) {
+      rainPos[i * 3] = (Math.random() - 0.5) * 80;
+      rainPos[i * 3 + 1] = Math.random() * 60;
+      rainPos[i * 3 + 2] = (Math.random() - 0.5) * 80;
+    }
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+    const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({
+      color: 0xaecbe6, size: 0.18, transparent: true, opacity: 0, depthWrite: false, fog: false,
+    }));
+    rain.visible = false;
+    scene.add(rain);
+    // Eigene Lichtquelle für Blitze (unabhängig vom Day/Night-Cycle).
+    const lightning = new THREE.AmbientLight(0xcfe0ff, 0);
+    scene.add(lightning);
+
+    const updateWeather = (dt: number) => {
+      weather.timer -= dt;
+      if (weather.timer <= 0) {
+        // Nächsten Zustand wählen (gewichtet: meist klar).
+        const r = Math.random();
+        weather.kind = r < 0.55 ? 'clear' : r < 0.85 ? 'rain' : 'storm';
+        weather.timer = 12 + Math.random() * 18;
+      }
+      const target = weather.kind === 'clear' ? 0 : weather.kind === 'rain' ? 0.6 : 1;
+      weather.rain += (target - weather.rain) * Math.min(1, dt * 0.6); // sanfter Übergang
+      // Monster-Verhalten: Regen bremst, Sturm wühlt auf.
+      weatherSpeedMul = weather.kind === 'storm'
+        ? 1 + weather.rain * 0.8
+        : 1 - weather.rain * 0.55;
+
+      const visible = weather.rain > 0.02;
+      rain.visible = visible;
+      if (visible) {
+        const mat = rain.material as THREE.PointsMaterial;
+        mat.opacity = weather.rain * (weather.kind === 'storm' ? 0.85 : 0.55);
+        const fall = (weather.kind === 'storm' ? 70 : 42) * dt;
+        const cx = controls.target.x, cz = controls.target.z;
+        const pos = rainGeo.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < RAIN_N; i++) {
+          let y = pos.getY(i) - fall;
+          if (y < 0) {
+            y = 60;
+            pos.setX(i, cx + (Math.random() - 0.5) * 80);
+            pos.setZ(i, cz + (Math.random() - 0.5) * 80);
+          }
+          pos.setY(i, y);
+        }
+        pos.needsUpdate = true;
+      }
+      // Blitze nur im Sturm, gelegentlich.
+      if (weather.kind === 'storm' && Math.random() < dt * 0.6) lightning.intensity = 1.8;
+      else lightning.intensity = Math.max(0, lightning.intensity - dt * 6);
+    };
+
     // World group is rebuilt whenever the relevant store slices change.
     let world = new THREE.Group();
     scene.add(world);
@@ -549,6 +616,9 @@ export function World3D({ hidden }: { hidden: boolean }) {
       dnAccum += dt;
       if (dnAccum > 0.5) { dnAccum = 0; applyDayNight(); }
 
+      // Gruppe 2: Wetter aktualisieren (Regen-Partikel, Blitze, Stimmung).
+      updateWeather(dt);
+
       // Gruppe 1: Wolken driften je Layer unterschiedlich schnell und wrappen.
       for (const layer of cloudLayers) {
         for (const sp of layer.sprites) {
@@ -577,7 +647,8 @@ export function World3D({ hidden }: { hidden: boolean }) {
             w.tx = w.cx + Math.cos(a) * rr;
             w.tz = w.cz + Math.sin(a) * rr;
           } else {
-            const step = Math.min(w.speed * dt, dist);
+            // Gruppe 2: Wetter moduliert das Wander-Tempo (Regen bremst, Sturm wühlt auf).
+            const step = Math.min(w.speed * weatherSpeedMul * dt, dist);
             m.position.x += (dx / dist) * step;
             m.position.z += (dz / dist) * step;
             // In Laufrichtung drehen (sanft).
@@ -627,6 +698,7 @@ export function World3D({ hidden }: { hidden: boolean }) {
       }));
       cloudLayers.forEach((l) => l.sprites.forEach((sp) => (sp.material as THREE.Material).dispose()));
       cloudTex.dispose();
+      rainGeo.dispose(); (rain.material as THREE.Material).dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
     };

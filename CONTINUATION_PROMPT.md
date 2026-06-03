@@ -56,14 +56,13 @@ Markiere WIP klar im Code. Frag bei grundlegenden Designentscheidungen nach.
 Optionale Feinpolitur, falls Zeit: Vignetten-/Stern-Overlay nachts, finale
 Texturen (`TODO(assets)`), Sonnen-/Mond-Lensflare. Kern-Anforderungen sind erfüllt.
 
-### Gruppe 2 — Monster & Habitate (REST)
-Erledigt: Wander-AI, proportionale Größe, Fraktions-Designs (s. o.).
-**Offen:**
-- **Wettereffekte** im Habitat beeinflussen sichtbar Verhalten/Stimmung der Monster
-  (z. B. Regen → langsameres Wandern/Ducken, Sturm → Aufregung). Es gibt bereits
-  ein Wetter-Konzept in `src/data/events.ts` / EconomySystem? Prüfen; sonst einen
-  einfachen Wetter-Zustand (sonnig/Regen/Sturm) im Store + Partikel/Tint im World3D.
-  Verhalten an `m.userData.wander.speed` koppeln.
+### Gruppe 2 — Monster & Habitate ✅ ERLEDIGT
+Wander-AI, proportionale Größe, Fraktions-Designs sowie **Wettereffekte**
+(klar/Regen/Sturm-Zyklus in `World3D.tsx`: Regen-Partikel, Blitze, und
+`weatherSpeedMul` koppelt das Wetter an das Wander-Tempo — Regen bremst,
+Sturm wühlt auf). Wetter ist aktuell rein visuell/nicht persistiert.
+**Optionaler Rest:** echten Wetter-Zustand in den Store (mit `migrate`) +
+Kopplung an Habitat/Insel, statt deterministischem Timer.
 
 ### Gruppe 3 — Kampfsystem (Rest)
 - **3D-Kampfscreen**: ganzes Monster-Modell sichtbar (nicht nur Avatar), Lebens-/Status-
