@@ -200,6 +200,12 @@
 
 /* ═══════════════════════════════════════════════════════
    RESPONSIVE LAYOUT — cross-device support
+
+   The floating chrome (top HUD + the two action rails) is sized by ONE
+   continuous scale factor, --ui-scale, recomputed from the live viewport in
+   src/ui/responsiveScale.ts. That replaces the old stack of per-device @media
+   scale breakpoints. The rules below only handle structural reflow that a pure
+   scale can't (panel widths, modal stretch on short screens, safe-area insets).
    ═══════════════════════════════════════════════════════ */
 
 /* Smooth iOS momentum scroll + keep panel scroll from chaining to the page */
@@ -236,58 +242,27 @@ button, .btn, .monster-card, .close-btn {
 .floating-rail--left {
   left: calc(8px + env(safe-area-inset-left, 0px));
   gap: 9px;
-  transform: translateY(-50%);
+  /* The single --ui-scale factor (computed in src/ui/responsiveScale.ts from
+     the live viewport) shrinks the rail to fit short screens and grows it a
+     touch on big monitors — continuously, no per-device breakpoints. */
+  transform: translateY(-50%) scale(var(--ui-scale, 1));
   transform-origin: left center;
+  transition: transform 0.15s ease;
 }
 .floating-rail--right {
   right: calc(8px + env(safe-area-inset-right, 0px));
   gap: 10px;
-  transform: translateY(-50%);
+  transform: translateY(-50%) scale(var(--ui-scale, 1));
   transform-origin: right center;
+  transition: transform 0.15s ease;
 }
 
-/* Short viewports (landscape phones): the screen is wide but low, so the
-   vertically-centred rails would run into the top HUD and off the bottom
-   edge. Shrink the rails AND nudge them below the HUD so every button stays
-   on-screen, reachable and non-overlapping. Also shrink the HUD itself. */
-@media (orientation: landscape) and (max-height: 560px) {
-  .hud-bar { transform: scale(0.85); transform-origin: top center; }
-  .floating-rail--left,
-  .floating-rail--right { top: calc(var(--vh, 1vh) * 50 + 22px); }
-  .floating-rail--left  { transform: translateY(-50%) scale(0.78); }
-  .floating-rail--right { transform: translateY(-50%) scale(0.78); }
-}
-@media (orientation: landscape) and (max-height: 460px) {
-  .hud-bar { transform: scale(0.78); transform-origin: top center; }
-  .floating-rail--left,
-  .floating-rail--right { top: calc(var(--vh, 1vh) * 50 + 20px); }
-  .floating-rail--left  { transform: translateY(-50%) scale(0.66); }
-  .floating-rail--right { transform: translateY(-50%) scale(0.66); }
-}
-@media (orientation: landscape) and (max-height: 380px) {
-  .hud-bar { transform: scale(0.72); transform-origin: top center; }
-  .floating-rail--left,
-  .floating-rail--right { top: calc(var(--vh, 1vh) * 50 + 16px); }
-  .floating-rail--left  { transform: translateY(-50%) scale(0.56); }
-  .floating-rail--right { transform: translateY(-50%) scale(0.56); }
-}
-
-/* Short PORTRAIT viewports: the tall left rail (7 buttons ≈ 430 px) can collide
-   with the top HUD or run off the bottom on small / split-screen phones. Mirror
-   the landscape handling — scale the rails down and nudge them below the HUD so
-   every side button stays on-screen and tappable. */
-@media (orientation: portrait) and (max-height: 600px) {
-  .floating-rail--left,
-  .floating-rail--right { top: calc(var(--vh, 1vh) * 50 + 18px); }
-  .floating-rail--left  { transform: translateY(-50%) scale(0.82); }
-  .floating-rail--right { transform: translateY(-50%) scale(0.82); }
-}
-@media (orientation: portrait) and (max-height: 500px) {
-  .hud-bar { transform: scale(0.85); transform-origin: top left; }
-  .floating-rail--left,
-  .floating-rail--right { top: calc(var(--vh, 1vh) * 50 + 14px); }
-  .floating-rail--left  { transform: translateY(-50%) scale(0.66); }
-  .floating-rail--right { transform: translateY(-50%) scale(0.66); }
+/* Top HUD shares the same responsive scale, but only ever shrinks (capped at 1)
+   so its full-width row can never overflow the edges of a wide display. */
+.hud-bar {
+  transform: scale(min(var(--ui-scale, 1), 1));
+  transform-origin: top center;
+  transition: transform 0.15s ease;
 }
 
 /* ── Floating side panel: right-anchored, collapses to full-width on mobile.

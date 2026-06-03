@@ -1,6 +1,11 @@
 import React, { Component, type ReactNode, type ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { installResponsiveScaling } from '@ui/responsiveScale';
+
+// Start the unified responsive display system before the first render so the
+// HUD and action rails are already fitted to the screen on the opening frame.
+installResponsiveScaling();
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   constructor(props: { children: ReactNode }) {
