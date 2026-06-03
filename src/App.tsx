@@ -24,6 +24,7 @@ import { StoragePanel } from '@ui/components/StoragePanel';
 import { CompendiumPanel } from '@ui/components/CompendiumPanel';
 import { LabPanel } from '@ui/components/LabPanel';
 import { AchievementsPanel } from '@ui/components/AchievementsPanel';
+import { BattleSelectScreen } from '@ui/components/BattleSelectScreen';
 import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
 import { LoginScreen } from '@ui/components/LoginScreen';
 import { World3D } from '@game/world3d/World3D';
@@ -44,6 +45,7 @@ export type ActivePanel =
   | { type: 'monsterDetail'; instanceId: string }
   | { type: 'pokedex' }
   | { type: 'story' }
+  | { type: 'battleSelect' }
   | { type: 'shop' }
   | { type: 'islands' }
   | { type: 'levelRewards' }
@@ -236,9 +238,8 @@ function Game() {
           <HUD />
           <SideRail />
           <ActionRail
-            onAttack={() => setActivePanel({ type: 'story' })}
+            onAttack={() => setActivePanel({ type: 'battleSelect' })}
             onPokedex={() => setActivePanel({ type: 'pokedex' })}
-            onStory={() => setActivePanel({ type: 'story' })}
             onShop={() => setActivePanel({ type: 'shop' })}
             onBreed={() => setActivePanel({ type: 'breeding' })}
             onHatch={() => setActivePanel({ type: 'hatchery' })}
@@ -284,6 +285,12 @@ function Game() {
         )}
         {activePanel?.type === 'pokedex' && (
           <Pokedex onClose={closePanel} />
+        )}
+        {activePanel?.type === 'battleSelect' && (
+          <BattleSelectScreen
+            onClose={closePanel}
+            onStory={() => setActivePanel({ type: 'story' })}
+          />
         )}
         {activePanel?.type === 'story' && (
           <StoryMap onClose={closePanel} />
