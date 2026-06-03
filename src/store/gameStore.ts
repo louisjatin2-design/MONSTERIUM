@@ -25,6 +25,7 @@ import { ARMOR_DEFS, rollMaterialDrops } from '@data/armor';
 import {
   SEASON_TIERS, SEASON_DAILY_TASKS, SEASON_LENGTH_DAYS, MS_PER_DAY, dayKeyOf,
 } from '@data/seasonPass';
+import { BOND_TASKS, BOND_COOLDOWN_MS } from '@data/bonds';
 
 // Simple uid generator (no external dependency)
 function uid(): string {
@@ -264,6 +265,8 @@ interface GameStoreActions {
   claimSeasonDaily: (taskId: string) => boolean;
   /** Eine freigeschaltete Belohnungs-Stufe abholen. */
   claimSeasonTier: (tier: number) => boolean;
+  /** Gruppe 5 — Bindungs-Interaktion mit einem Monster (Befragung/Training/Pflege). */
+  interactWithMonster: (monsterId: string, taskId: string) => boolean;
 
   // Armor (Gruppe 7)
   /** Add material drops to the inventory. */
@@ -1199,6 +1202,26 @@ export const useGameStore = create<GameStore>()(
           s.seasonPass.claimedTiers.push(tier);
         });
         if (def.reward.eggDefId) get().addEgg(def.reward.eggDefId, undefined, false);
+        return true;
+      },
+
+      interactWithMonster: (monsterId, taskId) => {
+        const task = BOND_TASKS.find(t => t.id === taskId);
+        const m = get().monsters[monsterId];
+        if (!task || !m) return false;
+        // Gemeinsamer Tages-Cooldown pro Monster.
+        if (Date.now() - (m.lastBondMs ?? 0) < BOND_COOLDOWN_MS) return false;
+        const st = get();
+        if ((task.cost.gold ?? 0) > st.gold) return false;
+        if ((task.cost.food ?? 0) > st.food) return false;
+        set((s) => {
+          const mon = s.monsters[monsterId];
+          if (!mon) return;
+          s.gold -= task.cost.gold ?? 0;
+          s.food -= task.cost.food ?? 0;
+          mon.bondXp = (mon.bondXp ?? 0) + task.xp;
+          mon.lastBondMs = Date.now();
+        });
         return true;
       },
 

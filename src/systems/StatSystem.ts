@@ -1,6 +1,7 @@
 import type { MonsterInstance, MonsterBaseStats } from '@gtypes/game';
 import { MONSTER_DEFS } from '@data/monsters';
 import { getArmorBonus } from '@data/armor';
+import { getBondStatMultiplier } from '@data/bonds';
 
 // Per-level stat growth. Kept in one place so the battle engine and the
 // monster detail screen always show the same numbers.
@@ -37,11 +38,13 @@ export function instanceStats(m: MonsterInstance): ScaledStats {
   if (!def) return { hp: m.maxHp, attack: 0, defense: 0, speed: 0, energy: 0 };
   const base = scaledStats(def.baseStats, m.level);
   const armor = getArmorBonus(m.equippedArmorId);
+  // Gruppe 5 — Bindungs-Bonus: multiplikativer Aufschlag auf alle Werte.
+  const bond = getBondStatMultiplier(m.bondXp ?? 0);
   return {
-    hp: base.hp + (armor.hp ?? 0),
-    attack: base.attack + (armor.attack ?? 0),
-    defense: base.defense,
-    speed: base.speed + (armor.speed ?? 0),
+    hp: Math.floor((base.hp + (armor.hp ?? 0)) * bond),
+    attack: Math.floor((base.attack + (armor.attack ?? 0)) * bond),
+    defense: Math.floor(base.defense * bond),
+    speed: Math.floor((base.speed + (armor.speed ?? 0)) * bond),
     energy: base.energy + (armor.energy ?? 0),
   };
 }

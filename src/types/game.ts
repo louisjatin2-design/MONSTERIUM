@@ -98,6 +98,11 @@ export interface MonsterInstance {
   // Angelegte Rüstung (Gruppe 7). null/undefined = keine Rüstung. Buffs werden
   // in StatSystem auf Leben/Angriff/Tempo/Ausdauer addiert.
   equippedArmorId?: string | null;
+  // Gruppe 5 — Bindung/Relationship: Bindungs-XP aus Interaktionen
+  // (Befragungen/Tasks). Höhere Bindungsstufen geben permanente Statwert-Boni.
+  bondXp?: number;
+  // Epoch-ms der letzten täglichen Bindungs-Interaktion (Cooldown).
+  lastBondMs?: number;
 }
 
 export interface ActiveStatusEffect {
