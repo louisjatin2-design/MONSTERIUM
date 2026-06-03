@@ -16,6 +16,10 @@ export interface MonsterVisualSpec {
   accentColor: number;
   rarityRank: number;
   element: string;
+  // Gruppe 2 — Gut/Böse-Designs: die Fraktion (aus getMonsterFaction) verleiht
+  // dem Modell sichtbare Lore-Merkmale. 'Good' → leuchtende Beschützer-Aura,
+  // 'Evil' → finstere Dämonen-Hörner/Glut. Optional; Default = neutral.
+  faction?: 'Good' | 'Evil' | 'Neutral';
 }
 
 // --- deterministic RNG -----------------------------------------------------
@@ -273,8 +277,32 @@ export function buildLowPolyMonster(spec: MonsterVisualSpec): THREE.Group {
     body.add(orbit);
   }
 
-  // Ground shadow.
-  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.8, 14), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22 }));
+  // --- Gruppe 2: Fraktions-Design (Gut vs. Böse) ----------------------------
+  // Gut = legendärer Beschützer (leuchtender Heiligenschein + helle Aura),
+  // Böse = zerstörerischer Dämon (geschwungene Glut-Hörner + rote Aura-Glut).
+  // Je höher die Seltenheit, desto ausgeprägter das Merkmal.
+  if (spec.faction === 'Good') {
+    const halo = new THREE.Mesh(
+      new THREE.TorusGeometry(0.5, 0.05, 8, 24),
+      mat(0xffe066, { emissive: 0xffd24a, emissiveIntensity: 0.9, metalness: 0.3, roughness: 0.2 }),
+    );
+    halo.name = 'pulse';
+    halo.rotation.x = Math.PI / 2;
+    halo.position.set(headTop.x, headTop.y + 0.55 + spec.rarityRank * 0.05, headTop.z);
+    body.add(halo);
+  } else if (spec.faction === 'Evil') {
+    const glow = mat(0xff3b3b, { emissive: 0xc41818, emissiveIntensity: 0.7 + spec.rarityRank * 0.12, roughness: 0.4 });
+    for (const sgn of [-1, 1]) {
+      const horn = new THREE.Mesh(CONE(0.1, 0.55 + spec.rarityRank * 0.06, 4), glow);
+      horn.position.set(headTop.x + sgn * 0.34, headTop.y + 0.22, headTop.z - 0.04);
+      horn.rotation.z = sgn * -0.55;
+      body.add(horn);
+    }
+  }
+
+  // Ground shadow. Faction tints it (gold for protectors, blood-red for demons).
+  const shadowColor = spec.faction === 'Good' ? 0x6a5a10 : spec.faction === 'Evil' ? 0x3a0808 : 0x000000;
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.8, 14), new THREE.MeshBasicMaterial({ color: shadowColor, transparent: true, opacity: 0.22 }));
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.01; root.add(shadow);
 
   root.userData.body = body;
