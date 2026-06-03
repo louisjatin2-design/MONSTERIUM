@@ -35,19 +35,9 @@
          so block the browser from interpreting those gestures itself. */
       #game-container, #game-container canvas { touch-action: none; }
     </style>
-    <script>
-      // Fix iOS Safari 100vh bug — set CSS variable to real viewport height.
-      // Prefer visualViewport (tracks the address bar shrinking/growing) and
-      // also refresh on orientation changes so portrait/landscape stay correct.
-      function setVH() {
-        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-        document.documentElement.style.setProperty('--vh', h * 0.01 + 'px');
-      }
-      setVH();
-      window.addEventListener('resize', setVH);
-      window.addEventListener('orientationchange', function () { setTimeout(setVH, 200); });
-      if (window.visualViewport) window.visualViewport.addEventListener('resize', setVH);
-    </script>
+    <!-- The viewport metrics (--vh / --vw) and the global UI scale (--ui-scale)
+         are owned by the unified responsive system in src/ui/responsiveScale.ts,
+         which runs before the first React render. -->
   </head>
   <body>
     <div id="root"></div>
