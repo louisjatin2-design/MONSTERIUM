@@ -72,8 +72,25 @@ const ELEMENT_DECOS: Partial<Record<string, ElementDeco>> = {
   },
 };
 
+// One screen-space point (already projected to world coordinates).
+interface Pt { x: number; y: number; }
+
 export class MonsterSprite extends Phaser.GameObjects.Container {
   defId: string;
+
+  // Inner bobbing container — kept so the roam logic can lean it toward the
+  // direction of travel without fighting the idle bob (which only tweens y).
+  private inner?: Phaser.GameObjects.Container;
+
+  // ---- Free-roam state (set up by roamWithin) ---------------------------
+  // The four world-space ground corners of the habitat pen the monster walks
+  // inside, plus the vertical lift that seats it on top of that ground.
+  private roamCorners?: [Pt, Pt, Pt, Pt];
+  private roamLift = 0;
+  private roamDepthBase = 0;
+  private roamDepthSpan = 0;
+  private roamTween?: Phaser.Tweens.Tween;
+  private roamEvent?: Phaser.Time.TimerEvent;
 
   constructor(scene: Phaser.Scene, defId: string, x: number, y: number, size = 44, showName = true) {
     super(scene, x, y);
@@ -91,6 +108,7 @@ export class MonsterSprite extends Phaser.GameObjects.Container {
 
     // Inner container bobs.
     const inner = scene.add.container(0, 0);
+    this.inner = inner;
 
     // Rarity glow ring.
     const glow = scene.add.circle(0, 0, r + 4, ringColor, 0.5);
@@ -166,7 +184,11 @@ export class MonsterSprite extends Phaser.GameObjects.Container {
       ease: 'Sine.easeInOut',
       delay: Math.random() * 700,
     });
-    this.once(Phaser.GameObjects.Events.DESTROY, () => bob.stop());
+    this.once(Phaser.GameObjects.Events.DESTROY, () => {
+      bob.stop();
+      this.roamTween?.stop();
+      this.roamEvent?.remove();
+    });
 
     scene.add.existing(this);
 
@@ -174,5 +196,70 @@ export class MonsterSprite extends Phaser.GameObjects.Container {
     if (scene.sys.game.renderer.type === Phaser.WEBGL) {
       this.postFX.addGlow(ringColor, 4, 0, false, 0.08, 12);
     }
+  }
+
+  // Let this monster wander freely inside a habitat's fenced ground. The four
+  // corners are the pen's projected ground quad in world space — back, right,
+  // front, left (i.e. the grid corners of the building footprint). `lift` seats
+  // the monster on top of that ground; depth is interpolated front-to-back so
+  // monsters nearer the camera overlap those behind them.
+  roamWithin(corners: [Pt, Pt, Pt, Pt], lift: number, depthBase: number, depthSpan: number) {
+    this.roamCorners = corners;
+    this.roamLift = lift;
+    this.roamDepthBase = depthBase;
+    this.roamDepthSpan = depthSpan;
+    // Drop in at a random spot inside the pen so residents start scattered.
+    const p = this.randomRoamPoint();
+    this.setPosition(p.x, p.y);
+    this.setDepth(depthBase + p.v * depthSpan);
+    this.roamEvent = this.scene.time.delayedCall(200 + Math.random() * 1400, () => this.roamStep());
+  }
+
+  // Pick a random point inside the pen, kept clear of the fence by a margin.
+  // `v` (0 at the back edge, 1 at the front) is returned for depth sorting.
+  private randomRoamPoint(): { x: number; y: number; v: number } {
+    const [A, B, C, D] = this.roamCorners!;
+    const m = 0.24; // keep monsters away from the fence
+    const u = m + Math.random() * (1 - 2 * m);
+    const v = m + Math.random() * (1 - 2 * m);
+    const topX = A.x + (B.x - A.x) * u, topY = A.y + (B.y - A.y) * u;
+    const botX = D.x + (C.x - D.x) * u, botY = D.y + (C.y - D.y) * u;
+    return {
+      x: topX + (botX - topX) * v,
+      y: topY + (botY - topY) * v - this.roamLift,
+      v,
+    };
+  }
+
+  // One step of the random walk: stroll to a new spot (or idle), then queue the
+  // next step after a short, randomised pause.
+  private roamStep() {
+    if (!this.scene || !this.roamCorners) return;
+    const target = this.randomRoamPoint();
+    const dist = Phaser.Math.Distance.Between(this.x, this.y, target.x, target.y);
+
+    // Sometimes just pause and look around instead of walking.
+    if (Math.random() < 0.22 || dist < 4) {
+      this.roamEvent = this.scene.time.delayedCall(700 + Math.random() * 1900, () => this.roamStep());
+      return;
+    }
+
+    // Lean slightly toward the direction of travel for a sense of walking.
+    if (this.inner) this.inner.rotation = (target.x < this.x ? -1 : 1) * 0.06;
+
+    // Constant stroll speed (~28 px/s), clamped so very short/long hops feel ok.
+    const duration = Phaser.Math.Clamp(dist / 0.028, 700, 2800);
+    this.setDepth(this.roamDepthBase + target.v * this.roamDepthSpan);
+    this.roamTween = this.scene.tweens.add({
+      targets: this,
+      x: target.x,
+      y: target.y,
+      duration,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        if (this.inner) this.inner.rotation = 0;
+        this.roamEvent = this.scene.time.delayedCall(500 + Math.random() * 2000, () => this.roamStep());
+      },
+    });
   }
 }
