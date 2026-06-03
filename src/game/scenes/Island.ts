@@ -158,6 +158,10 @@ export class Island extends Phaser.Scene {
     // placed in world space relative to the live view (see addClouds).
     this.addClouds();
 
+    // Far-away background scenery (distant floating islands + birds) on a
+    // screen-pinned parallax layer behind the clouds, giving the sky depth.
+    this.addBackgroundScenery();
+
     // Spawn pre-placed buildings + their residents across ALL unlocked islands.
     for (const b of Object.values(state.buildings)) {
       if (state.unlockedIslands.includes(b.islandId)) this.spawnBuilding(b);
@@ -661,6 +665,116 @@ export class Island extends Phaser.Scene {
       ctx.fillRect(0, cy - halfH, w, halfH * 2);
     }
 
+    tex?.refresh();
+  }
+
+  // Distant background scenery: hazy floating islands far off in the sky and a
+  // few drifting birds. These live on a screen-pinned layer (scrollFactor 0)
+  // behind the clouds, so they read as a far horizon backdrop and slowly sweep
+  // across without being dragged around by every camera pan.
+  private addBackgroundScenery() {
+    const W = this.scale.width, H = this.scale.height;
+    this.bakeFarIslandTexture('fx-far-island', 200, 130);
+    this.bakeBirdTexture('fx-bird', 48, 24);
+
+    // A handful of small floating islands scattered low across the horizon.
+    const isles: { fx: number; fy: number; sc: number; al: number; dur: number }[] = [
+      { fx: 0.12, fy: 0.42, sc: 0.55, al: 0.40, dur: 165000 },
+      { fx: 0.48, fy: 0.50, sc: 0.40, al: 0.32, dur: 195000 },
+      { fx: 0.83, fy: 0.38, sc: 0.62, al: 0.44, dur: 150000 },
+    ];
+    for (const d of isles) {
+      const img = this.add.image(d.fx * W, d.fy * H, 'fx-far-island')
+        .setScrollFactor(0).setDepth(-920).setScale(d.sc).setAlpha(d.al);
+      const drift = () => {
+        this.tweens.add({
+          targets: img,
+          x: W + img.displayWidth,
+          duration: d.dur,
+          ease: 'Linear',
+          onComplete: () => { img.x = -img.displayWidth; drift(); },
+        });
+      };
+      drift();
+    }
+
+    // A small flock of birds gliding across the sky with a gentle bob.
+    for (let i = 0; i < 5; i++) {
+      const y = H * (0.18 + Math.random() * 0.3);
+      const sc = 0.5 + Math.random() * 0.6;
+      const bird = this.add.image(Math.random() * W, y, 'fx-bird')
+        .setScrollFactor(0).setDepth(-905).setScale(sc).setAlpha(0.5);
+      const dur = 26000 + Math.random() * 20000;
+      const fly = () => {
+        bird.x = -bird.displayWidth;
+        this.tweens.add({
+          targets: bird,
+          x: W + bird.displayWidth,
+          duration: dur,
+          ease: 'Linear',
+          delay: Math.random() * 4000,
+          onComplete: fly,
+        });
+      };
+      // Gentle vertical bob, independent of the horizontal glide.
+      this.tweens.add({
+        targets: bird, y: y - 10 - Math.random() * 8,
+        duration: 1400 + Math.random() * 900, yoyo: true, repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+      fly();
+    }
+  }
+
+  // Bakes a soft, hazy floating-island silhouette (green cap on a brown cliff)
+  // for the distant background layer.
+  private bakeFarIslandTexture(key: string, w: number, h: number) {
+    if (this.textures.exists(key)) return;
+    const tex = this.textures.createCanvas(key, w, h);
+    const ctx = tex?.getContext();
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    const cx = w / 2;
+
+    // Rocky underside — a downward wedge.
+    ctx.fillStyle = 'rgba(96,120,150,0.9)';
+    ctx.beginPath();
+    ctx.moveTo(w * 0.16, h * 0.42);
+    ctx.lineTo(w * 0.84, h * 0.42);
+    ctx.lineTo(cx + w * 0.06, h * 0.86);
+    ctx.lineTo(cx, h * 0.96);
+    ctx.lineTo(cx - w * 0.08, h * 0.82);
+    ctx.closePath();
+    ctx.fill();
+
+    // Grassy cap — a flattened green dome.
+    ctx.fillStyle = 'rgba(120,165,135,0.95)';
+    ctx.beginPath();
+    ctx.ellipse(cx, h * 0.42, w * 0.36, h * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Soft blue haze wash over everything for atmospheric distance.
+    ctx.fillStyle = 'rgba(150,190,225,0.35)';
+    ctx.fillRect(0, 0, w, h);
+    tex?.refresh();
+  }
+
+  // Bakes a simple two-winged bird silhouette (a soft "M" shape).
+  private bakeBirdTexture(key: string, w: number, h: number) {
+    if (this.textures.exists(key)) return;
+    const tex = this.textures.createCanvas(key, w, h);
+    const ctx = tex?.getContext();
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(60,80,105,0.9)';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    const midX = w / 2, midY = h * 0.62, wing = w * 0.42, lift = h * 0.42;
+    ctx.beginPath();
+    ctx.moveTo(midX - wing, midY);
+    ctx.quadraticCurveTo(midX - wing * 0.4, midY - lift, midX, midY);
+    ctx.quadraticCurveTo(midX + wing * 0.4, midY - lift, midX + wing, midY);
+    ctx.stroke();
     tex?.refresh();
   }
 
@@ -1234,14 +1348,22 @@ export class Island extends Phaser.Scene {
     const BH = 26 + Math.min(def.tilesW, def.tilesH) * 7;
     const baseDepth = 100 + b.tileX + b.tileY + def.tilesW + def.tilesH;
 
+    // Ground quad of the habitat pen (back, right, front, left corners) so each
+    // resident can wander freely inside the fence rather than standing still.
+    const corners: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }, { x: number; y: number }] = [
+      project(b.tileX, b.tileY),                              // back
+      project(b.tileX + def.tilesW, b.tileY),                 // right
+      project(b.tileX + def.tilesW, b.tileY + def.tilesH),    // front
+      project(b.tileX, b.tileY + def.tilesH),                 // left
+    ];
+
     const sprites: MonsterSprite[] = [];
     ids.forEach((id, i) => {
       const inst = monsters[id];
-      const n = ids.length;
-      const ox = (i - (n - 1) / 2) * 22;
-      const oy = -BH + 6 + (i % 2) * 8;
-      const ms = new MonsterSprite(this, inst.defId, center.x + ox, center.y + oy, 34, false);
-      ms.setDepth(baseDepth + 0.5 + i * 0.01);
+      const ms = new MonsterSprite(this, inst.defId, center.x, center.y, 34, false);
+      // Each monster strolls around the pen on its own random timers; depth is
+      // interpolated front-to-back (+0.4 keeps it above the building base).
+      ms.roamWithin(corners, BH - 6, baseDepth + 0.4 + i * 0.01, 0.5);
       sprites.push(ms);
     });
     this.residentSprites.set(b.instanceId, sprites);
