@@ -14,7 +14,7 @@ import { RARITY_GOLD_RATE } from '@data/rarities';
 import {
   getUnlockedMoves, getMaxAttackSlots, getNextEvolutionStage,
   pickRandomNewAttack, getTrainableAttacks, getAttackTrainCost,
-  getEvolutionStageName, getMonsterMaxLevel, canRankUp,
+  getEvolutionStageName, getEffectiveMaxLevel, canRankUp,
   EVOLUTION_LEVELS,
 } from '@systems/ProgressionSystem';
 import { calculateBreedOutcomes, rollBreedOutcome } from '@systems/BreedingSystem';
@@ -606,7 +606,7 @@ export const useGameStore = create<GameStore>()(
       feedMonster: (instanceId, foodAmount) => {
         const monster = get().monsters[instanceId];
         if (!monster) return;
-        const maxLevel = getMonsterMaxLevel(monster.rankStars);
+        const maxLevel = getEffectiveMaxLevel(monster, get().buildings);
         if (monster.level >= maxLevel) return;
         const cost = calculateFeedCost(monster.level);
         // One feed cycle per call. Always exactly 4 feed cycles per level-up.
@@ -690,7 +690,7 @@ export const useGameStore = create<GameStore>()(
         set((s) => {
           const m = s.monsters[instanceId];
           if (!m) return;
-          const maxLevel = getMonsterMaxLevel(m.rankStars);
+          const maxLevel = getEffectiveMaxLevel(m, s.buildings);
           m.xp += amount;
           let xpNeeded = calculateXpToLevel(m.level);
           while (m.xp >= xpNeeded && m.level < maxLevel) {

@@ -11,7 +11,7 @@ import { calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
 import {
   isEvolutionReady, getNextEvolutionStage, getEvolutionStageName,
   EVOLUTION_LEVELS, getTrainableAttacks, getAttackTrainCost,
-  getMonsterMaxLevel, MAX_RANK_STARS,
+  getEffectiveMaxLevel, getMonsterTempleLevel, getTempleCappedLevel, MAX_RANK_STARS,
 } from '@systems/ProgressionSystem';
 import type { MoveDef } from '@gtypes/game';
 import { HelpButton } from './HelpButton';
@@ -27,6 +27,7 @@ type Tab = 'info' | 'skills';
 // Monster-Legends-style detail screen for a single owned monster.
 export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const monster   = useGameStore(s => s.monsters[instanceId]);
+  const buildings = useGameStore(s => s.buildings);
   const food      = useGameStore(s => s.food);
   const gold      = useGameStore(s => s.gold);
   const diamonds  = useGameStore(s => s.diamonds);
@@ -60,7 +61,7 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const feedOnce = useCallback(() => {
     const st = useGameStore.getState();
     const m = st.monsters[instanceId];
-    if (!m || m.level >= getMonsterMaxLevel(m.rankStars)) return false;
+    if (!m || m.level >= getEffectiveMaxLevel(m, st.buildings)) return false;
     const cost = calculateFeedCost(m.level);
     if (st.food < cost) return false;
     st.feedMonster(instanceId, cost);
@@ -88,8 +89,12 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   if (!def) return null;
 
   const stats = instanceStats(monster);
-  const maxLevel = getMonsterMaxLevel(monster.rankStars);
+  const maxLevel = getEffectiveMaxLevel(monster, buildings);
+  const templeCap = getTempleCappedLevel(monster, buildings);
+  const templeLevel = getMonsterTempleLevel(monster, buildings);
   const atMaxLevel = monster.level >= maxLevel;
+  // Tempel-begrenzt (noch unter 100), nicht durch Rank/Labor: Hinweis zeigen.
+  const templeGated = atMaxLevel && templeCap < 100 && monster.level >= templeCap;
   const feedCost = calculateFeedCost(monster.level);
   const canFeed = food >= feedCost && !atMaxLevel;
   const sellValue = calculateSellValue(RARITY_RANK[def.rarity], monster.level, monster.isUnique);
@@ -198,7 +203,12 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
             onPointerCancel={stopFeeding}>
             {atMaxLevel ? 'Max-Level erreicht' : `🌾 Füttern halten (${feedCost})`}
           </button>
-          {atMaxLevel && (monster.rankStars ?? 0) < MAX_RANK_STARS && (
+          {templeGated && (
+            <div style={{ fontSize: 11, color: '#88ccff', textAlign: 'center', marginTop: 8 }}>
+              ⛩️ Levelgrenze {templeCap} erreicht. Baue/verbessere den{def.elements.length > 1 ? 'jeweiligen Element-Tempel beider Elemente' : ' passenden Element-Tempel'} (aktuell Stufe {templeLevel}), um weiter aufzuleveln.
+            </div>
+          )}
+          {atMaxLevel && !templeGated && (monster.rankStars ?? 0) < MAX_RANK_STARS && (
             <div style={{ fontSize: 11, color: '#c9a3ff', textAlign: 'center', marginTop: 8 }}>
               🧪 Im Labor mit einem identischen Max-Level-Monster zusammenführen für einen Rank-Up (+10 Level).
             </div>

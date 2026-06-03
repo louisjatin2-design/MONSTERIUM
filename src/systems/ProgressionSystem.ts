@@ -1,6 +1,6 @@
 import { MONSTER_DEFS } from '@data/monsters';
 import { ATTACKS } from '@data/attacks';
-import type { BuildingInstance, MonsterInstance, EvolutionStage } from '@gtypes/game';
+import type { BuildingInstance, MonsterInstance, EvolutionStage, ElementType } from '@gtypes/game';
 import { BUILDING_DEFS } from '@data/buildings';
 
 export const EVOLUTION_LEVELS: Record<EvolutionStage, number> = {
@@ -93,9 +93,70 @@ export function canRankUp(a: MonsterInstance, b: MonsterInstance): boolean {
   return true;
 }
 
+// ── Tempel-Level-Cap (Gruppe 6) ─────────────────────────────────────────────
+// Tempel begrenzen, wie hoch ein Monster überhaupt gelevelt werden kann. Ohne
+// passenden Tempel ist bei Level 10 Schluss; jede Tempel-Stufe hebt die Grenze
+// um 10 (Stufe 1 → Lv 20, Stufe 2 → Lv 30 … Stufe 9 → Lv 100).
+export const TEMPLE_BASE_CAP = 10;
+export const TEMPLE_CAP_PER_LEVEL = 10;
+export const TEMPLE_HARD_CAP = 100;
+
+/** Höchste Tempel-Stufe, die einem bestimmten Element zugutekommt (passender
+ *  Element-Tempel ODER Universal-Tempel). Bauten im Bau zählen nicht. */
+export function getApplicableTempleLevel(
+  element: ElementType,
+  buildings: Record<string, BuildingInstance>,
+): number {
+  let best = 0;
+  for (const b of Object.values(buildings)) {
+    const def = BUILDING_DEFS[b.defId];
+    if (!def || def.category !== 'Temple' || b.constructionEndMs) continue;
+    // Universal-Tempel (kein linkedElement) wirkt für jedes Element.
+    if (!def.linkedElement || def.linkedElement === element) {
+      best = Math.max(best, b.level);
+    }
+  }
+  return best;
+}
+
+/** Effektive Tempel-Stufe eines Monsters: das Minimum über ALLE seine Elemente
+ *  — bei zwei Elementen müssen also beide Tempel hochgestuft sein. */
+export function getMonsterTempleLevel(
+  instance: MonsterInstance,
+  buildings: Record<string, BuildingInstance>,
+): number {
+  const def = MONSTER_DEFS[instance.defId];
+  if (!def || def.elements.length === 0) return 0;
+  let min = Infinity;
+  for (const el of def.elements) {
+    min = Math.min(min, getApplicableTempleLevel(el, buildings));
+  }
+  return Number.isFinite(min) ? min : 0;
+}
+
+/** Tempel-begrenzte Levelgrenze (10…100), abhängig von den Tempeln. */
+export function getTempleCappedLevel(
+  instance: MonsterInstance,
+  buildings: Record<string, BuildingInstance>,
+): number {
+  const tl = getMonsterTempleLevel(instance, buildings);
+  return Math.min(TEMPLE_HARD_CAP, TEMPLE_BASE_CAP + tl * TEMPLE_CAP_PER_LEVEL);
+}
+
+/** Tatsächliche Maximal-Level eines Monsters: Tempel-Cap (bis 100) plus die
+ *  Rank-Up-Erweiterung aus dem Labor (+10 je Stern). */
+export function getEffectiveMaxLevel(
+  instance: MonsterInstance,
+  buildings: Record<string, BuildingInstance>,
+): number {
+  const stars = Math.min(MAX_RANK_STARS, instance.rankStars ?? 0);
+  return getTempleCappedLevel(instance, buildings) + stars * LEVELS_PER_RANK;
+}
+
+// Legacy-Helfer (Element-agnostisch) — bleibt für Abwärtskompatibilität.
 export function getMonsterLevelCap(temples: BuildingInstance[]): number {
   const highestTempleLevel = temples.reduce((max, t) => Math.max(max, t.level), 0);
-  return 20 + highestTempleLevel * 10;
+  return TEMPLE_BASE_CAP + (highestTempleLevel + 1) * TEMPLE_CAP_PER_LEVEL;
 }
 
 export function getUnlockedMoves(defId: string, monsterLevel: number): string[] {

@@ -1,4 +1,4 @@
-import type { BuildingDef } from '@gtypes/game';
+import type { BuildingDef, ElementType } from '@gtypes/game';
 
 function makeHabitatLevels(baseGold: number, baseCapacity: number) {
   return Array.from({ length: 5 }, (_, i) => ({
@@ -10,8 +10,10 @@ function makeHabitatLevels(baseGold: number, baseCapacity: number) {
   }));
 }
 
+// Tempel haben 9 Stufen, sodass die Levelgrenze eines Monsters von 10 (kein
+// Tempel) bis auf 100 (Tempel-Stufe 9) steigt — siehe ProgressionSystem.
 function makeTempleLevels(baseGold: number) {
-  return Array.from({ length: 8 }, (_, i) => ({
+  return Array.from({ length: 9 }, (_, i) => ({
     level: i + 1,
     upgradeCost: Math.floor(baseGold * Math.pow(3, i)),
     upgradeTimeSec: (i + 1) * 600,
@@ -329,6 +331,28 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     description: 'Hatches monster eggs. Upgrade for more slots.',
   },
 };
+
+// ── Element-Tempel für alle übrigen Elemente (Gruppe 6) ─────────────────────
+// Fire & Water sind oben bereits definiert. Damit auch zwei-elementige Monster
+// (die BEIDE Tempel benötigen) und seltene Elemente eine Tempel-Option haben,
+// werden die restlichen Element-Tempel hier generiert.
+const ELEMENT_TEMPLE_ELEMENTS: ElementType[] = [
+  'Electric', 'Earth', 'Air', 'Ice', 'Darkness', 'Light', 'Metal', 'Poison',
+  'Combat', 'Magic', 'Angel', 'Demon', 'Plant', 'Glitch', 'Time', 'Crystal',
+  'Sand', 'Sound', 'Void', 'Cosmos', 'Psycho',
+];
+
+for (const el of ELEMENT_TEMPLE_ELEMENTS) {
+  const id = `temple_${el.toLowerCase()}`;
+  if (BUILDING_DEFS[id]) continue;
+  BUILDING_DEFS[id] = {
+    id, name: `${el} Temple`, category: 'Temple',
+    tilesW: 3, tilesH: 3, linkedElement: el,
+    goldCost: 2500, buildTimeSec: 300,
+    levels: makeTempleLevels(2500),
+    description: `Hebt die Levelgrenze für ${el}-Monster um 10 pro Tempel-Stufe an.`,
+  };
+}
 
 export const BUILDABLE_BUILDING_IDS = Object.keys(BUILDING_DEFS).filter(
   id => id !== 'breeding_station' && id !== 'hatchery'
