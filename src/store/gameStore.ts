@@ -21,6 +21,7 @@ import { calculateBreedOutcomes, rollBreedOutcome } from '@systems/BreedingSyste
 import { getLevelReward } from '@data/levelRewards';
 import { QUESTS, isQuestComplete, type QuestProgressSnapshot } from '@data/quests';
 import { ACHIEVEMENTS, isAchievementComplete, type AchievementSnapshot } from '@data/achievements';
+import { ARMOR_DEFS, rollMaterialDrops } from '@data/armor';
 
 // Simple uid generator (no external dependency)
 function uid(): string {
@@ -141,6 +142,10 @@ interface GameStoreState {
   claimedQuests: string[]; // quest ids already collected
   claimedAchievements: string[]; // achievement ids whose reward was collected
   lastDailyChestMs: number; // epoch ms of the last claimed daily chest (0 = never)
+  // Rüstungs-System (Gruppe 7): Kampf-Drop-Materialien und gecraftete, noch
+  // nicht angelegte Rüstungen (armorId → Anzahl).
+  materials: Record<string, number>;
+  armorInventory: Record<string, number>;
   redeemedCheatCodes: string[]; // one-time cheat codes already used
 }
 
@@ -232,8 +237,18 @@ interface GameStoreActions {
   tickTimers: () => void;
 
   // Quests
-  /** Mark a battle as won (drives combat quests). */
-  recordBattleWon: () => void;
+  /** Mark a battle as won (drives combat quests). Grants material drops. */
+  recordBattleWon: (tier?: number) => void;
+
+  // Armor (Gruppe 7)
+  /** Add material drops to the inventory. */
+  addMaterials: (drops: Record<string, number>) => void;
+  /** Craft an armor from materials + gold. Returns false if unaffordable. */
+  craftArmor: (armorId: string) => boolean;
+  /** Equip a crafted armor onto a monster (previous armor returns to inventory). */
+  equipArmor: (monsterId: string, armorId: string) => boolean;
+  /** Remove a monster's armor back into the inventory. */
+  unequipArmor: (monsterId: string) => void;
   /** Claim a completed quest's reward. Returns false if not claimable. */
   claimQuest: (questId: string) => boolean;
   /** Claim a completed achievement's reward. Returns false if not claimable. */
@@ -398,6 +413,8 @@ const INITIAL_STATE: GameStoreState = {
   claimedQuests: [],
   claimedAchievements: [],
   lastDailyChestMs: 0,
+  materials: {},
+  armorInventory: {},
   redeemedCheatCodes: [],
 };
 
@@ -1077,8 +1094,65 @@ export const useGameStore = create<GameStore>()(
         }
       },
 
-      recordBattleWon: () => {
+      recordBattleWon: (tier = 1) => {
         set((s) => { s.stats.battlesWon += 1; });
+        // Materialien droppen nach dem Sieg (Gruppe 7).
+        get().addMaterials(rollMaterialDrops(tier));
+      },
+
+      addMaterials: (drops) => {
+        set((s) => {
+          for (const [id, qty] of Object.entries(drops)) {
+            if (qty > 0) s.materials[id] = (s.materials[id] ?? 0) + qty;
+          }
+        });
+      },
+
+      craftArmor: (armorId) => {
+        const def = ARMOR_DEFS[armorId];
+        if (!def) return false;
+        const st = get();
+        // Genug Materialien?
+        for (const [mid, qty] of Object.entries(def.craft.materials)) {
+          if ((st.materials[mid] ?? 0) < qty) return false;
+        }
+        if (st.gold < def.craft.gold) return false;
+        set((s) => {
+          s.gold -= def.craft.gold;
+          for (const [mid, qty] of Object.entries(def.craft.materials)) {
+            s.materials[mid] = (s.materials[mid] ?? 0) - qty;
+          }
+          s.armorInventory[armorId] = (s.armorInventory[armorId] ?? 0) + 1;
+        });
+        return true;
+      },
+
+      equipArmor: (monsterId, armorId) => {
+        const m = get().monsters[monsterId];
+        if (!m) return false;
+        if ((get().armorInventory[armorId] ?? 0) <= 0) return false;
+        if (!ARMOR_DEFS[armorId]) return false;
+        set((s) => {
+          const mon = s.monsters[monsterId];
+          if (!mon) return;
+          // Vorherige Rüstung zurück ins Inventar.
+          if (mon.equippedArmorId) {
+            s.armorInventory[mon.equippedArmorId] = (s.armorInventory[mon.equippedArmorId] ?? 0) + 1;
+          }
+          s.armorInventory[armorId] = (s.armorInventory[armorId] ?? 0) - 1;
+          mon.equippedArmorId = armorId;
+          // maxHp ggf. anheben, damit der Leben-Buff sofort verfügbar ist.
+        });
+        return true;
+      },
+
+      unequipArmor: (monsterId) => {
+        set((s) => {
+          const mon = s.monsters[monsterId];
+          if (!mon || !mon.equippedArmorId) return;
+          s.armorInventory[mon.equippedArmorId] = (s.armorInventory[mon.equippedArmorId] ?? 0) + 1;
+          mon.equippedArmorId = null;
+        });
       },
 
       claimQuest: (questId) => {
@@ -1354,6 +1428,13 @@ export const useGameStore = create<GameStore>()(
           }
           if (typeof persisted.lastDailyChestMs !== 'number') {
             persisted.lastDailyChestMs = 0;
+          }
+          // v11: Rüstungs-System (Materialien + Rüstungs-Inventar).
+          if (!persisted.materials || typeof persisted.materials !== 'object') {
+            persisted.materials = {};
+          }
+          if (!persisted.armorInventory || typeof persisted.armorInventory !== 'object') {
+            persisted.armorInventory = {};
           }
           if (!Array.isArray(persisted.claimedQuests)) {
             persisted.claimedQuests = [];

@@ -95,6 +95,9 @@ export interface MonsterInstance {
   // Rank-Up-Sterne aus dem Labor (Gruppe 5). 0 = ungerankt. Jeder Stern hebt
   // das Level-Limit um 10 an (100 → 150 bei 5 Sternen) und stärkt die Werte.
   rankStars?: number;
+  // Angelegte Rüstung (Gruppe 7). null/undefined = keine Rüstung. Buffs werden
+  // in StatSystem auf Leben/Angriff/Tempo/Ausdauer addiert.
+  equippedArmorId?: string | null;
 }
 
 export interface ActiveStatusEffect {

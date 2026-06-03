@@ -14,6 +14,7 @@ import {
   getEffectiveMaxLevel, getMonsterTempleLevel, getTempleCappedLevel, MAX_RANK_STARS,
 } from '@systems/ProgressionSystem';
 import type { MoveDef } from '@gtypes/game';
+import { ARMOR_DEFS, MATERIALS, getArmorBonus } from '@data/armor';
 import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
@@ -22,7 +23,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Tab = 'info' | 'skills';
+type Tab = 'info' | 'skills' | 'armor';
 
 // Monster-Legends-style detail screen for a single owned monster.
 export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
@@ -232,10 +233,10 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
       <div className="mdetail-right">
         <div className="mdetail-card">
           <div className="mdetail-tabs">
-            {(['info', 'skills'] as Tab[]).map(t => (
+            {(['info', 'skills', 'armor'] as Tab[]).map(t => (
               <button key={t} onClick={() => setTab(t)}
                 className={`mdetail-tab ${tab === t ? 'mdetail-tab--on' : ''}`}>
-                {t === 'info' ? 'INFO' : 'SKILLS'}
+                {t === 'info' ? 'INFO' : t === 'skills' ? 'SKILLS' : 'RÜSTUNG'}
               </button>
             ))}
           </div>
@@ -290,7 +291,7 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
               </button>
             </div>
           </>
-        ) : (
+        ) : tab === 'skills' ? (
           <>
             {/* Equipped attacks — with unequip */}
             <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 900, marginBottom: 8 }}>
@@ -351,11 +352,114 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
               </div>
             )}
           </>
+        ) : (
+          <ArmorTab instanceId={instanceId} />
         )}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Rüstungs-Tab (Gruppe 7) ─────────────────────────────────────────────────
+function ArmorTab({ instanceId }: { instanceId: string }) {
+  const monster = useGameStore(s => s.monsters[instanceId]);
+  const gold = useGameStore(s => s.gold);
+  const materials = useGameStore(s => s.materials);
+  const armorInventory = useGameStore(s => s.armorInventory);
+  const craftArmor = useGameStore(s => s.craftArmor);
+  const equipArmor = useGameStore(s => s.equipArmor);
+  const unequipArmor = useGameStore(s => s.unequipArmor);
+  if (!monster) return null;
+
+  const equippedId = monster.equippedArmorId ?? null;
+  const equipped = equippedId ? ARMOR_DEFS[equippedId] : null;
+  const bonusLine = (b: ReturnType<typeof getArmorBonus>) => [
+    b.hp ? `❤️ +${b.hp}` : null,
+    b.attack ? `💪 +${b.attack}` : null,
+    b.speed ? `👟 +${b.speed}` : null,
+    b.energy ? `⚡ +${b.energy}` : null,
+  ].filter(Boolean).join('  ');
+
+  return (
+    <>
+      {/* Materialbestand */}
+      <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 900, marginBottom: 6 }}>MATERIALIEN</div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        {Object.values(MATERIALS).map(m => (
+          <span key={m.id} style={{ fontSize: 12, color: '#ccc', background: 'rgba(255,255,255,0.05)', padding: '3px 8px', borderRadius: 6 }}>
+            {m.icon} {m.name}: <b style={{ color: '#fff' }}>{materials[m.id] ?? 0}</b>
+          </span>
+        ))}
+      </div>
+
+      {/* Aktuell angelegt */}
+      <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 900, marginBottom: 6 }}>ANGELEGT</div>
+      {equipped ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 10 }}>
+          <span style={{ fontSize: 26 }}>{equipped.icon}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 900, color: '#fff' }}>{equipped.name}</div>
+            <div style={{ fontSize: 11, color: '#9fd' }}>{bonusLine(equipped.bonus)}</div>
+          </div>
+          <button className="btn btn-danger" style={{ fontSize: 11, padding: '4px 8px' }}
+            onClick={() => unequipArmor(instanceId)}>Ablegen</button>
+        </div>
+      ) : (
+        <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>Keine Rüstung angelegt.</div>
+      )}
+
+      {/* Inventar zum Anlegen */}
+      {Object.entries(armorInventory).some(([, c]) => c > 0) && (
+        <>
+          <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 900, margin: '6px 0' }}>VERFÜGBAR (Inventar)</div>
+          {Object.entries(armorInventory).filter(([, c]) => c > 0).map(([id, count]) => {
+            const a = ARMOR_DEFS[id]; if (!a) return null;
+            return (
+              <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 8 }}>
+                <span style={{ fontSize: 22 }}>{a.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 'bold', color: '#fff' }}>{a.name} ×{count}</div>
+                  <div style={{ fontSize: 10, color: '#9fd' }}>{bonusLine(a.bonus)}</div>
+                </div>
+                <button className="btn btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}
+                  onClick={() => equipArmor(instanceId, id)}>Anlegen</button>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {/* Crafting */}
+      <div style={{ fontSize: 12, color: '#ffd700', fontWeight: 900, margin: '10px 0 6px' }}>SCHMIEDEN</div>
+      {Object.values(ARMOR_DEFS).map(a => {
+        const matsOk = Object.entries(a.craft.materials).every(([mid, q]) => (materials[mid] ?? 0) >= q);
+        const canCraft = matsOk && gold >= a.craft.gold;
+        const matLabel = Object.entries(a.craft.materials)
+          .map(([mid, q]) => `${MATERIALS[mid]?.icon ?? mid}${q}`).join(' ');
+        return (
+          <div key={a.id} style={{ marginBottom: 6, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 22 }}>{a.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 'bold', color: '#fff' }}>{a.name}</div>
+                <div style={{ fontSize: 10, color: '#9fd' }}>{bonusLine(a.bonus)}</div>
+              </div>
+              <button className="btn btn-gold" style={{ fontSize: 11, padding: '4px 8px' }}
+                disabled={!canCraft}
+                onClick={() => craftArmor(a.id)}>Craften</button>
+            </div>
+            <div style={{ fontSize: 10, color: '#bbb', marginTop: 4 }}>
+              Kosten: 🪙 {a.craft.gold}  ·  {matLabel}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ fontSize: 10, color: '#777', marginTop: 8 }}>
+        Materialien droppen nach gewonnenen Kämpfen.
+      </div>
+    </>
   );
 }
 
