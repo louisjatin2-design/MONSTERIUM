@@ -4,6 +4,7 @@ import { MONSTER_DEFS, ALL_MONSTER_IDS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_COLORS, RARITY_RANK } from '@data/rarities';
 import { BUILDING_DEFS, BUILDABLE_BUILDING_IDS } from '@data/buildings';
+import { CRATES, rollCrate, type CrateDef, type CrateReward } from '@data/crates';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { HelpButton } from './HelpButton';
 import '../styles/global.css';
@@ -28,7 +29,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   Habitat: '🏠', Temple: '⛩️', Farm: '🌾', BreedingStation: '🧬', Hatchery: '🥚',
 };
 
-type Tab = 'items' | 'build';
+type Tab = 'items' | 'crates' | 'build';
 
 export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
   const diamonds = useGameStore(s => s.diamonds);
@@ -98,6 +99,7 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
         </div>
         <div style={{ display: 'flex', gap: 4, marginTop: 10 }}>
           <TabBtn label="🛍️ Artikel" active={tab === 'items'} onClick={() => setTab('items')} />
+          <TabBtn label="📦 Kisten" active={tab === 'crates'} onClick={() => setTab('crates')} />
           <TabBtn label="🏗️ Bauen" active={tab === 'build'} onClick={() => setTab('build')} />
         </div>
       </div>
@@ -130,6 +132,8 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
             );
           })}
           </>
+        ) : tab === 'crates' ? (
+          <CratesTab gold={gold} diamonds={diamonds} />
         ) : (
           <BuildTab gold={gold} onStartPlacement={onStartPlacement} />
         )}
@@ -202,6 +206,67 @@ function BuildTab({ gold, onStartPlacement }: { gold: number; onStartPlacement: 
           );
         })}
       </div>
+    </>
+  );
+}
+
+// ── Crate Shop (Gruppe 8) ───────────────────────────────────────────────────
+function CratesTab({ gold, diamonds }: { gold: number; diamonds: number }) {
+  const [last, setLast] = useState<{ crate: string; reward: CrateReward } | null>(null);
+
+  const open = (crate: CrateDef) => {
+    const s = useGameStore.getState();
+    const costG = crate.cost.gold ?? 0;
+    const costD = crate.cost.diamonds ?? 0;
+    if (costG > 0 && !s.spendGold(costG)) return;
+    if (costD > 0 && !s.spendDiamonds(costD)) return;
+    const reward = rollCrate(crate);
+    // Belohnung über vorhandene Store-Aktionen anwenden.
+    if (reward.gold) s.addGold(reward.gold);
+    if (reward.food) s.addFood(reward.food);
+    if (reward.diamonds) s.addDiamonds(reward.diamonds);
+    if (reward.materialId && reward.materialQty) s.addMaterials({ [reward.materialId]: reward.materialQty });
+    if (reward.armorId) s.addArmor(reward.armorId);
+    if (reward.eggDefId) s.addEgg(reward.eggDefId, 30);
+    setLast({ crate: crate.name, reward });
+  };
+
+  return (
+    <>
+      <div style={{ fontSize: 11, color: '#aaa', marginBottom: 10 }}>
+        Öffne Kisten für zufällige Inhalte: Ressourcen, Materialien, Rüstungen oder Monster-Eier.
+      </div>
+      {last && (
+        <div className="monster-card" style={{
+          marginBottom: 12, padding: 12, textAlign: 'center',
+          background: 'linear-gradient(135deg, rgba(255,200,80,0.18), rgba(120,80,20,0.25))',
+          border: '1px solid #ffcc66',
+        }}>
+          <div style={{ fontSize: 12, color: '#ccb380' }}>{last.crate} geöffnet:</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: '#ffd700', marginTop: 4 }}>{last.reward.label}</div>
+        </div>
+      )}
+      {CRATES.map(crate => {
+        const costG = crate.cost.gold ?? 0;
+        const costD = crate.cost.diamonds ?? 0;
+        const afford = (costG === 0 || gold >= costG) && (costD === 0 || diamonds >= costD);
+        return (
+          <div key={crate.id} className="monster-card" style={{ marginBottom: 8, opacity: afford ? 1 : 0.5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 30 }}>{crate.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 900, fontSize: 14, color: '#ffcc66' }}>{crate.name}</div>
+                <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{crate.description}</div>
+              </div>
+              <button className="btn btn-gold" style={{ minWidth: 80 }}
+                disabled={!afford}
+                onClick={() => open(crate)}>
+                {costD > 0 ? `💎 ${costD}` : `🪙 ${costG.toLocaleString()}`}
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </>
   );
 }

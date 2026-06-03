@@ -274,6 +274,8 @@ interface GameStoreActions {
   // Armor (Gruppe 7)
   /** Add material drops to the inventory. */
   addMaterials: (drops: Record<string, number>) => void;
+  /** Gruppe 8 — Rüstung direkt ins Inventar legen (z. B. aus Kisten/Crates). */
+  addArmor: (armorId: string, count?: number) => void;
   /** Craft an armor from materials + gold. Returns false if unaffordable. */
   craftArmor: (armorId: string) => boolean;
   /** Equip a crafted armor onto a monster (previous armor returns to inventory). */
@@ -1245,6 +1247,11 @@ export const useGameStore = create<GameStore>()(
             if (qty > 0) s.materials[id] = (s.materials[id] ?? 0) + qty;
           }
         });
+      },
+
+      addArmor: (armorId, count = 1) => {
+        if (!ARMOR_DEFS[armorId] || count <= 0) return;
+        set((s) => { s.armorInventory[armorId] = (s.armorInventory[armorId] ?? 0) + count; });
       },
 
       craftArmor: (armorId) => {
