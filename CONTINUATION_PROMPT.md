@@ -3,6 +3,19 @@
 Diese Datei beschreibt die noch offenen Arbeitsschritte des großen Feature-Updates.
 Kopiere den folgenden Block als neue Aufgabe für die nächste Session.
 
+## STATUS (zuletzt aktualisiert)
+Gemergt nach `claude/monster-breeding-game-53GjL`:
+- ✅ **Gruppe 1** komplett (Parallax-Himmel, Day/Night, Path-to-Nowhere-UI/Transitions) — PR #54
+- ✅ **Gruppe 2** komplett (Wander-AI, prop. Größe, Fraktions-Designs, Wettereffekte) — PR #54/#56
+- ✅ **Gruppe 3**: Gut/Böse-Kampf-Synergien (PR #55) + Passive über Rang-Ups (PR #58).
+     Offen: Attacken-Detail-Screen, Energie→„Zug überspringen", Rhythm-Minigame, 3D-Kampf.
+- ✅ **Gruppe 4**: Bestiarium-Freischaltung (PR #59) + Vorkampf-Cutscenes (PR #61).
+     Offen: Nachkampf-Outro (Battle-Ende-Wiring).
+- ✅ **Gruppe 5**: Season Pass (PR #60). Offen: Element-Futter Lv100+, Relationship-/Interrogation-Tasks.
+- ✅ **Gruppe 13**: Monster-Detail als MBCC-Dossier (PR #57). Offen: echte Artworks, restl. Mobiloptimierung.
+- ⏳ **Gruppe 10** (Multiplayer/Clans/PvP/Auktion/Leaderboards): Backend-Entscheidung offen.
+- ⏳ **Gruppe 8/11** (Crate-Shop, Glücksrad-Politur, Auktion, Saisonale Monster/Events): offen.
+
 ---
 
 ## Kontext / bereits erledigt (Branch `claude/monster-collector-rpg-features-DMoa2`, PR #53)
