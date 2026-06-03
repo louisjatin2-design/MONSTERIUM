@@ -2029,15 +2029,17 @@ export class Battle extends Phaser.Scene {
   private showRewardWheel(width: number, height: number, baseGold: number, baseXp: number, baseDiamonds: number) {
     // Each segment scales the base gold/xp and may add flat diamonds. Weights
     // make the big wins rarer than the modest ones.
+    // Gruppe 8 — Glücksrad-Politur: durchweg großzügigere Preise (höhere
+    // Multiplikatoren + mehr Diamanten), Jackpot bleibt selten.
     const segments: Array<{ label: string; color: number; gold: number; xp: number; dia: number; weight: number }> = [
-      { label: '🪙 ×1',      color: 0x8a6d3b, gold: 1.0, xp: 1, dia: 0, weight: 18 },
-      { label: '⭐ XP ×2',   color: 0x2e6da4, gold: 1.0, xp: 2, dia: 0, weight: 14 },
-      { label: '🪙 ×2',      color: 0xd4a017, gold: 2.0, xp: 1, dia: 0, weight: 14 },
-      { label: '💎 +5',      color: 0x6f42c1, gold: 1.0, xp: 1, dia: 5, weight: 10 },
-      { label: '🎰 JACKPOT', color: 0xc0392b, gold: 3.0, xp: 3, dia: 10, weight: 4 },
-      { label: '🪙 ×1.5',    color: 0xb8860b, gold: 1.5, xp: 1, dia: 0, weight: 16 },
-      { label: '⭐ XP ×3',   color: 0x1f78b4, gold: 1.0, xp: 3, dia: 2, weight: 8 },
-      { label: '💎 +2',      color: 0x8e44ad, gold: 1.0, xp: 1, dia: 2, weight: 16 },
+      { label: '🪙 ×1.5',    color: 0x8a6d3b, gold: 1.5, xp: 1, dia: 0, weight: 16 },
+      { label: '⭐ XP ×2',   color: 0x2e6da4, gold: 1.2, xp: 2, dia: 1, weight: 14 },
+      { label: '🪙 ×2.5',    color: 0xd4a017, gold: 2.5, xp: 1, dia: 0, weight: 13 },
+      { label: '💎 +8',      color: 0x6f42c1, gold: 1.0, xp: 1, dia: 8, weight: 10 },
+      { label: '🎰 JACKPOT', color: 0xc0392b, gold: 5.0, xp: 3, dia: 25, weight: 4 },
+      { label: '🪙 ×2',      color: 0xb8860b, gold: 2.0, xp: 1, dia: 0, weight: 15 },
+      { label: '⭐ XP ×3',   color: 0x1f78b4, gold: 1.2, xp: 3, dia: 4, weight: 10 },
+      { label: '💎 +4',      color: 0x8e44ad, gold: 1.0, xp: 1, dia: 4, weight: 18 },
     ];
     const N = segments.length;
     const segAngle = (Math.PI * 2) / N;
