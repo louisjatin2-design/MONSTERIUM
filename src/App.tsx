@@ -22,6 +22,7 @@ import { QuestPanel } from '@ui/components/QuestPanel';
 import { EventsPanel } from '@ui/components/EventsPanel';
 import { StoragePanel } from '@ui/components/StoragePanel';
 import { CompendiumPanel } from '@ui/components/CompendiumPanel';
+import { LabPanel } from '@ui/components/LabPanel';
 import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
 import { LoginScreen } from '@ui/components/LoginScreen';
 import { World3D } from '@game/world3d/World3D';
@@ -49,6 +50,7 @@ export type ActivePanel =
   | { type: 'events' }
   | { type: 'storage' }
   | { type: 'compendium' }
+  | { type: 'lab' }
   | { type: 'teamSelect'; battlePayload: BattlePayload }
   | { type: 'battle' };
 
@@ -97,6 +99,7 @@ function Game() {
     const onOpenEvents       = () => setActivePanel({ type: 'events' });
     const onOpenStorage      = () => setActivePanel({ type: 'storage' });
     const onOpenCompendium   = () => setActivePanel({ type: 'compendium' });
+    const onOpenLab          = () => setActivePanel({ type: 'lab' });
     const onOpenTeamSelect = (d: BattlePayload) => setActivePanel({ type: 'teamSelect', battlePayload: d });
     const onBattleStart    = () => setActivePanel({ type: 'battle' });
     const onBattleEnd    = () => setActivePanel(null);
@@ -126,6 +129,7 @@ function Game() {
     EventBus.on(GameEvents.OPEN_EVENTS,        onOpenEvents);
     EventBus.on(GameEvents.OPEN_STORAGE,       onOpenStorage);
     EventBus.on(GameEvents.OPEN_COMPENDIUM,    onOpenCompendium);
+    EventBus.on(GameEvents.OPEN_LAB,           onOpenLab);
     EventBus.on(GameEvents.OPEN_TEAM_SELECT,   onOpenTeamSelect);
     EventBus.on(GameEvents.BATTLE_STARTED,     onBattleStart);
     EventBus.on(GameEvents.BATTLE_ENDED,       onBattleEnd);
@@ -151,6 +155,7 @@ function Game() {
       EventBus.off(GameEvents.OPEN_EVENTS,        onOpenEvents);
       EventBus.off(GameEvents.OPEN_STORAGE,       onOpenStorage);
       EventBus.off(GameEvents.OPEN_COMPENDIUM,    onOpenCompendium);
+      EventBus.off(GameEvents.OPEN_LAB,           onOpenLab);
       EventBus.off(GameEvents.OPEN_TEAM_SELECT,   onOpenTeamSelect);
       EventBus.off(GameEvents.BATTLE_STARTED,     onBattleStart);
       EventBus.off(GameEvents.BATTLE_ENDED,       onBattleEnd);
@@ -298,6 +303,9 @@ function Game() {
         )}
         {activePanel?.type === 'compendium' && (
           <CompendiumPanel onClose={closePanel} />
+        )}
+        {activePanel?.type === 'lab' && (
+          <LabPanel onClose={closePanel} />
         )}
         {activePanel?.type === 'teamSelect' && (
           <TeamSelectPanel battlePayload={activePanel.battlePayload} onClose={closePanel} />

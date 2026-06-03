@@ -68,6 +68,31 @@ export function getAttackTrainCost(moveId: string): { gold: number; diamonds: nu
   return { gold: 0, diamonds: 10 };
 }
 
+// ── Labor / Rank-Up (Gruppe 5) ──────────────────────────────────────────────
+export const MAX_RANK_STARS = 5;        // 5 Sterne maximal
+export const BASE_MAX_LEVEL = 100;       // Basis-Levelgrenze
+export const LEVELS_PER_RANK = 10;       // +10 Level je Rank-Up (→ 150)
+
+/** Hartes Level-Limit eines Monsters, abhängig von seinen Rank-Up-Sternen. */
+export function getMonsterMaxLevel(rankStars: number | undefined): number {
+  const stars = Math.min(MAX_RANK_STARS, rankStars ?? 0);
+  return BASE_MAX_LEVEL + stars * LEVELS_PER_RANK;
+}
+
+/** Ob ein Monster im Labor zusammengeführt werden kann: gleicher Typ, beide auf
+ *  ihrem aktuellen Maximallevel und noch nicht auf 5 Sternen. */
+export function canRankUp(a: MonsterInstance, b: MonsterInstance): boolean {
+  if (a.instanceId === b.instanceId) return false;
+  if (a.defId !== b.defId) return false;
+  const aStars = a.rankStars ?? 0;
+  const bStars = b.rankStars ?? 0;
+  if (aStars >= MAX_RANK_STARS) return false;
+  if (aStars !== bStars) return false; // gleiche Rangstufe zusammenführen
+  if (a.level < getMonsterMaxLevel(aStars)) return false;
+  if (b.level < getMonsterMaxLevel(bStars)) return false;
+  return true;
+}
+
 export function getMonsterLevelCap(temples: BuildingInstance[]): number {
   const highestTempleLevel = temples.reduce((max, t) => Math.max(max, t.level), 0);
   return 20 + highestTempleLevel * 10;

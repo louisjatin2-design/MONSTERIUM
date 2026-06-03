@@ -11,6 +11,7 @@ import { calculateFeedCost, calculateSellValue } from '@systems/EconomySystem';
 import {
   isEvolutionReady, getNextEvolutionStage, getEvolutionStageName,
   EVOLUTION_LEVELS, getTrainableAttacks, getAttackTrainCost,
+  getMonsterMaxLevel, MAX_RANK_STARS,
 } from '@systems/ProgressionSystem';
 import type { MoveDef } from '@gtypes/game';
 import { HelpButton } from './HelpButton';
@@ -59,7 +60,7 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   const feedOnce = useCallback(() => {
     const st = useGameStore.getState();
     const m = st.monsters[instanceId];
-    if (!m || m.level >= 100) return false;
+    if (!m || m.level >= getMonsterMaxLevel(m.rankStars)) return false;
     const cost = calculateFeedCost(m.level);
     if (st.food < cost) return false;
     st.feedMonster(instanceId, cost);
@@ -87,8 +88,10 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
   if (!def) return null;
 
   const stats = instanceStats(monster);
+  const maxLevel = getMonsterMaxLevel(monster.rankStars);
+  const atMaxLevel = monster.level >= maxLevel;
   const feedCost = calculateFeedCost(monster.level);
-  const canFeed = food >= feedCost && monster.level < 100;
+  const canFeed = food >= feedCost && !atMaxLevel;
   const sellValue = calculateSellValue(RARITY_RANK[def.rarity], monster.level, monster.isUnique);
   const accent = ELEMENT_CSS_COLORS[def.elements[0]];
 
@@ -159,8 +162,13 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
           <span style={{ fontSize: 34, fontWeight: 900, color: '#ffd700' }}>
             Lv {monster.level}
           </span>
-          <span style={{ fontSize: 15, color: '#888' }}> / 100</span>
+          <span style={{ fontSize: 15, color: '#888' }}> / {maxLevel}</span>
           <div style={{ fontSize: 13, color: '#bbb' }}>{monster.stage}</div>
+          {/* Rank-Up-Sterne (Labor) */}
+          <div style={{ fontSize: 15, letterSpacing: 1, marginTop: 2 }} title={`${monster.rankStars ?? 0}/${MAX_RANK_STARS} Sterne`}>
+            {'⭐'.repeat(monster.rankStars ?? 0)}
+            <span style={{ color: '#444' }}>{'☆'.repeat(MAX_RANK_STARS - (monster.rankStars ?? 0))}</span>
+          </div>
         </div>
 
         {/* Level-up: feed progress (4 cycles per level) + Füttern button. */}
@@ -170,7 +178,7 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <span style={{ fontSize: 12, color: '#ccc' }}>
-              {monster.level >= 100 ? 'MAX LEVEL' : `Fortschritt zu Lv ${monster.level + 1}`}
+              {atMaxLevel ? 'MAX LEVEL' : `Fortschritt zu Lv ${monster.level + 1}`}
             </span>
             <span style={{ fontSize: 11, color: '#888' }}>{feedsDone}/4</span>
           </div>
@@ -188,8 +196,13 @@ export function MonsterInstanceDetail({ instanceId, onClose }: Props) {
             onPointerUp={stopFeeding}
             onPointerLeave={stopFeeding}
             onPointerCancel={stopFeeding}>
-            {monster.level >= 100 ? 'Max-Level erreicht' : `🌾 Füttern halten (${feedCost})`}
+            {atMaxLevel ? 'Max-Level erreicht' : `🌾 Füttern halten (${feedCost})`}
           </button>
+          {atMaxLevel && (monster.rankStars ?? 0) < MAX_RANK_STARS && (
+            <div style={{ fontSize: 11, color: '#c9a3ff', textAlign: 'center', marginTop: 8 }}>
+              🧪 Im Labor mit einem identischen Max-Level-Monster zusammenführen für einen Rank-Up (+10 Level).
+            </div>
+          )}
           {nextStage && (
             evoReady ? (
               <button className="btn btn-purple" style={{ width: '100%', marginTop: 8 }}

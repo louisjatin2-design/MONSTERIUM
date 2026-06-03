@@ -14,6 +14,7 @@ import { RARITY_GOLD_RATE } from '@data/rarities';
 import {
   getUnlockedMoves, getMaxAttackSlots, getNextEvolutionStage,
   pickRandomNewAttack, getTrainableAttacks, getAttackTrainCost,
+  getEvolutionStageName, getMonsterMaxLevel, canRankUp,
   EVOLUTION_LEVELS,
 } from '@systems/ProgressionSystem';
 import { calculateBreedOutcomes, rollBreedOutcome } from '@systems/BreedingSystem';
@@ -152,6 +153,10 @@ interface GameStoreActions {
   removeFromHabitat: (monsterId: string) => void;
   addXpToMonster: (instanceId: string, amount: number) => void;
   evolveMonster: (instanceId: string) => void;
+  /** Labor: merge two identical max-level monsters into one with +1 rank star
+   *  (+10 level cap). The keeper resets to level 1; the fodder is consumed.
+   *  Returns true on success. */
+  rankUpMonster: (keeperId: string, fodderId: string) => boolean;
   equipMove: (instanceId: string, moveId: string, replaceSlot?: number) => void;
   updateRelationship: (id1: string, id2: string, delta: number) => void;
 
@@ -558,6 +563,7 @@ export const useGameStore = create<GameStore>()(
           isUnique,
           parentIds,
           name: def.name,
+          rankStars: 0,
         };
         set((s) => {
           s.monsters[id] = instance;
@@ -571,20 +577,21 @@ export const useGameStore = create<GameStore>()(
       feedMonster: (instanceId, foodAmount) => {
         const monster = get().monsters[instanceId];
         if (!monster) return;
-        if (monster.level >= 100) return;
+        const maxLevel = getMonsterMaxLevel(monster.rankStars);
+        if (monster.level >= maxLevel) return;
         const cost = calculateFeedCost(monster.level);
         // One feed cycle per call. Always exactly 4 feed cycles per level-up.
         if (foodAmount < cost) return;
         if (!get().spendFood(cost)) return;
         set((s) => {
           const m = s.monsters[instanceId];
-          if (m.level >= 100) return;
+          if (m.level >= maxLevel) return;
           s.stats.feeds += 1;
           // Each feed grants a quarter of the XP needed for the current level,
           // so a level always takes 4 feed cycles (Monster-Legends style steps).
           m.xp += Math.ceil(calculateXpToLevel(m.level) / 4);
           let xpNeeded = calculateXpToLevel(m.level);
-          while (m.xp >= xpNeeded && m.level < 100) {
+          while (m.xp >= xpNeeded && m.level < maxLevel) {
             m.xp -= xpNeeded;
             m.level++;
             xpNeeded = calculateXpToLevel(m.level);
@@ -654,9 +661,10 @@ export const useGameStore = create<GameStore>()(
         set((s) => {
           const m = s.monsters[instanceId];
           if (!m) return;
+          const maxLevel = getMonsterMaxLevel(m.rankStars);
           m.xp += amount;
           let xpNeeded = calculateXpToLevel(m.level);
-          while (m.xp >= xpNeeded && m.level < 100) {
+          while (m.xp >= xpNeeded && m.level < maxLevel) {
             m.xp -= xpNeeded;
             m.level++;
             xpNeeded = calculateXpToLevel(m.level);
@@ -680,8 +688,14 @@ export const useGameStore = create<GameStore>()(
           const next = getNextEvolutionStage(m.stage);
           if (!next) return;
           if (m.level < EVOLUTION_LEVELS[next]) return;
+          const prevDefaultName = getEvolutionStageName(m.defId, m.stage);
           m.stage = next;
           m.maxAttackSlots = getMaxAttackSlots(next);
+          // Bei Entwicklung aktualisiert sich der Name (z. B. Flameling →
+          // Flamejaw), sofern der Spieler ihn nicht eigens umbenannt hat.
+          if (m.name === prevDefaultName || m.name === MONSTER_DEFS[m.defId]?.name) {
+            m.name = getEvolutionStageName(m.defId, next);
+          }
           // Ensure knownMoveIds exists before calling pickRandomNewAttack
           if (!m.knownMoveIds) m.knownMoveIds = [...m.equippedMoveIds];
           const newAttack = pickRandomNewAttack(m as MonsterInstance);
@@ -692,6 +706,33 @@ export const useGameStore = create<GameStore>()(
             }
           }
         });
+      },
+
+      rankUpMonster: (keeperId, fodderId) => {
+        const keeper = get().monsters[keeperId];
+        const fodder = get().monsters[fodderId];
+        if (!keeper || !fodder) return false;
+        if (!canRankUp(keeper, fodder)) return false;
+        set((s) => {
+          const k = s.monsters[keeperId];
+          if (!k) return;
+          k.rankStars = (k.rankStars ?? 0) + 1;
+          // Nach dem Rank-Up startet das Monster wieder bei Level 1.
+          k.level = 1;
+          k.xp = 0;
+          k.stage = 'Baby';
+          k.maxAttackSlots = getMaxAttackSlots('Baby');
+          const def = MONSTER_DEFS[k.defId];
+          if (def) { k.maxHp = def.baseStats.hp; k.currentHp = def.baseStats.hp; }
+          // Das Futter-Monster wird verbraucht.
+          const f = s.monsters[fodderId];
+          if (f?.habitatId && s.buildings[f.habitatId]) {
+            const hab = s.buildings[f.habitatId];
+            hab.monsterIds = hab.monsterIds.filter(id => id !== fodderId);
+          }
+          delete s.monsters[fodderId];
+        });
+        return true;
       },
 
       equipMove: (instanceId, moveId, replaceSlot) => {
@@ -1199,7 +1240,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => accountScopedStorage),
-      version: 10,
+      version: 11,
       migrate: (persisted: any, version: number) => {
         // v10: one-time hard reset — wipe every existing save back to a fresh
         // start (all players reset to 0) so the rebalanced egg/monster sale
@@ -1256,6 +1297,10 @@ export const useGameStore = create<GameStore>()(
               }
               if (typeof m.maxAttackSlots !== 'number') {
                 m.maxAttackSlots = 2;
+              }
+              // v11: Rank-Up-Sterne (Labor). Bestehende Monster starten bei 0.
+              if (typeof m.rankStars !== 'number') {
+                m.rankStars = 0;
               }
             }
           }
