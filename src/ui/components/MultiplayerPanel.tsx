@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  getOnlineService, type LeaderboardKind, type LeaderboardEntry,
+  getOnlineService, AUCTION_SELLER_CUT, type LeaderboardKind, type LeaderboardEntry,
   type PlayerProfile, type Clan, type Auction, type Currency,
   type ClanMember, type ClanMessage,
 } from '../../net/onlineService';
 import { useGameStore } from '@store/gameStore';
 import { RARITY_COLORS } from '@data/rarities';
 import { MONSTER_DEFS } from '@data/monsters';
+import { EventBus, GameEvents } from '@game/EventBus';
+import { getSelfId } from '../../net/profile';
 import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
@@ -383,6 +385,8 @@ function AuctionTab() {
   const diamonds = useGameStore(s => s.diamonds);
   const spendGold = useGameStore(s => s.spendGold);
   const spendDiamonds = useGameStore(s => s.spendDiamonds);
+  const addGold = useGameStore(s => s.addGold);
+  const addDiamonds = useGameStore(s => s.addDiamonds);
   const removeMonster = useGameStore(s => s.removeMonster);
   const grantMonster = useGameStore(s => s.grantMonster);
 
@@ -394,7 +398,29 @@ function AuctionTab() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const refresh = () => svc.listAuctions().then(setAuctions);
-  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, []);
+
+  // Erlöse aus verkauften eigenen Monstern einsammeln und gutschreiben (90 %).
+  const collectProceeds = () => {
+    svc.collectSoldProceeds().then(proceeds => {
+      if (proceeds.length === 0) return;
+      for (const p of proceeds) {
+        if (p.currency === 'gold') addGold(p.amount); else addDiamonds(p.amount);
+      }
+      const total = proceeds.reduce((s, p) => s + p.amount, 0);
+      const sym = proceeds.every(p => p.currency === 'diamonds') ? '💎' : '🪙';
+      setMsg(`💰 ${proceeds.length} Monster verkauft! +${sym} ${total.toLocaleString()} (90 % Erlös).`);
+      refresh();
+    });
+  };
+
+  // Beim Öffnen einsammeln und danach regelmäßig pollen (simulierte NPC-Käufe).
+  useEffect(() => {
+    refresh();
+    collectProceeds();
+    const t = setInterval(collectProceeds, 5000);
+    return () => clearInterval(t);
+    /* eslint-disable-next-line */
+  }, []);
 
   const ownList = Object.values(monsters);
 
@@ -422,15 +448,19 @@ function AuctionTab() {
     setBusy(false);
     if (!ok) { setMsg('⚠️ Schon verkauft.'); refresh(); return; }
     if (a.currency === 'gold') spendGold(a.price); else spendDiamonds(a.price);
-    grantMonster(a.defId, a.level, a.rankStars, a.monsterName);
+    const newId = grantMonster(a.defId, a.level, a.rankStars, a.monsterName);
     setMsg(`✅ ${a.monsterName} (Lv ${a.level}) gekauft!`);
     refresh();
+    // Käufer kommt automatisch in den Platzierungs-Screen (Lebensraum/Lager).
+    if (newId) EventBus.emit(GameEvents.OPEN_PLACE_MONSTER, { instanceId: newId, purchased: true });
   };
 
   return (
     <>
       <div style={{ fontSize: 11, color: '#aaa', marginBottom: 10 }}>
         Verkaufe Monster an andere Spieler oder kaufe ihre — Preise in 🪙 Gold oder 💎 Diamanten.
+        Beim Verkauf erhältst du {Math.round(AUCTION_SELLER_CUT * 100)} % des Preises gutgeschrieben,
+        sobald das Monster gekauft wird.
       </div>
       {msg && <div style={{ fontSize: 12, color: '#ffd700', textAlign: 'center', marginBottom: 8 }}>{msg}</div>}
 
@@ -457,6 +487,9 @@ function AuctionTab() {
             Einstellen
           </button>
         </div>
+        <div style={{ fontSize: 11, color: '#9be8bd', marginTop: 6 }}>
+          Dein Erlös bei Verkauf: {currency === 'gold' ? '🪙' : '💎'} {Math.floor(price * AUCTION_SELLER_CUT).toLocaleString()} ({Math.round(AUCTION_SELLER_CUT * 100)} %)
+        </div>
       </div>
 
       {/* Angebote */}
@@ -465,6 +498,7 @@ function AuctionTab() {
       {auctions.map(a => {
         const col = RARITY_COLORS[a.rarity as keyof typeof RARITY_COLORS] ?? '#888';
         const affordable = a.currency === 'gold' ? gold >= a.price : diamonds >= a.price;
+        const isOwn = a.sellerId === getSelfId();
         return (
           <div key={a.id} className="monster-card" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -472,12 +506,18 @@ function AuctionTab() {
                 {a.monsterName} <span style={{ color: col, fontSize: 11 }}>· {a.rarity}</span>
               </div>
               <div style={{ fontSize: 11, color: '#9aa' }}>
-                Lv {a.level}{a.rankStars > 0 ? ` · ${'★'.repeat(a.rankStars)}` : ''} · Verkäufer: {a.sellerName}
+                Lv {a.level}{a.rankStars > 0 ? ` · ${'★'.repeat(a.rankStars)}` : ''} · Verkäufer: {isOwn ? 'Du' : a.sellerName}
               </div>
             </div>
-            <button className="btn btn-primary" disabled={busy || !affordable} onClick={() => buy(a)} style={{ minWidth: 96, fontSize: 12 }}>
-              {a.currency === 'gold' ? `🪙 ${a.price.toLocaleString()}` : `💎 ${a.price}`}
-            </button>
+            {isOwn ? (
+              <span style={{ minWidth: 96, fontSize: 11, color: '#9be8bd', textAlign: 'center', fontWeight: 800 }}>
+                Dein Inserat<br />{a.currency === 'gold' ? `🪙 ${a.price.toLocaleString()}` : `💎 ${a.price}`}
+              </span>
+            ) : (
+              <button className="btn btn-primary" disabled={busy || !affordable} onClick={() => buy(a)} style={{ minWidth: 96, fontSize: 12 }}>
+                {a.currency === 'gold' ? `🪙 ${a.price.toLocaleString()}` : `💎 ${a.price}`}
+              </button>
+            )}
           </div>
         );
       })}

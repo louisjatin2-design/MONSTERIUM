@@ -10,8 +10,9 @@
 //  • PvP-Echtzeit, Trading & Clan-Kriege brauchen Realtime-Channels (Follow-up).
 import type {
   OnlineService, PlayerProfile, LeaderboardKind, LeaderboardEntry, Clan, Auction, NewAuction, NewClan,
-  PvpState, PvpTeamMonster, PvpOpponent, PvpResult, ClanMember, ClanMessage,
+  PvpState, PvpTeamMonster, PvpOpponent, PvpResult, ClanMember, ClanMessage, SoldProceed,
 } from './types';
+import { AUCTION_SELLER_CUT } from './types';
 import { buildSelfProfile, getSelfId, getSelfName } from './profile';
 import {
   PVP_START_RATING, ratingDelta, applyRatingDelta, buildDefaultDefenseTeam, makeBotOpponent,
@@ -300,6 +301,42 @@ export class SupabaseOnlineService implements OnlineService {
       const rows = (await res.json()) as any[];
       return rows.length > 0; // 0 → schon verkauft
     } catch { return false; }
+  }
+
+  async collectSoldProceeds(): Promise<SoldProceed[]> {
+    try {
+      // Eigene, inzwischen verkaufte Inserate, deren Erlös noch nicht gutgeschrieben
+      // wurde. Atomar je Zeile auf proceeds_collected=true patchen, damit derselbe
+      // Verkauf nicht doppelt ausgezahlt wird.
+      const self = encodeURIComponent(getSelfId());
+      const res = await this.rest(
+        `auctions?select=*&seller_id=eq.${self}&status=eq.sold&proceeds_collected=eq.false`,
+      );
+      if (!res.ok) return [];
+      const rows = (await res.json()) as any[];
+      const out: SoldProceed[] = [];
+      for (const r of rows) {
+        const claim = await this.rest(
+          `auctions?id=eq.${encodeURIComponent(r.id)}&proceeds_collected=eq.false`,
+          {
+            method: 'PATCH',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify({ proceeds_collected: true }),
+          },
+        );
+        if (!claim.ok) continue;
+        const claimed = (await claim.json()) as any[];
+        if (claimed.length === 0) continue; // jemand anderes hat schon eingelöst
+        out.push({
+          auctionId: r.id,
+          monsterName: r.monster_name,
+          currency: r.currency,
+          amount: Math.floor(r.price * AUCTION_SELLER_CUT),
+          price: r.price,
+        });
+      }
+      return out;
+    } catch { return []; }
   }
 
   // ── PvP-Arena ───────────────────────────────────────────────────────────────

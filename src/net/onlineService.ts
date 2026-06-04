@@ -9,8 +9,9 @@ import { RARITY_RANK } from '@data/rarities';
 import type {
   OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan,
   Auction, NewAuction, NewClan, PvpState, PvpTeamMonster, PvpOpponent, PvpResult,
-  ClanMember, ClanMessage,
+  ClanMember, ClanMessage, SoldProceed,
 } from './types';
+import { AUCTION_SELLER_CUT } from './types';
 import { buildSelfProfile, getSelfId, getSelfName } from './profile';
 import { SupabaseOnlineService } from './supabaseService';
 import {
@@ -21,8 +22,9 @@ import {
 export type {
   OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan,
   Auction, NewAuction, NewClan, Currency, PvpState, PvpTeamMonster, PvpOpponent, PvpResult,
-  ClanMember, ClanMessage,
+  ClanMember, ClanMessage, SoldProceed,
 } from './types';
+export { AUCTION_SELLER_CUT } from './types';
 
 // ── Deterministische Mock-Welt ──────────────────────────────────────────────
 const BOT_NAMES = [
@@ -97,6 +99,12 @@ class LocalOnlineService implements OnlineService {
   private joinedClanId: string | null = null;
   private bots = makeBots();
   private auctions: Auction[] = seedAuctions();
+  // Simulierte NPC-Käufe: Zeitpunkt (epoch ms), zu dem ein eigenes Inserat von
+  // einem Bot gekauft wird. Ohne echtes Backend springen so eingestellte Monster
+  // nach kurzer Zeit auf "verkauft" und der Erlös (90 %) wird gutgeschrieben.
+  private ownSaleAt: Record<string, number> = {};
+  // Bereits abgeholte Verkaufserlöse (Auktions-IDs), damit nichts doppelt zählt.
+  private collectedProceeds = new Set<string>();
   private clanMembers: Record<string, ClanMember[]> = seedClanMembers();
   private clanMessages: Record<string, ClanMessage[]> = {};
   // PvP-Zustand wird (mangels Backend) im Speicher gehalten.
@@ -189,7 +197,18 @@ class LocalOnlineService implements OnlineService {
     return this.bots.find(b => b.id === profileId) ?? null;
   }
 
+  // Fällige simulierte NPC-Käufe eigener Inserate abarbeiten (active → sold).
+  private resolveOwnSales(): void {
+    const now = Date.now();
+    for (const a of this.auctions) {
+      if (a.status !== 'active') continue;
+      const due = this.ownSaleAt[a.id];
+      if (due != null && now >= due) a.status = 'sold';
+    }
+  }
+
   async listAuctions(): Promise<Auction[]> {
+    this.resolveOwnSales();
     return this.auctions.filter(a => a.status === 'active');
   }
 
@@ -200,6 +219,9 @@ class LocalOnlineService implements OnlineService {
       ...input, status: 'active', createdAt: new Date().toISOString(),
     };
     this.auctions.unshift(a);
+    // Ohne echtes Backend: simulierter Käufer schlägt nach 8–20 s zu, danach kann
+    // der Verkäufer seine 90 % über collectSoldProceeds() einsammeln.
+    this.ownSaleAt[a.id] = Date.now() + 8000 + Math.floor(Math.random() * 12000);
     return a;
   }
 
@@ -208,6 +230,25 @@ class LocalOnlineService implements OnlineService {
     if (!a) return false;
     a.status = 'sold';
     return true;
+  }
+
+  async collectSoldProceeds(): Promise<SoldProceed[]> {
+    this.resolveOwnSales();
+    const selfId = getSelfId();
+    const out: SoldProceed[] = [];
+    for (const a of this.auctions) {
+      if (a.sellerId !== selfId || a.status !== 'sold') continue;
+      if (this.collectedProceeds.has(a.id)) continue;
+      this.collectedProceeds.add(a.id);
+      out.push({
+        auctionId: a.id,
+        monsterName: a.monsterName,
+        currency: a.currency,
+        amount: Math.floor(a.price * AUCTION_SELLER_CUT),
+        price: a.price,
+      });
+    }
+    return out;
   }
 
   // ── PvP-Arena (simuliert) ───────────────────────────────────────────────────

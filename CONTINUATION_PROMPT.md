@@ -15,7 +15,12 @@ Gemergt nach `claude/monster-breeding-game-53GjL`:
 - ✅ **Gruppe 5** komplett: Season Pass (#60), Relationship-/Bindungs-Tasks (#63),
      Element-Futter Lv100+ über Tempel (#64). (TODO: ab Legendär+ seltenheitsspezifisch.)
 - ✅ **Gruppe 8**: Crate-Shop + Glücksrad-Politur (#65) + **Auktionshaus** (Monster-Handel via
-     Supabase, #75). Offen: Item-/Rüstungs-Auktionen, Erlös-Gutschrift an Verkäufer (Auth).
+     Supabase, #75). Verkäufer erhält **90 % Erlös** bei Verkauf (`AUCTION_SELLER_CUT`,
+     `collectSoldProceeds`; lokal über simulierte NPC-Käufe, Supabase via
+     `proceeds_collected`-Spalte). Käufer landet automatisch im
+     **Platzierungs-Screen** (`MonsterPlacementPanel`: Lebensraum wählen oder einlagern);
+     eingelagerte Monster (habitatId null) im **Lager** verkauf-/platzierbar (StoragePanel-Tabs).
+     Offen: Item-/Rüstungs-Auktionen, persistente lokale Inserate, RLS-Härtung (Auth).
 - ✅ **Gruppe 10**: Multiplayer-Grundgerüst (#68) + **echtes Supabase-Backend** (#73:
      Migrationen profiles/clans/clan_members + RLS, REST-Adapter, Auto-Umschaltung via
      `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`) + **PvP-Arena** (asynchrones PvP:

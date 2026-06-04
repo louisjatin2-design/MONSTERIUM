@@ -15,6 +15,7 @@ import { FarmPanel } from '@ui/components/FarmPanel';
 import { IslandsPanel } from '@ui/components/IslandsPanel';
 import { HatchConfirmPanel } from '@ui/components/HatchConfirmPanel';
 import { AssignHabitatPanel } from '@ui/components/AssignHabitatPanel';
+import { MonsterPlacementPanel } from '@ui/components/MonsterPlacementPanel';
 import { MonsterInstanceDetail } from '@ui/components/MonsterInstanceDetail';
 import { TutorialOverlay } from '@ui/components/TutorialOverlay';
 import { LevelRewardPanel } from '@ui/components/LevelRewardPanel';
@@ -46,6 +47,7 @@ export type ActivePanel =
   | { type: 'hatchery' }
   | { type: 'hatchConfirm'; eggId: string }
   | { type: 'assignHabitat'; eggId: string }
+  | { type: 'placeMonster'; instanceId: string; purchased?: boolean }
   | { type: 'monsterDetail'; instanceId: string }
   | { type: 'pokedex' }
   | { type: 'story' }
@@ -115,6 +117,7 @@ function Game() {
     const onHatchConfirm = (d: { eggId: string }) => setActivePanel({ type: 'hatchConfirm', eggId: d.eggId });
     // Forced habitat assignment when the player chooses to hatch an egg.
     const onAssignHabitat = (d: { eggId: string }) => setActivePanel({ type: 'assignHabitat', eggId: d.eggId });
+    const onPlaceMonster = (d: { instanceId: string; purchased?: boolean }) => setActivePanel({ type: 'placeMonster', instanceId: d.instanceId, purchased: d.purchased });
     const onMonsterDetail = (d: { instanceId: string }) => setActivePanel({ type: 'monsterDetail', instanceId: d.instanceId });
     const onOpenPokedex  = () => setActivePanel({ type: 'pokedex' });
     const onOpenShop     = () => setActivePanel({ type: 'shop' });
@@ -151,6 +154,7 @@ function Game() {
     EventBus.on(GameEvents.OPEN_HATCHERY_PANEL, onOpenHatchery);
     EventBus.on(GameEvents.OPEN_HATCH_CONFIRM, onHatchConfirm);
     EventBus.on(GameEvents.OPEN_ASSIGN_HABITAT, onAssignHabitat);
+    EventBus.on(GameEvents.OPEN_PLACE_MONSTER, onPlaceMonster);
     EventBus.on(GameEvents.OPEN_MONSTER_DETAIL, onMonsterDetail);
     EventBus.on(GameEvents.OPEN_POKEDEX, onOpenPokedex);
     EventBus.on(GameEvents.OPEN_SHOP, onOpenShop);
@@ -182,6 +186,7 @@ function Game() {
       EventBus.off(GameEvents.OPEN_HATCHERY_PANEL, onOpenHatchery);
       EventBus.off(GameEvents.OPEN_HATCH_CONFIRM, onHatchConfirm);
       EventBus.off(GameEvents.OPEN_ASSIGN_HABITAT, onAssignHabitat);
+      EventBus.off(GameEvents.OPEN_PLACE_MONSTER, onPlaceMonster);
       EventBus.off(GameEvents.OPEN_MONSTER_DETAIL, onMonsterDetail);
       EventBus.off(GameEvents.OPEN_POKEDEX, onOpenPokedex);
       EventBus.off(GameEvents.OPEN_SHOP, onOpenShop);
@@ -339,6 +344,9 @@ function Game() {
         )}
         {activePanel?.type === 'assignHabitat' && (
           <AssignHabitatPanel eggId={activePanel.eggId} onClose={closePanel} />
+        )}
+        {activePanel?.type === 'placeMonster' && (
+          <MonsterPlacementPanel instanceId={activePanel.instanceId} purchased={activePanel.purchased} onClose={closePanel} />
         )}
         {activePanel?.type === 'monsterDetail' && (
           <MonsterInstanceDetail instanceId={activePanel.instanceId} onClose={closePanel} />
