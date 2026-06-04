@@ -18,10 +18,14 @@ Gemergt nach `claude/monster-breeding-game-53GjL`:
      Supabase, #75). Offen: Item-/Rüstungs-Auktionen, Erlös-Gutschrift an Verkäufer (Auth).
 - ✅ **Gruppe 10**: Multiplayer-Grundgerüst (#68) + **echtes Supabase-Backend** (#73:
      Migrationen profiles/clans/clan_members + RLS, REST-Adapter, Auto-Umschaltung via
-     `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`). Offen: Supabase-Auth + RLS-Härtung,
-     Echtzeit-PvP/Trading/Clan-Kriege, Auktionshaus.
+     `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`) + **PvP-Arena** (asynchrones PvP:
+     pvp_teams/pvp_matches-Migration, Elo-Rating, Verteidigungs-Teams, Matchmaking nach
+     Rating mit Bot-Rückfall; Kampf läuft über den normalen Battle-Flow mit pvp-Kontext,
+     Ergebnis meldet & aktualisiert das Rating). Erreichbar über Kämpfen → Multiplayer.
+     Offen: Supabase-Auth + RLS-Härtung, serverseitige Rating-Berechnung (RPC),
+     Echtzeit-PvP/Trading/Clan-Kriege.
      ⚠️ Nutzer-To-do: GitHub-Repo-Secrets `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
-     setzen; Migration aufs Supabase-Projekt anwenden.
+     setzen; Migrationen aufs Supabase-Projekt anwenden.
 - ✅ **Gruppe 13**: Monster-Detail als MBCC-Dossier (#57). Offen: echte Artworks, restl. Mobiloptimierung.
 - ⏳ **Gruppe 11** (Saisonale Monster/Events): offen.
 

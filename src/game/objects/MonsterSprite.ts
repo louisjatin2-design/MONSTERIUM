@@ -72,8 +72,22 @@ const ELEMENT_DECOS: Partial<Record<string, ElementDeco>> = {
   },
 };
 
+// A free-roam area for habitat residents: an isometric diamond in world space
+// (centre + half-extents) the monster wanders inside, never stepping past the
+// fence. `|dx|/hw + |dy|/hh <= 1` describes the walkable ground.
+export interface RoamArea { cx: number; cy: number; hw: number; hh: number; baseDepth: number; }
+
 export class MonsterSprite extends Phaser.GameObjects.Container {
   defId: string;
+  // Inner container holding the body — bobs and flips independently of the
+  // outer container's roaming position.
+  private inner!: Phaser.GameObjects.Container;
+  private r = 0;
+  private facing = 1;                    // +1 faces right, -1 faces left
+  private roam?: RoamArea;
+  private activeTweens: Phaser.Tweens.Tween[] = [];
+  private roamTimer?: Phaser.Time.TimerEvent;
+  private destroyed = false;
 
   constructor(scene: Phaser.Scene, defId: string, x: number, y: number, size = 44, showName = true) {
     super(scene, x, y);
@@ -91,6 +105,8 @@ export class MonsterSprite extends Phaser.GameObjects.Container {
 
     // Inner container bobs.
     const inner = scene.add.container(0, 0);
+    this.inner = inner;
+    this.r = r;
 
     // Rarity glow ring.
     const glow = scene.add.circle(0, 0, r + 4, ringColor, 0.5);
@@ -156,7 +172,8 @@ export class MonsterSprite extends Phaser.GameObjects.Container {
 
     this.add(parts);
 
-    // Idle bob.
+    // Idle bob (kept running for the whole lifetime — roaming/fun animations
+    // never touch inner.y, so they compose cleanly on top of it).
     const bob = scene.tweens.add({
       targets: inner,
       y: -r * 0.2,
@@ -166,7 +183,16 @@ export class MonsterSprite extends Phaser.GameObjects.Container {
       ease: 'Sine.easeInOut',
       delay: Math.random() * 700,
     });
-    this.once(Phaser.GameObjects.Events.DESTROY, () => bob.stop());
+    this.activeTweens.push(bob);
+
+    // Stop every tween/timer when the sprite is recycled so nothing ticks on a
+    // destroyed object.
+    this.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.destroyed = true;
+      this.roamTimer?.remove();
+      for (const t of this.activeTweens) t.stop();
+      this.activeTweens = [];
+    });
 
     scene.add.existing(this);
 
@@ -174,5 +200,125 @@ export class MonsterSprite extends Phaser.GameObjects.Container {
     if (scene.sys.game.renderer.type === Phaser.WEBGL) {
       this.postFX.addGlow(ringColor, 4, 0, false, 0.08, 12);
     }
+  }
+
+  // ---- Habitat roaming ---------------------------------------------------
+
+  // Let this resident amble freely inside its habitat pen. The sprite picks
+  // random reachable spots on the ground diamond, strolls between them, and
+  // every so often plays a little flourish (a hop, a happy spin, an emote) so
+  // the pen feels alive. `setDepth` is kept in sync with the walk so monsters
+  // nearer the camera correctly overlap those further back.
+  enableRoaming(area: RoamArea) {
+    this.roam = area;
+    this.setDepth(area.baseDepth + this.depthFromY(this.y));
+    // Stagger the first action so a pen full of residents doesn't move in lockstep.
+    this.scheduleNext(200 + Math.random() * 1400);
+  }
+
+  private depthFromY(y: number): number {
+    if (!this.roam) return 0;
+    const { cy, hh } = this.roam;
+    // 0 at the back edge → 1 at the front edge of the diamond.
+    return Phaser.Math.Clamp((y - (cy - hh)) / (2 * hh + 0.001), 0, 1);
+  }
+
+  // Uniformly sample a point inside the iso diamond |u|+|v| <= 1.
+  private randomSpot(): { x: number; y: number } {
+    const { cx, cy, hw, hh } = this.roam!;
+    let u = 0, v = 0;
+    do { u = Math.random() * 2 - 1; v = Math.random() * 2 - 1; } while (Math.abs(u) + Math.abs(v) > 1);
+    return { x: cx + u * hw, y: cy + v * hh };
+  }
+
+  private scheduleNext(delay: number) {
+    if (this.destroyed) return;
+    this.roamTimer = this.scene.time.delayedCall(delay, () => this.nextAction());
+  }
+
+  // Pick the next thing this monster does: usually a stroll, sometimes a flourish.
+  private nextAction() {
+    if (this.destroyed || !this.roam) return;
+    const roll = Math.random();
+    if (roll < 0.6) this.strollToNewSpot();
+    else if (roll < 0.78) this.hop();
+    else if (roll < 0.9) this.spin();
+    else this.emote();
+  }
+
+  private strollToNewSpot() {
+    const dest = this.randomSpot();
+    const dist = Phaser.Math.Distance.Between(this.x, this.y, dest.x, dest.y);
+    // Face the way we're heading (flip the body, keeping the bob/scale intact).
+    if (Math.abs(dest.x - this.x) > 1) {
+      this.facing = dest.x > this.x ? 1 : -1;
+      this.inner.scaleX = this.facing;
+    }
+    const base = this.roam!.baseDepth;
+    const tw = this.scene.tweens.add({
+      targets: this,
+      x: dest.x,
+      y: dest.y,
+      duration: 1100 + dist * 26 + Math.random() * 700,
+      ease: 'Sine.easeInOut',
+      onUpdate: () => this.setDepth(base + this.depthFromY(this.y)),
+      onComplete: () => { this.dropTween(tw); this.scheduleNext(500 + Math.random() * 2600); },
+    });
+    this.activeTweens.push(tw);
+  }
+
+  // A quick squash-and-stretch jump in place.
+  private hop() {
+    const tw = this.scene.tweens.add({
+      targets: this.inner,
+      scaleY: { from: 1, to: 1.18 },
+      scaleX: { from: this.facing, to: this.facing * 0.86 },
+      duration: 150,
+      yoyo: true,
+      repeat: 1,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.inner.scaleX = this.facing;
+        this.inner.scaleY = 1;
+        this.dropTween(tw);
+        this.scheduleNext(400 + Math.random() * 2000);
+      },
+    });
+    this.activeTweens.push(tw);
+  }
+
+  // A playful full turn (flips facing back to neutral when done).
+  private spin() {
+    const tw = this.scene.tweens.add({
+      targets: this.inner,
+      rotation: { from: 0, to: Math.PI * 2 },
+      duration: 600,
+      ease: 'Cubic.easeInOut',
+      onComplete: () => { this.inner.rotation = 0; this.dropTween(tw); this.scheduleNext(600 + Math.random() * 2400); },
+    });
+    this.activeTweens.push(tw);
+  }
+
+  // Float a little mood emoji above the head, then move on.
+  private emote() {
+    const emojis = ['❤️', '✨', '🎵', '😄', '💤', '⭐'];
+    const e = emojis[Math.floor(Math.random() * emojis.length)];
+    const bubble = this.scene.add.text(0, -this.r * 1.1, e, { fontSize: `${Math.round(this.r * 0.9)}px` })
+      .setOrigin(0.5);
+    this.add(bubble);
+    const tw = this.scene.tweens.add({
+      targets: bubble,
+      y: -this.r * 2.2,
+      alpha: { from: 1, to: 0 },
+      duration: 1400,
+      ease: 'Sine.easeOut',
+      onComplete: () => { bubble.destroy(); this.dropTween(tw); this.scheduleNext(500 + Math.random() * 2400); },
+    });
+    this.activeTweens.push(tw);
+  }
+
+  private dropTween(tw: Phaser.Tweens.Tween) {
+    const i = this.activeTweens.indexOf(tw);
+    if (i >= 0) this.activeTweens.splice(i, 1);
   }
 }

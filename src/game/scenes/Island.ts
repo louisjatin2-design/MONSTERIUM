@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { useGameStore } from '@store/gameStore';
 import { ISLAND_DEFS } from '@data/islands';
 import { BUILDING_DEFS } from '@data/buildings';
+import { MONSTER_DEFS } from '@data/monsters';
+import { RARITY_RANK } from '@data/rarities';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { OBSTACLE_DEFS } from '@data/obstacles';
 import { GridTile } from '@game/objects/GridTile';
@@ -13,7 +15,7 @@ import {
   project, worldToGrid, worldToGridWithOffset, setIsoOffset, pointInPolygon, footprintCorners,
   GRID_COLS, GRID_ROWS, ISLAND_CENTER, TILE_W, TILE_H, LAND_THICK,
 } from '@game/iso';
-import type { BuildingInstance } from '@gtypes/game';
+import type { BuildingInstance, RarityType, EvolutionStage } from '@gtypes/game';
 
 // One island block in the 2D build overlay, in the inner world-container's
 // local coordinate space (top-left at ox/oy), used for manual hit-testing.
@@ -39,6 +41,12 @@ const ISLAND_THEMES: Record<string, IslandTheme> = {
   void_rift:        { emoji: '🌌', grass1: 0x2a2450, grass2: 0x352d66, cliff: 0x14102a, path: 0x6a5ab6 },
 };
 const DEFAULT_ISLAND_THEME: IslandTheme = { emoji: '🏝️', grass1: 0x5a9e44, grass2: 0x64a84c, cliff: 0x4a3a22, path: 0xccaa66 };
+
+// How much bigger a monster reads as it matures, so an Elder dwarfs a Baby —
+// realistic proportions within the pen rather than a fixed size for everyone.
+const STAGE_SIZE_SCALE: Record<EvolutionStage, number> = {
+  Baby: 0.74, Juvenile: 0.88, Adult: 1.0, Elder: 1.16,
+};
 
 export class Island extends Phaser.Scene {
   // The whole archipelago is drawn at once: every unlocked island lives in the
@@ -1230,18 +1238,44 @@ export class Island extends Phaser.Scene {
 
     const monsters = useGameStore.getState().monsters;
     const ids = b.monsterIds.filter(id => monsters[id]).slice(0, 4);
-    const center = project(b.tileX + def.tilesW / 2, b.tileY + def.tilesH / 2);
-    const BH = 26 + Math.min(def.tilesW, def.tilesH) * 7;
-    const baseDepth = 100 + b.tileX + b.tileY + def.tilesW + def.tilesH;
+    const W = def.tilesW, H = def.tilesH;
+    const center = project(b.tileX + W / 2, b.tileY + H / 2);
+    const baseDepth = 100 + b.tileX + b.tileY + W + H;
+
+    // The pen's walkable ground as an isometric diamond. Half-extents come
+    // straight from the footprint, shrunk so residents stay inside the fence,
+    // and lifted a touch so they appear to stand on the floor.
+    const footW = (W + H) * (TILE_W / 2);     // diamond width in px (128 for 2×2)
+    const area = {
+      cx: center.x,
+      cy: center.y - 12,
+      hw: footW / 2 * 0.58,
+      hh: (W + H) * (TILE_H / 2) / 2 * 0.55,
+      baseDepth: baseDepth + 0.5,
+    };
+
+    // Scale every resident to the pen: fewer monsters read bigger, a crowded
+    // pen packs smaller ones, and rarity + evolution stage set realistic
+    // relative proportions on top of that.
+    const n = ids.length;
+    const crowd = 1 / (1 + 0.16 * (n - 1));          // 1 → .86 → .76 → .68
+    const baseSize = footW * 0.30 * crowd;            // ~38px for a lone resident
 
     const sprites: MonsterSprite[] = [];
     ids.forEach((id, i) => {
       const inst = monsters[id];
-      const n = ids.length;
-      const ox = (i - (n - 1) / 2) * 22;
-      const oy = -BH + 6 + (i % 2) * 8;
-      const ms = new MonsterSprite(this, inst.defId, center.x + ox, center.y + oy, 34, false);
-      ms.setDepth(baseDepth + 0.5 + i * 0.01);
+      const mdef = MONSTER_DEFS[inst.defId];
+      const rarityScale = mdef ? 0.9 + RARITY_RANK[mdef.rarity as RarityType] * 0.06 : 1;
+      const stageScale = STAGE_SIZE_SCALE[inst.stage] ?? 1;
+      const size = Phaser.Math.Clamp(baseSize * rarityScale * stageScale, footW * 0.16, footW * 0.46);
+
+      // Spread the starting spots so a freshly populated pen doesn't stack them
+      // on one tile; roaming redistributes them from there.
+      const startX = area.cx + (n === 1 ? 0 : (i / (n - 1) - 0.5) * area.hw * 1.1);
+      const startY = area.cy + (i % 2 === 0 ? -area.hh * 0.35 : area.hh * 0.35);
+
+      const ms = new MonsterSprite(this, inst.defId, startX, startY, size, false);
+      ms.enableRoaming(area);
       sprites.push(ms);
     });
     this.residentSprites.set(b.instanceId, sprites);

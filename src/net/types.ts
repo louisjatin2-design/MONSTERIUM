@@ -76,6 +76,42 @@ export interface NewAuction {
   currency: Currency;
 }
 
+// ── PvP-Arena (asynchrones Spieler-gegen-Spieler) ───────────────────────────
+// Snapshot eines Monsters in einem Verteidigungs-Team bzw. Gegner-Team.
+export interface PvpTeamMonster {
+  defId: string;
+  name: string;
+  level: number;
+  rankStars: number;
+  rarity: string;
+  rarityRank: number;
+}
+
+// Eigener PvP-Zustand: aktuelles Rating, Bilanz und hinterlegtes Verteidigungs-Team.
+export interface PvpState {
+  rating: number;
+  wins: number;
+  losses: number;
+  defenseTeam: PvpTeamMonster[];
+}
+
+// Ein gefundener Gegner (Snapshot seines Verteidigungs-Teams).
+export interface PvpOpponent {
+  id: string;
+  name: string;
+  rating: number;
+  team: PvpTeamMonster[];
+  /** true, wenn dies ein simulierter Bot-Gegner ist (kein echter Spieler). */
+  isBot?: boolean;
+}
+
+// Ergebnis eines gewerteten PvP-Kampfes.
+export interface PvpResult {
+  won: boolean;
+  ratingDelta: number;
+  newRating: number;
+}
+
 export interface OnlineService {
   readonly kind: 'local' | 'supabase';
   getSelfProfile(): Promise<PlayerProfile>;
@@ -89,4 +125,9 @@ export interface OnlineService {
   listAuctions(): Promise<Auction[]>;
   createAuction(input: NewAuction): Promise<Auction | null>;
   buyAuction(id: string): Promise<boolean>;
+  // PvP-Arena
+  getPvpState(): Promise<PvpState>;
+  setDefenseTeam(team: PvpTeamMonster[]): Promise<boolean>;
+  findPvpOpponent(): Promise<PvpOpponent | null>;
+  reportPvpResult(opponentId: string, won: boolean, opponentRating: number): Promise<PvpResult>;
 }
