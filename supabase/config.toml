@@ -1,0 +1,6 @@
+# Supabase-Projektkonfiguration (von der GitHub-Integration genutzt).
+# Migrationen in supabase/migrations/ werden auf das verknüpfte Projekt deployt.
+project_id = "monsterium"
+
+[db]
+major_version = 15
