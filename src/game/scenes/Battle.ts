@@ -18,6 +18,8 @@ import {
   rechargeEnergy, incomingDamageMultiplier, applyShield, findTaunter,
 } from '@systems/BattleSystem';
 import { setupFixedViewport, DESIGN_W, DESIGN_H } from '@game/scenes/viewport';
+import { getOnlineService } from '../../net/onlineService';
+import { PVP_WIN_TROPHIES } from '../../net/pvp';
 import type { BattleCombatant, MoveDef, MinigameType, StatusEffect } from '@gtypes/game';
 
 // Every harmful status effect — used by the support "cleanse" move to decide
@@ -58,6 +60,10 @@ interface BattleData {
   // Multi-wave fight: each entry is one enemy line-up faced back-to-back. When
   // present it supersedes enemyTeam/enemyLevels (which describe a single wave).
   waves?: Array<{ enemyTeam: string[]; enemyLevels: number[] }>;
+  // PvP-Arena: gesetzt für gewertete Kämpfe gegen das Verteidigungs-Team eines
+  // anderen Spielers. Das Ergebnis (Sieg/Niederlage) wird ans Backend gemeldet
+  // und passt das PvP-Rating an.
+  pvp?: { opponentId: string; opponentName: string; opponentRating: number };
 }
 
 // Reduces every diamond payout from a victory. Diamonds are meant to stay a
@@ -2073,6 +2079,13 @@ export class Battle extends Phaser.Scene {
 
     const width = DESIGN_W, height = DESIGN_H;
 
+    // PvP-Arena: Ergebnis ans Backend melden (passt das Rating an) — bei Sieg
+    // UND Niederlage. Best-effort; ein Fehlschlag blockiert die UI nicht.
+    if (this.data_.pvp) {
+      const { opponentId, opponentRating } = this.data_.pvp;
+      void getOnlineService().reportPvpResult(opponentId, victory, opponentRating).catch(() => {});
+    }
+
     if (!victory) {
       this.add.rectangle(width / 2, height / 2, 400, 200, 0x662222, 0.9)
         .setStrokeStyle(3, 0xffffff);
@@ -2085,7 +2098,8 @@ export class Battle extends Phaser.Scene {
 
     // ── VICTORY ────────────────────────────────────────────────────────────────
     const store = useGameStore.getState();
-    store.addTrophies(20);
+    // PvP-Siege geben mehr Trophäen als ein Standard-Kampf (speist die Ladder).
+    store.addTrophies(this.data_.pvp ? PVP_WIN_TROPHIES : 20);
     store.recordBattleWon();
     // Gruppe 4 — Bestiarium: jede gekämpfte Gegner-Spezies (alle Wellen) zählen,
     // damit mehr Kämpfe gegen ein Monster dessen Lore-Einträge freischalten.

@@ -26,6 +26,7 @@ import { LabPanel } from '@ui/components/LabPanel';
 import { AchievementsPanel } from '@ui/components/AchievementsPanel';
 import { SeasonPassPanel } from '@ui/components/SeasonPassPanel';
 import { MultiplayerPanel } from '@ui/components/MultiplayerPanel';
+import { PvpArenaPanel } from '@ui/components/PvpArenaPanel';
 import { BattleSelectScreen } from '@ui/components/BattleSelectScreen';
 import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
 import { LoginScreen } from '@ui/components/LoginScreen';
@@ -59,6 +60,7 @@ export type ActivePanel =
   | { type: 'achievements' }
   | { type: 'seasonPass' }
   | { type: 'multiplayer' }
+  | { type: 'pvp' }
   | { type: 'teamSelect'; battlePayload: BattlePayload }
   | { type: 'battle' };
 
@@ -117,6 +119,7 @@ function Game() {
     const onOpenAchievements = () => setActivePanel({ type: 'achievements' });
     const onOpenSeasonPass   = () => setActivePanel({ type: 'seasonPass' });
     const onOpenMultiplayer  = () => setActivePanel({ type: 'multiplayer' });
+    const onOpenPvpArena     = () => setActivePanel({ type: 'pvp' });
     const onOpenTeamSelect = (d: BattlePayload) => setActivePanel({ type: 'teamSelect', battlePayload: d });
     const onBattleStart    = () => setActivePanel({ type: 'battle' });
     const onBattleEnd    = () => setActivePanel(null);
@@ -150,6 +153,7 @@ function Game() {
     EventBus.on(GameEvents.OPEN_ACHIEVEMENTS,  onOpenAchievements);
     EventBus.on(GameEvents.OPEN_SEASON_PASS,   onOpenSeasonPass);
     EventBus.on(GameEvents.OPEN_MULTIPLAYER,   onOpenMultiplayer);
+    EventBus.on(GameEvents.OPEN_PVP_ARENA,     onOpenPvpArena);
     EventBus.on(GameEvents.OPEN_TEAM_SELECT,   onOpenTeamSelect);
     EventBus.on(GameEvents.BATTLE_STARTED,     onBattleStart);
     EventBus.on(GameEvents.BATTLE_ENDED,       onBattleEnd);
@@ -179,6 +183,7 @@ function Game() {
       EventBus.off(GameEvents.OPEN_ACHIEVEMENTS,  onOpenAchievements);
       EventBus.off(GameEvents.OPEN_SEASON_PASS,   onOpenSeasonPass);
       EventBus.off(GameEvents.OPEN_MULTIPLAYER,   onOpenMultiplayer);
+      EventBus.off(GameEvents.OPEN_PVP_ARENA,     onOpenPvpArena);
       EventBus.off(GameEvents.OPEN_TEAM_SELECT,   onOpenTeamSelect);
       EventBus.off(GameEvents.BATTLE_STARTED,     onBattleStart);
       EventBus.off(GameEvents.BATTLE_ENDED,       onBattleEnd);
@@ -343,6 +348,9 @@ function Game() {
         )}
         {activePanel?.type === 'multiplayer' && (
           <MultiplayerPanel onClose={closePanel} />
+        )}
+        {activePanel?.type === 'pvp' && (
+          <PvpArenaPanel onClose={closePanel} />
         )}
         {activePanel?.type === 'teamSelect' && (
           <TeamSelectPanel battlePayload={activePanel.battlePayload} onClose={closePanel} />
