@@ -29,6 +29,7 @@ import { MultiplayerPanel } from '@ui/components/MultiplayerPanel';
 import { BattleSelectScreen } from '@ui/components/BattleSelectScreen';
 import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
 import { LoginScreen } from '@ui/components/LoginScreen';
+import { UsernamePrompt } from '@ui/components/UsernamePrompt';
 import { World3D } from '@game/world3d/World3D';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
@@ -69,12 +70,18 @@ export type ActivePanel =
 export default function App() {
   const currentUser = useAuthStore(s => s.currentUser);
   const session = useAuthStore(s => s.session);
+  const displayName = useAuthStore(s => s.displayName);
   const restoreSession = useAuthStore(s => s.restoreSession);
   // Beim Start eine evtl. abgelaufene Supabase-Session erneuern (oder ausloggen).
   useEffect(() => { void restoreSession(); }, [restoreSession]);
   // Mit konfiguriertem Backend ist ein echtes Konto (Supabase-Session) Pflicht.
   const authed = !!currentUser && (!isSupabaseConfigured() || !!session);
   if (!authed) return <LoginScreen />;
+  // Online-Konto ohne sauberen Username (z. B. Alt-Konto mit E-Mail) → abfragen.
+  const shownName = displayName ?? currentUser ?? '';
+  if (isSupabaseConfigured() && !!session && (shownName.includes('@') || shownName.trim() === '')) {
+    return <UsernamePrompt />;
+  }
   return <Game />;
 }
 

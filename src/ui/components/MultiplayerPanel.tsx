@@ -106,37 +106,102 @@ export function MultiplayerPanel({ onClose }: Props) {
         )}
 
         {tab === 'clans' && (
-          <>
-            {clans.map(c => (
-              <div key={c.id} className="monster-card" style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 900, fontSize: 14, color: '#8fc0ff' }}>
-                      [{c.tag}] {c.name}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#9aa', marginTop: 2 }}>{c.description}</div>
-                    <div style={{ fontSize: 11, color: '#778', marginTop: 2 }}>
-                      🏆 {c.trophies.toLocaleString()} · 👥 {c.memberCount}/{c.maxMembers}
-                    </div>
-                  </div>
-                  <button className="btn btn-primary" style={{ minWidth: 90 }}
-                    disabled={joined === c.id}
-                    onClick={() => join(c.id)}>
-                    {joined === c.id ? '✓ Beigetreten' : 'Beitreten'}
-                  </button>
-                </div>
-              </div>
-            ))}
-            <div style={{ fontSize: 11, color: '#778', textAlign: 'center', marginTop: 8 }}>
-              Clan-Kriege (wöchentlich, mit Ranglisten) folgen mit dem Server-Backend.
-            </div>
-          </>
+          <ClansTab
+            clans={clans} joined={joined}
+            onJoin={join}
+            onChanged={() => svc.listClans().then(setClans)}
+            onJoined={setJoined}
+          />
         )}
 
         {tab === 'auction' && <AuctionTab />}
       </div>
     </div>
   );
+}
+
+// ── Clans (Gruppe 10): Liste, Beitreten, Erstellen für 100 💎 ───────────────
+const CLAN_COST = 100;
+function ClansTab({ clans, joined, onJoin, onChanged, onJoined }: {
+  clans: Clan[]; joined: string | null;
+  onJoin: (id: string) => void; onChanged: () => void; onJoined: (id: string) => void;
+}) {
+  const svc = getOnlineService();
+  const diamonds = useGameStore(s => s.diamonds);
+  const spendDiamonds = useGameStore(s => s.spendDiamonds);
+  const [name, setName] = useState('');
+  const [tag, setTag] = useState('');
+  const [desc, setDesc] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const create = async () => {
+    if (busy) return;
+    if (diamonds < CLAN_COST) { setMsg('Zu wenig Diamanten — 100 💎 nötig.'); return; }
+    if (name.trim().length < 3 || tag.trim().length < 2) { setMsg('Name ≥ 3 und Kürzel ≥ 2 Zeichen.'); return; }
+    setBusy(true);
+    const clan = await svc.createClan({ name: name.trim(), tag: tag.trim().toUpperCase().slice(0, 4), description: desc.trim() });
+    setBusy(false);
+    if (clan) {
+      spendDiamonds(CLAN_COST);
+      onJoined(clan.id);
+      setName(''); setTag(''); setDesc(''); setMsg('✅ Clan erstellt!');
+      onChanged();
+    } else setMsg('⚠️ Erstellen fehlgeschlagen (offline?).');
+  };
+
+  return (
+    <>
+      {/* Clan erstellen */}
+      <div className="monster-card" style={{ marginBottom: 12, padding: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 900, color: '#8fc0ff', marginBottom: 6 }}>
+          Eigenen Clan erstellen <span style={{ color: '#9be8bd' }}>(💎 {CLAN_COST})</span>
+        </div>
+        {msg && <div style={{ fontSize: 11, color: '#ffd700', marginBottom: 6 }}>{msg}</div>}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Clan-Name" maxLength={24}
+            style={inputStyle('1 1 150px')} />
+          <input value={tag} onChange={e => setTag(e.target.value)} placeholder="Kürzel" maxLength={4}
+            style={inputStyle('0 0 80px')} />
+        </div>
+        <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Beschreibung (optional)" maxLength={80}
+          style={{ ...inputStyle('1 1 100%'), marginTop: 6 }} />
+        <button className="btn btn-gold" disabled={busy || diamonds < CLAN_COST} onClick={create}
+          style={{ width: '100%', marginTop: 8, fontSize: 13 }}>
+          💎 {CLAN_COST} — Clan gründen
+        </button>
+      </div>
+
+      {clans.map(c => (
+        <div key={c.id} className="monster-card" style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 900, fontSize: 14, color: '#8fc0ff' }}>[{c.tag}] {c.name}</div>
+              {c.description && <div style={{ fontSize: 11, color: '#9aa', marginTop: 2 }}>{c.description}</div>}
+              <div style={{ fontSize: 11, color: '#778', marginTop: 2 }}>
+                🏆 {c.trophies.toLocaleString()} · 👥 {c.memberCount}/{c.maxMembers}
+              </div>
+            </div>
+            <button className="btn btn-primary" style={{ minWidth: 90 }}
+              disabled={joined === c.id} onClick={() => onJoin(c.id)}>
+              {joined === c.id ? '✓ Beigetreten' : 'Beitreten'}
+            </button>
+          </div>
+        </div>
+      ))}
+      <div style={{ fontSize: 11, color: '#778', textAlign: 'center', marginTop: 8 }}>
+        Clan-Kriege (wöchentlich, mit Ranglisten) folgen mit dem Server-Backend.
+      </div>
+    </>
+  );
+}
+
+function inputStyle(flex: string): React.CSSProperties {
+  return {
+    flex, minWidth: 0, boxSizing: 'border-box',
+    background: 'rgba(0,0,0,0.4)', color: '#fff', border: '1px solid #3f5a8a',
+    borderRadius: 6, padding: '6px 8px', fontSize: 12, width: flex.includes('100%') ? '100%' : undefined,
+  };
 }
 
 // ── Auktionshaus (Gruppe 8/10) ──────────────────────────────────────────────

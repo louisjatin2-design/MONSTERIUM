@@ -8,7 +8,7 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { RARITY_RANK } from '@data/rarities';
 import type {
   OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan,
-  Auction, NewAuction,
+  Auction, NewAuction, NewClan,
 } from './types';
 import { buildSelfProfile, getSelfId, getSelfName } from './profile';
 import { SupabaseOnlineService } from './supabaseService';
@@ -16,7 +16,7 @@ import { SupabaseOnlineService } from './supabaseService';
 // Bestehende Importe (Panel) weiterhin von hier bedienbar.
 export type {
   OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan,
-  Auction, NewAuction, Currency,
+  Auction, NewAuction, NewClan, Currency,
 } from './types';
 
 // ── Deterministische Mock-Welt ──────────────────────────────────────────────
@@ -103,6 +103,16 @@ class LocalOnlineService implements OnlineService {
     if (!MOCK_CLANS.some(c => c.id === clanId)) return false;
     this.joinedClanId = clanId;
     return true;
+  }
+
+  async createClan(input: NewClan): Promise<Clan | null> {
+    const clan: Clan = {
+      id: `clan_${Date.now()}`, name: input.name, tag: input.tag,
+      description: input.description, trophies: 0, memberCount: 1, maxMembers: 30,
+    };
+    MOCK_CLANS.unshift(clan);
+    this.joinedClanId = clan.id;
+    return clan;
   }
 
   getJoinedClanId(): string | null { return this.joinedClanId; }

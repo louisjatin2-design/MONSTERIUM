@@ -3,7 +3,7 @@
 // Spielers (stärkste Monster, Stats) und liefert eine stabile Spieler-ID/Name
 // aus dem Account.
 import { useGameStore } from '@store/gameStore';
-import { useAuthStore, getAuthUserId } from '@store/authStore';
+import { useAuthStore, getAuthUserId, getDisplayName } from '@store/authStore';
 import { MONSTER_DEFS } from '@data/monsters';
 import { RARITY_RANK } from '@data/rarities';
 import type { PlayerProfile, ProfileMonster } from './types';
@@ -18,7 +18,8 @@ export function getSelfId(): string {
 }
 
 export function getSelfName(): string {
-  return useAuthStore.getState().currentUser ?? 'Hüter';
+  // Anzeigename (Username); fällt nie auf eine E-Mail zurück.
+  return getDisplayName();
 }
 
 /** Profil des aktuellen Spielers aus dem Spielstand. */
