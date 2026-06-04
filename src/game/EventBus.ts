@@ -19,6 +19,8 @@ export const GameEvents = {
   OPEN_BUILD_OVERLAY:   'open-build-overlay',   // BAUEN tab → 2D top-down island view (browse)
   ENTER_PLACEMENT_MODE: 'enter-placement-mode',
   ENTER_MOVE_MODE:      'enter-move-mode',       // relocate an existing building to a new tile
+  CONFIRM_PLACEMENT:    'confirm-placement',     // commit the building at the ghost's current tile
+  PLACEMENT_VALIDITY:   'placement-validity',    // World3D → React: is the current ghost spot placeable?
   ISLAND_CHANGED:       'island-changed',
   START_BATTLE:         'start-battle',
   OPEN_TEAM_SELECT:     'open-team-select',   // → shows monster picker before battle

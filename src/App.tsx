@@ -93,6 +93,8 @@ function Game() {
   // True while the flat 2D build overlay is up — hide the floating HUD/rails so
   // the build "tab" is clean (the overlay has its own title + hint bar).
   const [placementActive, setPlacementActive] = useState(false);
+  // True once the ghost building sits on a placeable tile — enables Confirm.
+  const [placementReady, setPlacementReady] = useState(false);
   const tickTimers = useGameStore((s) => s.tickTimers);
   const tutorialStep = useGameStore((s) => s.tutorialStep);
   const [tutorialDismissed, setTutorialDismissed] = useState(false);
@@ -133,12 +135,14 @@ function Game() {
     // Build-overlay (2D placement) lifecycle → toggle the chrome on/off.
     // Both the browse-mode overlay (BAUEN tab) and per-building placement hide
     // the floating HUD/rails; PANEL_CLOSED restores them.
-    const onEnterPlacement = () => setPlacementActive(true);
-    const onPlacementDone  = () => setPlacementActive(false);
+    const onEnterPlacement = () => { setPlacementActive(true); setPlacementReady(false); };
+    const onPlacementDone  = () => { setPlacementActive(false); setPlacementReady(false); };
+    const onPlacementValidity = (d: { ready: boolean }) => setPlacementReady(!!d.ready);
 
     EventBus.on(GameEvents.OPEN_BUILD_OVERLAY,   onEnterPlacement);
     EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
     EventBus.on(GameEvents.ENTER_MOVE_MODE,      onEnterPlacement);
+    EventBus.on(GameEvents.PLACEMENT_VALIDITY,   onPlacementValidity);
     EventBus.on(GameEvents.PANEL_CLOSED,         onPlacementDone);
     EventBus.on(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
     EventBus.on(GameEvents.OPEN_FARM_PANEL,    onOpenFarm);
@@ -169,6 +173,7 @@ function Game() {
       EventBus.off(GameEvents.OPEN_BUILD_OVERLAY,   onEnterPlacement);
       EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
       EventBus.off(GameEvents.ENTER_MOVE_MODE,      onEnterPlacement);
+      EventBus.off(GameEvents.PLACEMENT_VALIDITY,   onPlacementValidity);
       EventBus.off(GameEvents.PANEL_CLOSED,         onPlacementDone);
       EventBus.off(GameEvents.OPEN_HABITAT_PANEL, onOpenHabitat);
       EventBus.off(GameEvents.OPEN_FARM_PANEL,    onOpenFarm);
@@ -259,6 +264,34 @@ function Game() {
         >✕ Fertig</button>
       )}
 
+      {/* Confirm Placement — commits the building at the ghost's current tile.
+          Position the building by tapping/dragging on the (now top-down) island,
+          then tap here to build. Disabled until the ghost sits on a free spot. */}
+      {placementActive && !isBattleActive && (
+        <button
+          onClick={() => placementReady && EventBus.emit(GameEvents.CONFIRM_PLACEMENT, {})}
+          disabled={!placementReady}
+          title={placementReady ? 'Platzierung bestätigen' : 'Wähle erst ein freies Feld'}
+          style={{
+            position: 'absolute', zIndex: 5000,
+            bottom: 'calc(18px + env(safe-area-inset-bottom, 0px))',
+            left: '50%', transform: 'translateX(-50%)',
+            minWidth: 220, height: 52, padding: '0 22px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            background: placementReady
+              ? 'linear-gradient(160deg, #7ad04a, #3f8a1f)'
+              : 'linear-gradient(160deg, #6a6a6a, #3a3a3a)',
+            border: `2px solid ${placementReady ? '#bfff90' : '#888'}`,
+            borderRadius: 16,
+            color: '#fff', fontWeight: 900, fontSize: 16,
+            cursor: placementReady ? 'pointer' : 'not-allowed',
+            opacity: placementReady ? 1 : 0.7,
+            touchAction: 'manipulation', pointerEvents: 'auto',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3)',
+          }}
+        >✅ Platzierung bestätigen</button>
+      )}
+
       {/* Floating top HUD + side action rails — hidden during battle (so only
           the fight screen shows) and during 2D build placement (clean build tab). */}
       {!hideChrome && (
@@ -271,7 +304,6 @@ function Game() {
             onShop={() => setActivePanel({ type: 'shop' })}
             onBreed={() => setActivePanel({ type: 'breeding' })}
             onHatch={() => setActivePanel({ type: 'hatchery' })}
-            onBuild={() => EventBus.emit(GameEvents.OPEN_BUILD_OVERLAY, {})}
           />
         </>
       )}

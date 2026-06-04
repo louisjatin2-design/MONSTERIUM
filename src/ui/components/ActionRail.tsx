@@ -6,7 +6,6 @@ interface ActionRailProps {
   onShop:    () => void;
   onBreed:   () => void;
   onHatch:   () => void;
-  onBuild:   () => void;
 }
 
 const BUTTONS: Array<{
@@ -19,7 +18,6 @@ const BUTTONS: Array<{
   primary?: boolean;
 }> = [
   { icon: '⚔️', label: 'KÄMPFEN',    key: 'onAttack',  from: '#ff5a4a', to: '#c41f1f', border: '#ffb070', primary: true },
-  { icon: '🏗️', label: 'BAUEN',      key: 'onBuild',   from: '#7ad04a', to: '#3f8a1f', border: '#bfff90' },
   { icon: '💞', label: 'ZÜCHTEN',    key: 'onBreed',   from: '#ff5ab0', to: '#c4287a', border: '#ffb0e0' },
   { icon: '🥚', label: 'BRUTKAMMER', key: 'onHatch',   from: '#4accd8', to: '#1f8ab8', border: '#90e0ff' },
   { icon: '📖', label: 'MONSTER',    key: 'onPokedex', from: '#5a8ae8', to: '#2850b8', border: '#90b8ff' },

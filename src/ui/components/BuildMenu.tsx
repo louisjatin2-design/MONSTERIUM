@@ -50,7 +50,8 @@ export function BuildMenu({ tileX, tileY, onClose, onStartPlacement }: BuildMenu
       <HelpButton
         title="Baumenü"
         tips={[
-          'Wähle ein Gebäude und platziere es anschließend in der 2D-Bauansicht auf einem freien Feld.',
+          'Wähle ein Gebäude — die Ansicht wechselt in die Vogelperspektive und die Insel-Drehung wird pausiert.',
+          'Tippe bzw. ziehe auf ein freies Feld, um das Gebäude zu positionieren, und bestätige unten mit „Platzierung bestätigen".',
           'Lebensräume beherbergen Monster und werfen Gold ab, Farmen produzieren Futter, Tempel heben das Levellimit.',
           'Ausgegraute Einträge kannst du dir noch nicht leisten oder sie sind erst ab einem höheren Spieler-Level 🔒 verfügbar.',
           'Größere Lebensräume (Elite, Mythic, Transcendental) sind riesig, fassen aber nur ein einziges Monster.',
