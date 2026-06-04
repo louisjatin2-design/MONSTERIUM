@@ -36,6 +36,10 @@ interface AuthState {
   // Gruppe 10 — Supabase-Auth-Session (nur gesetzt, wenn Supabase konfiguriert
   // ist und der Spieler eingeloggt ist).
   session: AuthSession | null;
+  // Optionaler Anzeigename, der currentUser überschreibt (z. B. wenn ein
+  // Alt-Konto noch eine E-Mail als Namen hatte → Spieler wählt einen Username).
+  // Ändert NICHT den Spielstand-Namespace (der bleibt currentUser).
+  displayName: string | null;
 }
 
 export interface AuthResult {
@@ -51,6 +55,24 @@ interface AuthActions {
   logout: () => void;
   // Beim App-Start: abgelaufene Supabase-Session erneuern.
   restoreSession: () => Promise<void>;
+  // Anzeigenamen (Username) für das aktuelle Konto setzen.
+  setDisplayName: (name: string) => void;
+}
+
+/** Effektiver Anzeigename (Username) des aktuellen Spielers. */
+export function getDisplayName(): string {
+  const s = useAuthStore.getState();
+  return s.displayName ?? s.currentUser ?? 'Hüter';
+}
+
+/** True, wenn ein eingeloggtes Online-Konto noch keinen sauberen Username hat
+ *  (z. B. der Anzeigename ist noch eine E-Mail) → Username abfragen. */
+export function needsUsername(): boolean {
+  if (!isSupabaseConfigured()) return false;
+  const s = useAuthStore.getState();
+  if (!s.currentUser || !s.session) return false;
+  const name = s.displayName ?? s.currentUser;
+  return name.includes('@') || name.trim().length === 0;
 }
 
 /** Online-Identität (Supabase-User-ID) bzw. null im lokalen Modus. */
@@ -88,9 +110,10 @@ const MIN_PASSWORD = 4;
 // Eine erfolgreiche Supabase-Anmeldung in den Store schreiben. currentUser wird
 // der angezeigte Benutzername (auch Spielstand-Namespace); die User-ID bindet
 // die Online-Identität (Profile/Auktionen).
-function loginWithSession(set: (p: Partial<AuthStore>) => void, session: AuthSession, displayName: string): void {
-  set({ currentUser: displayName, session });
-  activateSaveFor(displayName);
+function loginWithSession(set: (p: Partial<AuthStore>) => void, session: AuthSession, name: string): void {
+  // currentUser ist der saubere Username → kein separater displayName nötig.
+  set({ currentUser: name, session, displayName: null });
+  activateSaveFor(name);
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -99,6 +122,7 @@ export const useAuthStore = create<AuthStore>()(
       accounts: {},
       currentUser: null,
       session: null,
+      displayName: null,
 
       register: async (identifier, password) => {
         const id = identifier.trim();
@@ -174,8 +198,14 @@ export const useAuthStore = create<AuthStore>()(
       logout: () => {
         const sess = get().session;
         if (sess) void supaSignOut(sess.accessToken);
-        set({ currentUser: null, session: null });
+        set({ currentUser: null, session: null, displayName: null });
         activateSaveFor(null);
+      },
+
+      setDisplayName: (name) => {
+        const n = name.trim();
+        if (!USERNAME_RE.test(n)) return;
+        set({ displayName: n });
       },
 
       restoreSession: async () => {
@@ -197,8 +227,8 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'monsterium-auth',
-      // Konten-Tabelle (lokal), aktueller Nutzer und die Supabase-Session.
-      partialize: (s) => ({ accounts: s.accounts, currentUser: s.currentUser, session: s.session }),
+      // Konten-Tabelle (lokal), aktueller Nutzer, Supabase-Session, Anzeigename.
+      partialize: (s) => ({ accounts: s.accounts, currentUser: s.currentUser, session: s.session, displayName: s.displayName }),
     },
   ),
 );

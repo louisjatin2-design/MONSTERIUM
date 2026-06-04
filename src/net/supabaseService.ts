@@ -9,7 +9,7 @@
 //    Sobald Supabase-Auth genutzt wird: RLS auf auth.uid() = id verschärfen.
 //  • PvP-Echtzeit, Trading & Clan-Kriege brauchen Realtime-Channels (Follow-up).
 import type {
-  OnlineService, PlayerProfile, LeaderboardKind, LeaderboardEntry, Clan, Auction, NewAuction,
+  OnlineService, PlayerProfile, LeaderboardKind, LeaderboardEntry, Clan, Auction, NewAuction, NewClan,
   PvpState, PvpTeamMonster, PvpOpponent, PvpResult,
 } from './types';
 import { buildSelfProfile, getSelfId, getSelfName } from './profile';
@@ -145,6 +145,23 @@ export class SupabaseOnlineService implements OnlineService {
       this.joinedClanId = clanId;
       return true;
     } catch { return false; }
+  }
+
+  async createClan(input: NewClan): Promise<Clan | null> {
+    try {
+      const res = await this.rest('clans', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ name: input.name, tag: input.tag, description: input.description, trophies: 0, max_members: 30 }),
+      });
+      if (!res.ok) return null;
+      const rows = (await res.json()) as any[];
+      const r = rows[0];
+      if (!r) return null;
+      // Ersteller direkt beitreten lassen.
+      await this.joinClan(r.id);
+      return { id: r.id, name: r.name, tag: r.tag, description: r.description ?? '', trophies: r.trophies ?? 0, maxMembers: r.max_members ?? 30, memberCount: 1 };
+    } catch { return null; }
   }
 
   getJoinedClanId(): string | null { return this.joinedClanId; }

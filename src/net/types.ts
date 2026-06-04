@@ -40,6 +40,13 @@ export interface Clan {
   maxMembers: number;
 }
 
+// Eingabe zum Erstellen eines Clans.
+export interface NewClan {
+  name: string;
+  tag: string;
+  description: string;
+}
+
 // ── Auktionshaus (Gruppe 8/10) ──────────────────────────────────────────────
 export type Currency = 'gold' | 'diamonds';
 
@@ -112,6 +119,7 @@ export interface OnlineService {
   getFriends(): Promise<PlayerProfile[]>;
   listClans(): Promise<Clan[]>;
   joinClan(clanId: string): Promise<boolean>;
+  createClan(input: NewClan): Promise<Clan | null>;
   getJoinedClanId(): string | null;
   // Auktionshaus
   listAuctions(): Promise<Auction[]>;
