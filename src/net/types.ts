@@ -69,6 +69,10 @@ export interface NewClan {
 // ── Auktionshaus (Gruppe 8/10) ──────────────────────────────────────────────
 export type Currency = 'gold' | 'diamonds';
 
+// Anteil des Verkaufspreises, den der Verkäufer erhält, wenn sein Monster im
+// Auktionshaus verkauft wird. Die restlichen 10 % behält das Auktionshaus.
+export const AUCTION_SELLER_CUT = 0.9;
+
 export interface Auction {
   id: string;
   sellerId: string;
@@ -93,6 +97,17 @@ export interface NewAuction {
   rarity: string;
   price: number;
   currency: Currency;
+}
+
+// Ein eingelöster Verkaufserlös: Wird zurückgegeben, sobald ein eigenes
+// eingestelltes Monster von einem anderen Spieler (bzw. simuliert) gekauft
+// wurde. `amount` ist bereits der Verkäufer-Anteil (90 % des Preises).
+export interface SoldProceed {
+  auctionId: string;
+  monsterName: string;
+  currency: Currency;
+  amount: number;
+  price: number;
 }
 
 // ── PvP-Arena (asynchrones Spieler-gegen-Spieler) ───────────────────────────
@@ -150,6 +165,8 @@ export interface OnlineService {
   listAuctions(): Promise<Auction[]>;
   createAuction(input: NewAuction): Promise<Auction | null>;
   buyAuction(id: string): Promise<boolean>;
+  /** Erlöse aus inzwischen verkauften eigenen Auktionen einsammeln (90 % je Preis). */
+  collectSoldProceeds(): Promise<SoldProceed[]>;
   // PvP-Arena
   getPvpState(): Promise<PvpState>;
   setDefenseTeam(team: PvpTeamMonster[]): Promise<boolean>;
