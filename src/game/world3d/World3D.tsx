@@ -23,6 +23,7 @@ import { ISLAND_DEFS } from '@data/islands';
 import { getMonsterFaction } from '@data/factions';
 import type { BuildingInstance } from '@gtypes/game';
 import { buildLowPolyMonster, type MonsterVisualSpec } from '../../proto3d/lowpolyMonster';
+import { attachMonsterModel } from './monsterModels';
 import { buildLowPolyBuilding } from '../../proto3d/lowpolyBuilding';
 import { buildLowPolyIsland, buildObstacle, gridToWorld, worldToGrid, islandGrid, TOP_Y } from '../../proto3d/lowpolyIsland';
 
@@ -127,6 +128,7 @@ function panelForBuilding(b: BuildingInstance) {
   switch (def.category) {
     case 'BreedingStation': EventBus.emit(GameEvents.OPEN_BREEDING_PANEL, {}); break;
     case 'Hatchery':        EventBus.emit(GameEvents.OPEN_HATCHERY_PANEL, {}); break;
+    case 'Lab':             EventBus.emit(GameEvents.OPEN_LAB, {}); break;
     case 'Farm':            EventBus.emit(GameEvents.OPEN_FARM_PANEL, { instanceId: b.instanceId }); break;
     default:                EventBus.emit(GameEvents.OPEN_HABITAT_PANEL, { instanceId: b.instanceId });
   }
@@ -416,6 +418,10 @@ export function World3D({ hidden }: { hidden: boolean }) {
           const sizeMul = habitatScale * stageMul * (1 + rarityRank * 0.08 + Math.min(inst.level ?? 1, 100) * 0.0015);
           const m = buildLowPolyMonster(monsterSpec(inst.defId, mid));
           m.scale.setScalar(sizeMul);
+          // Drop-in swap: if a custom GLB exists for this monster (see
+          // src/assets/monsters3d/), replace the procedural body with it.
+          // Fire-and-forget — the procedural monster shows until it resolves.
+          void attachMonsterModel(m, inst.defId);
           const a = (i / Math.max(1, residents.length)) * Math.PI * 2;
           const hx = w0.x + Math.cos(a) * roamR * 0.6;
           const hz = w0.z + Math.sin(a) * roamR * 0.6;
@@ -737,6 +743,10 @@ export function World3D({ hidden }: { hidden: boolean }) {
 
       // Gruppe 2: Monster wandern zufällig im Habitat + sanftes Wippen.
       monsterBodies.forEach((m, i) => {
+        // Advance any custom-model animation (idle clip etc.) attached via the
+        // Meshy drop-in pipeline. Procedural monsters have no mixer (no-op).
+        const mixer = m.userData.mixer as THREE.AnimationMixer | undefined;
+        if (mixer) mixer.update(dt);
         const w = m.userData.wander as
           | { cx: number; cz: number; r: number; tx: number; tz: number; speed: number; phase: number }
           | undefined;

@@ -7,6 +7,7 @@ import { BUILDING_DEFS, BUILDABLE_BUILDING_IDS } from '@data/buildings';
 import { CRATES, rollCrate, type CrateDef, type CrateReward } from '@data/crates';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { HelpButton } from './HelpButton';
+import { IslandsContent } from './IslandsPanel';
 import '../styles/global.css';
 
 interface ShopPanelProps {
@@ -26,10 +27,10 @@ interface ShopItem {
 }
 
 const CATEGORY_ICONS: Record<string, string> = {
-  Habitat: '🏠', Temple: '⛩️', Farm: '🌾', BreedingStation: '🧬', Hatchery: '🥚',
+  Habitat: '🏠', Temple: '⛩️', Farm: '🌾', BreedingStation: '🧬', Hatchery: '🥚', Lab: '🧪',
 };
 
-type Tab = 'items' | 'crates' | 'build';
+type Tab = 'items' | 'crates' | 'build' | 'islands';
 
 export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
   const diamonds = useGameStore(s => s.diamonds);
@@ -101,6 +102,7 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
           <TabBtn label="🛍️ Artikel" active={tab === 'items'} onClick={() => setTab('items')} />
           <TabBtn label="📦 Kisten" active={tab === 'crates'} onClick={() => setTab('crates')} />
           <TabBtn label="🏗️ Bauen" active={tab === 'build'} onClick={() => setTab('build')} />
+          <TabBtn label="🏝️ Inseln" active={tab === 'islands'} onClick={() => setTab('islands')} />
         </div>
       </div>
 
@@ -134,6 +136,8 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
           </>
         ) : tab === 'crates' ? (
           <CratesTab gold={gold} diamonds={diamonds} />
+        ) : tab === 'islands' ? (
+          <IslandsContent onClose={onClose} />
         ) : (
           <BuildTab gold={gold} onStartPlacement={onStartPlacement} />
         )}
@@ -145,7 +149,7 @@ export function ShopPanel({ onClose, onStartPlacement }: ShopPanelProps) {
 function BuildTab({ gold, onStartPlacement }: { gold: number; onStartPlacement: () => void }) {
   const playerLevel = useGameStore(s => s.playerLevel);
   const [filter, setFilter] = useState<string>('All');
-  const categories = ['All', 'Habitat', 'Temple', 'Farm'];
+  const categories = ['All', 'Habitat', 'Temple', 'Farm', 'Lab'];
   const filtered = BUILDABLE_BUILDING_IDS.filter(id => {
     const def = BUILDING_DEFS[id];
     return filter === 'All' || def.category === filter;

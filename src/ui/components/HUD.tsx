@@ -17,9 +17,7 @@ export function HUD(_props: HUDProps) {
   const gold        = useGameStore(s => s.gold);
   const diamonds    = useGameStore(s => s.diamonds);
   const food        = useGameStore(s => s.food);
-  const trophies    = useGameStore(s => s.trophies);
   const playerLevel = useGameStore(s => s.playerLevel);
-  const playerXp    = useGameStore(s => s.playerXp);
   const pendingRewards = useGameStore(s => s.pendingLevelRewards.length);
 
   const redeemCheatCode = useGameStore(s => s.redeemCheatCode);
@@ -27,9 +25,6 @@ export function HUD(_props: HUDProps) {
   const logout      = useAuthStore(s => s.logout);
 
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const xpToNext  = Math.floor(100 * Math.pow(playerLevel, 1.5));
-  const xpPercent = Math.min(100, (playerXp / xpToNext) * 100);
 
   const openCheatPrompt = () => {
     setMenuOpen(false);
@@ -110,45 +105,33 @@ export function HUD(_props: HUDProps) {
         )}
       </button>
 
-      {/* ── XP + trophy column next to portrait ── */}
-      <div className="hud-avatar-xp" style={{
-        display: 'flex', flexDirection: 'column', gap: 3,
-        width: 60, flexShrink: 0,
-      }}>
-        <div className="hud-trophy" style={{
-          display: 'flex', alignItems: 'center', gap: 3,
-          background: 'rgba(0,0,0,0.35)',
-          borderRadius: 8, padding: '1px 6px',
-          alignSelf: 'flex-start',
+      {/* ── Monster button — sits directly right of the profile ──
+          Opens the Monsterpedia (which now also holds the Kompendium tab). */}
+      <button
+        onClick={() => EventBus.emit(GameEvents.OPEN_POKEDEX, {})}
+        title="Monster"
+        style={{
+          flexShrink: 0, pointerEvents: 'auto',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+          width: 50, height: 50, padding: 0,
+          background: 'linear-gradient(160deg, #5a8ae8, #2850b8)',
+          border: '2px solid #90b8ff', borderRadius: 13,
+          cursor: 'pointer', touchAction: 'manipulation',
+          boxShadow: '0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25)',
         }}>
-          <span style={{ fontSize: 12 }}>🏆</span>
-          <span style={{ color: '#ffd86b', fontWeight: 900, fontSize: 11 }}>{trophies}</span>
-        </div>
-        <div className="hud-xp" style={{ width: '100%' }}>
-          <div style={{
-            width: '100%', height: 6,
-            background: 'rgba(0,0,0,0.45)',
-            border: '1px solid rgba(255,215,120,0.25)',
-            borderRadius: 4, overflow: 'hidden',
-          }}>
-            <div style={{
-              width: `${xpPercent}%`, height: '100%',
-              background: 'linear-gradient(90deg, #5ad6ff, #b06bff)',
-              borderRadius: 4,
-              boxShadow: '0 0 6px rgba(120,180,255,0.6)',
-            }} />
-          </div>
-        </div>
-      </div>
+        <span style={{ fontSize: 22, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>📖</span>
+        <span style={{ fontSize: 8, fontWeight: 900, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.85)' }}>MONSTER</span>
+      </button>
 
-      {/* ── Resource pills ── */}
+      {/* ── Resource pills — fill the rest of the top row right of the profile ── */}
       <div style={{
+        flex: 1, minWidth: 0,
         display: 'flex', alignItems: 'center', gap: 6,
-        marginLeft: 'auto', marginRight: 2,
+        marginRight: 2,
         pointerEvents: 'auto',
       }}>
-        <ResourcePill icon="🍎" value={food}     color="#ff8a66" />
-        <ResourcePill icon="🪙" value={gold}     color="#ffd54a" />
+        <ResourcePill icon="🪙" value={gold}     color="#ffd54a" onClick={() => EventBus.emit(GameEvents.OPEN_SHOP, {})} />
+        <ResourcePill icon="🍎" value={food}     color="#ff8a66" onClick={() => EventBus.emit(GameEvents.OPEN_SHOP, {})} />
         <ResourcePill icon="💎" value={diamonds} color="#5ad6ff" onClick={() => EventBus.emit(GameEvents.OPEN_SHOP, {})} />
       </div>
 
@@ -232,8 +215,8 @@ function ResourcePill({
       borderRadius: 13,
       padding: '2px 22px 2px 6px',
       height: 28,
-      flexShrink: 1,
-      minWidth: 60,
+      flex: 1,
+      minWidth: 60, maxWidth: 150,
       boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)',
     }}>
       <span style={{ fontSize: 16, lineHeight: 1, filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.6))' }}>{icon}</span>

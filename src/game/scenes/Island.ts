@@ -1198,6 +1198,9 @@ export class Island extends Phaser.Scene {
       case 'Hatchery':
         EventBus.emit(GameEvents.OPEN_HATCHERY_PANEL, {});
         break;
+      case 'Lab':
+        EventBus.emit(GameEvents.OPEN_LAB, {});
+        break;
       case 'Farm':
         EventBus.emit(GameEvents.OPEN_FARM_PANEL, { instanceId: building.instanceId });
         break;

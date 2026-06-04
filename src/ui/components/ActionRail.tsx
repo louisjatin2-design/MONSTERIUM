@@ -1,105 +1,68 @@
 import React from 'react';
+import { useGameStore } from '@store/gameStore';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { QUESTS, isQuestComplete, type QuestProgressSnapshot } from '@data/quests';
+import { RailButton } from './RailButton';
 
 interface ActionRailProps {
-  onAttack:  () => void;
-  onPokedex: () => void;
-  onShop:    () => void;
-  onBreed:   () => void;
-  onHatch:   () => void;
+  onAttack: () => void;
 }
 
-// Each button either maps to one of the action props (`key`) or fires an
-// EventBus panel-open event directly (`event`). Inseln/Lager moved down from
-// the right rail so both rails carry the same number of buttons (7 each).
-const BUTTONS: Array<{
-  icon: string;
-  label: string;
-  from: string;
-  to: string;
-  border: string;
-  primary?: boolean;
-  key?: keyof ActionRailProps;
-  event?: string;
-}> = [
-  { icon: '⚔️', label: 'KÄMPFEN',    key: 'onAttack',  from: '#ff5a4a', to: '#c41f1f', border: '#ffb070', primary: true },
-  { icon: '💞', label: 'ZÜCHTEN',    key: 'onBreed',   from: '#ff5ab0', to: '#c4287a', border: '#ffb0e0' },
-  { icon: '🥚', label: 'BRUTKAMMER', key: 'onHatch',   from: '#4accd8', to: '#1f8ab8', border: '#90e0ff' },
-  { icon: '📖', label: 'MONSTER',    key: 'onPokedex', from: '#5a8ae8', to: '#2850b8', border: '#90b8ff' },
-  { icon: '🛒', label: 'LADEN',      key: 'onShop',    from: '#e8b04a', to: '#b87c1f', border: '#ffe090' },
-  { icon: '🏝️', label: 'INSELN',     event: GameEvents.OPEN_ISLANDS_PANEL, from: '#3fb87a', to: '#1f7a4a', border: '#90e0b0' },
-  { icon: '📦', label: 'LAGER',      event: GameEvents.OPEN_STORAGE,       from: '#d09a3f', to: '#9a6a1f', border: '#ffe0a0' },
-];
-
-// Floating vertical action column on the LEFT edge. Replaces the old
-// full-width bottom bar so the whole screen stays a clear habitat — only
-// the buttons themselves catch input; the gaps pass through to the world.
+// ── Bottom-LEFT action cluster ───────────────────────────────────────────────
+// New corner layout (replaces the old vertically-centred 7-button rail):
+//
+//        [ LAGER ]
+//        [ QUESTS ]
+//   [ KÄMPFEN ] [ MP ]      ← Kämpfen is the big primary button
+//
+// Züchten / Brutkammer / Labor were removed from the rail entirely (Labor is now
+// a late-game building you place on the island). Quests now also holds Trophäen,
+// reached via a tab inside the panel.
 export function ActionRail(props: ActionRailProps) {
+  // Claimable quests drive the green badge on the Quests button.
+  const claimableQuests = useGameStore(s => {
+    const snap: QuestProgressSnapshot = {
+      playerLevel: s.playerLevel,
+      storyProgress: s.storyProgress,
+      pokedexSeen: s.pokedexSeen.length,
+      monstersOwned: Object.keys(s.monsters).length,
+      buildingsBuilt: s.stats.buildingsBuilt,
+      feeds: s.stats.feeds,
+      breeds: s.stats.breeds,
+      hatches: s.stats.hatches,
+      collects: s.stats.collects,
+      battlesWon: s.stats.battlesWon,
+      highestRarityOwned: 0,
+    };
+    return QUESTS.filter(q => !s.claimedQuests.includes(q.id) && isQuestComplete(q, snap)).length;
+  });
+
   return (
-    <div className="floating-rail floating-rail--left">
-      {BUTTONS.map(btn => (
+    <div className="corner-cluster corner-cluster--bl">
+      <RailButton
+        icon="📦" label="LAGER" size="sm"
+        from="#d09a3f" to="#9a6a1f" border="#ffe0a0"
+        onClick={() => EventBus.emit(GameEvents.OPEN_STORAGE, {})}
+      />
+      <RailButton
+        icon="📋" label="QUESTS" size="sm"
+        from="#3f8fd0" to="#1f4f96" border="#90b8ff"
+        badge={claimableQuests > 0 ? claimableQuests : undefined}
+        badgeColor="#44dd66"
+        onClick={() => EventBus.emit(GameEvents.OPEN_QUESTS, {})}
+      />
+      <div className="cluster-row">
         <RailButton
-          key={btn.label}
-          icon={btn.icon}
-          label={btn.label}
-          from={btn.from}
-          to={btn.to}
-          border={btn.border}
-          primary={btn.primary}
-          onClick={btn.key ? props[btn.key] : () => EventBus.emit(btn.event!, {})}
+          icon="⚔️" label="KÄMPFEN" size="lg" primary
+          from="#ff5a4a" to="#c41f1f" border="#ffb070"
+          onClick={props.onAttack}
         />
-      ))}
+        <RailButton
+          icon="🌐" label="MULTI" size="sm"
+          from="#3f7fd0" to="#1f3f7a" border="#90b8ff"
+          onClick={() => EventBus.emit(GameEvents.OPEN_MULTIPLAYER, {})}
+        />
+      </div>
     </div>
-  );
-}
-
-function RailButton({
-  icon, label, from, to, border, primary, onClick,
-}: {
-  icon: string; label: string; from: string; to: string; border: string;
-  primary?: boolean; onClick: () => void;
-}) {
-  const [pressed, setPressed] = React.useState(false);
-
-  return (
-    <button
-      // Fire on the native click (reliable for mouse AND touch — a slight
-      // finger move during a tap fires pointercancel, which would drop an
-      // onPointerUp-based handler). Pointer events drive only the press visual.
-      onClick={onClick}
-      onPointerDown={() => setPressed(true)}
-      onPointerUp={() => setPressed(false)}
-      onPointerCancel={() => setPressed(false)}
-      onPointerLeave={() => setPressed(false)}
-      title={label}
-      style={{
-        position: 'relative',
-        width: 58,
-        background: pressed
-          ? `linear-gradient(160deg, ${to}, #1a0a0a)`
-          : `linear-gradient(160deg, ${from}, ${to})`,
-        border: `2.5px solid ${border}`,
-        borderRadius: 15,
-        padding: '7px 0 5px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-        cursor: 'pointer',
-        userSelect: 'none', touchAction: 'manipulation',
-        pointerEvents: 'auto',
-        boxShadow: pressed
-          ? '0 1px 4px rgba(0,0,0,0.6)'
-          : primary
-            ? '0 4px 14px rgba(255,90,60,0.55), inset 0 1px 0 rgba(255,255,255,0.3)'
-            : '0 4px 10px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
-        transform: pressed ? 'translateY(2px)' : 'translateY(0)',
-        transition: 'transform 0.08s, box-shadow 0.08s',
-        animation: primary && !pressed ? 'primaryPulse 1.8s ease-in-out infinite' : 'none',
-      }}>
-      <span style={{ fontSize: 25, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>{icon}</span>
-      <span style={{
-        fontSize: 8.5, fontWeight: 900, color: '#fff',
-        letterSpacing: '0.02em', textShadow: '0 1px 2px rgba(0,0,0,0.85)',
-        whiteSpace: 'nowrap',
-      }}>{label}</span>
-    </button>
   );
 }

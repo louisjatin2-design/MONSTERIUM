@@ -14,7 +14,29 @@ type Tab = 'traits' | 'effects';
 // Browsable glossary of every trait and battle effect in the game. Read-only
 // reference (the combat engine wires up a smaller subset) — lets players look
 // up exactly what each trait/effect does without leaving the game.
+// Standalone panel kept for any direct OPEN_COMPENDIUM trigger; the same content
+// is also embedded as the "Kompendium" tab inside the Monsterpedia.
 export function CompendiumPanel({ onClose }: CompendiumPanelProps) {
+  return (
+    <div className="panel panel-modal panel-w-lg" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <button className="close-btn" onClick={onClose} style={{ zIndex: 5 }}>✕</button>
+      <HelpButton
+        title="Kompendium"
+        tips={[
+          'Hier findest du alle Traits (passive Fähigkeiten) und Kampf-Effekte mit ihrer genauen Wirkung.',
+          'Wechsle oben zwischen „Traits" und „Effekte" und nutze die Suche, um schnell etwas nachzuschlagen.',
+          'Effekte sind nach Art gruppiert: Kontrolle, Schaden über Zeit, Schwächen, Schutz, Heilung und mehr.',
+          'Die Zahl rechts an jedem Effekt gibt die Standard-Dauer in Runden an.',
+        ]}
+      />
+      <CompendiumContent />
+    </div>
+  );
+}
+
+// The compendium header tabs + search + list without panel chrome, so it can be
+// dropped into the Monsterpedia's "Kompendium" tab.
+export function CompendiumContent() {
   const [tab, setTab] = useState<Tab>('traits');
   const [search, setSearch] = useState('');
 
@@ -38,18 +60,7 @@ export function CompendiumPanel({ onClose }: CompendiumPanelProps) {
   const shown = groups.reduce((n, g) => n + g.entries.length, 0);
 
   return (
-    <div className="panel panel-modal panel-w-lg" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <button className="close-btn" onClick={onClose} style={{ zIndex: 5 }}>✕</button>
-      <HelpButton
-        title="Kompendium"
-        tips={[
-          'Hier findest du alle Traits (passive Fähigkeiten) und Kampf-Effekte mit ihrer genauen Wirkung.',
-          'Wechsle oben zwischen „Traits" und „Effekte" und nutze die Suche, um schnell etwas nachzuschlagen.',
-          'Effekte sind nach Art gruppiert: Kontrolle, Schaden über Zeit, Schwächen, Schutz, Heilung und mehr.',
-          'Die Zahl rechts an jedem Effekt gibt die Standard-Dauer in Runden an.',
-        ]}
-      />
-
+    <>
       {/* Header + tabs */}
       <div style={{ padding: '14px 18px 0', background: 'linear-gradient(135deg, #1b2a48, #0c1426)', borderBottom: '2px solid #4a7bcc' }}>
         <div style={{ fontSize: 19, fontWeight: 900, color: '#8fc0ff', textShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>
@@ -118,7 +129,7 @@ export function CompendiumPanel({ onClose }: CompendiumPanelProps) {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
 

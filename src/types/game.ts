@@ -29,7 +29,7 @@ export type TraitType =
 export type EvolutionStage = 'Baby' | 'Juvenile' | 'Adult' | 'Elder';
 
 export type BuildingCategory =
-  | 'Habitat' | 'Temple' | 'Farm' | 'BreedingStation' | 'Hatchery';
+  | 'Habitat' | 'Temple' | 'Farm' | 'BreedingStation' | 'Hatchery' | 'Lab';
 
 export type MinigameType = 'TimingBar' | 'AimClick' | 'ButtonSequence' | 'MashButton' | 'SwipePath' | 'Rhythm';
 

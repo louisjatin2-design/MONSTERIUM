@@ -330,6 +330,16 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     ],
     description: 'Hatches monster eggs. Upgrade for more slots.',
   },
+  // Late-game building: the Labor (rank-up lab). Built on the island once you
+  // reach the unlock level; tapping it opens the rank-up panel (OPEN_LAB).
+  lab: {
+    id: 'lab', name: 'Labor', category: 'Lab',
+    tilesW: 3, tilesH: 3,
+    goldCost: 50000, buildTimeSec: 1800,
+    unlockLevel: 20,
+    levels: [{ level: 1, upgradeCost: 0, upgradeTimeSec: 0 }],
+    description: 'Late-Game-Gebäude. Führe hier zwei identische Monster auf Maximallevel zu einem Rank-Up zusammen (permanente Kampf-Boni).',
+  },
 };
 
 // ── Element-Tempel für alle übrigen Elemente (Gruppe 6) ─────────────────────
