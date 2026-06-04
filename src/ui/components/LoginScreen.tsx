@@ -119,13 +119,13 @@ export function LoginScreen() {
 
         <form onSubmit={submit}>
           <Field
-            label={ONLINE ? 'E-Mail' : 'Benutzername'}
+            label="Benutzername"
             value={username}
             onChange={setUsername}
-            type={ONLINE ? 'email' : 'text'}
+            type="text"
             autoFocus
-            autoComplete={ONLINE ? 'email' : 'username'}
-            placeholder={ONLINE ? 'du@beispiel.de' : 'z. B. MonsterMeister'}
+            autoComplete="username"
+            placeholder="z. B. MonsterMeister"
           />
           <Field
             label="Passwort"
@@ -183,7 +183,7 @@ export function LoginScreen() {
 
         <div style={{ marginTop: 16, fontSize: 11, color: '#8a7db8', textAlign: 'center', lineHeight: 1.5 }}>
           {ONLINE ? (
-            <>Anmeldung mit echtem Konto (E-Mail + Passwort).<br />
+            <>Anmeldung mit Benutzername + Passwort (echtes Konto).<br />
               Dein Fortschritt ist an dein Konto gebunden.</>
           ) : (
             <>Konten werden nur lokal auf diesem Gerät gespeichert.<br />

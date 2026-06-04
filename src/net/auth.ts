@@ -22,6 +22,18 @@ export function supaConfig(): SupaConfig | null {
 
 export function isSupabaseConfigured(): boolean { return supaConfig() !== null; }
 
+// ── Benutzername-Login ──────────────────────────────────────────────────────
+// Supabase-Auth braucht intern eine E-Mail. Damit sich Spieler mit einem
+// reinen BENUTZERNAMEN anmelden können, mappen wir den Namen deterministisch
+// auf eine synthetische E-Mail. Es wird nie eine Mail versendet → im Supabase-
+// Projekt muss „Confirm email" deaktiviert sein.
+export const USERNAME_EMAIL_DOMAIN = 'monsterium.app';
+export const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,30}$/;
+
+export function usernameToEmail(username: string): string {
+  return `${username.trim().toLowerCase()}@${USERNAME_EMAIL_DOMAIN}`;
+}
+
 async function authPost(path: string, body: unknown): Promise<{ ok: boolean; status: number; data: any }> {
   const c = supaConfig();
   if (!c) throw new Error('Supabase nicht konfiguriert.');
