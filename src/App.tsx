@@ -33,7 +33,7 @@ import { LoginScreen } from '@ui/components/LoginScreen';
 import { World3D } from '@game/world3d/World3D';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
-import { useAuthStore } from '@store/authStore';
+import { useAuthStore, isSupabaseConfigured } from '@store/authStore';
 import type Phaser from 'phaser';
 
 export type ActivePanel =
@@ -70,7 +70,13 @@ export type ActivePanel =
 // inside Game).
 export default function App() {
   const currentUser = useAuthStore(s => s.currentUser);
-  if (!currentUser) return <LoginScreen />;
+  const session = useAuthStore(s => s.session);
+  const restoreSession = useAuthStore(s => s.restoreSession);
+  // Beim Start eine evtl. abgelaufene Supabase-Session erneuern (oder ausloggen).
+  useEffect(() => { void restoreSession(); }, [restoreSession]);
+  // Mit konfiguriertem Backend ist ein echtes Konto (Supabase-Session) Pflicht.
+  const authed = !!currentUser && (!isSupabaseConfigured() || !!session);
+  if (!authed) return <LoginScreen />;
   return <Game />;
 }
 

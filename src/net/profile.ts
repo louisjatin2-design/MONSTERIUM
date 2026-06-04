@@ -3,13 +3,16 @@
 // Spielers (stärkste Monster, Stats) und liefert eine stabile Spieler-ID/Name
 // aus dem Account.
 import { useGameStore } from '@store/gameStore';
-import { useAuthStore } from '@store/authStore';
+import { useAuthStore, getAuthUserId } from '@store/authStore';
 import { MONSTER_DEFS } from '@data/monsters';
 import { RARITY_RANK } from '@data/rarities';
 import type { PlayerProfile, ProfileMonster } from './types';
 
-/** Stabile, account-gebundene Spieler-ID (für Supabase-Zeilen). */
+/** Stabile Spieler-ID für Supabase-Zeilen: bevorzugt die echte Auth-User-ID
+ *  (Supabase), sonst account-/lokal-gebunden. */
 export function getSelfId(): string {
+  const uid = getAuthUserId();
+  if (uid) return uid;
   const u = useAuthStore.getState().currentUser;
   return u ? `u_${u.toLowerCase()}` : 'guest';
 }

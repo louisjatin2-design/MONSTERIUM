@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { useAuthStore } from '@store/authStore';
+import { useAuthStore, isSupabaseConfigured } from '@store/authStore';
 import '../styles/global.css';
+
+const ONLINE = isSupabaseConfigured();
 
 // Full-screen gate shown before the game starts: the player must either log in
 // to an existing account or create a new one. Username + password only — no
@@ -14,6 +16,7 @@ export function LoginScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm]   = useState('');
   const [error, setError]       = useState<string | null>(null);
+  const [info, setInfo]         = useState<string | null>(null);
   const [busy, setBusy]         = useState(false);
 
   const isRegister = mode === 'register';
@@ -21,6 +24,7 @@ export function LoginScreen() {
   const switchMode = (next: 'login' | 'register') => {
     setMode(next);
     setError(null);
+    setInfo(null);
     setPassword('');
     setConfirm('');
   };
@@ -29,6 +33,7 @@ export function LoginScreen() {
     e.preventDefault();
     if (busy) return;
     setError(null);
+    setInfo(null);
 
     if (isRegister && password !== confirm) {
       setError('Die Passwörter stimmen nicht überein.');
@@ -42,8 +47,14 @@ export function LoginScreen() {
         : await login(username, password);
       if (!result.ok) {
         setError(result.error ?? 'Etwas ist schiefgelaufen.');
+      } else if (result.info) {
+        // z. B. E-Mail-Bestätigung nötig → Hinweis zeigen, zurück zum Login.
+        setInfo(result.info);
+        setMode('login');
+        setPassword('');
+        setConfirm('');
       }
-      // On success the auth store sets currentUser → App swaps to the game.
+      // Sonst: authStore setzt currentUser → App wechselt ins Spiel.
     } finally {
       setBusy(false);
     }
@@ -108,12 +119,13 @@ export function LoginScreen() {
 
         <form onSubmit={submit}>
           <Field
-            label="Benutzername"
+            label={ONLINE ? 'E-Mail' : 'Benutzername'}
             value={username}
             onChange={setUsername}
+            type={ONLINE ? 'email' : 'text'}
             autoFocus
-            autoComplete="username"
-            placeholder="z. B. MonsterMeister"
+            autoComplete={ONLINE ? 'email' : 'username'}
+            placeholder={ONLINE ? 'du@beispiel.de' : 'z. B. MonsterMeister'}
           />
           <Field
             label="Passwort"
@@ -146,6 +158,18 @@ export function LoginScreen() {
               ⚠️ {error}
             </div>
           )}
+          {info && (
+            <div style={{
+              background: 'rgba(68,200,120,0.16)',
+              border: '1px solid rgba(120,220,160,0.5)',
+              borderRadius: 8,
+              color: '#9be8bd',
+              fontSize: 13, fontWeight: 700,
+              padding: '8px 10px', marginBottom: 12,
+            }}>
+              ✉️ {info}
+            </div>
+          )}
 
           <button
             type="submit"
@@ -158,8 +182,13 @@ export function LoginScreen() {
         </form>
 
         <div style={{ marginTop: 16, fontSize: 11, color: '#8a7db8', textAlign: 'center', lineHeight: 1.5 }}>
-          Konten werden nur lokal auf diesem Gerät gespeichert.<br />
-          Jedes Konto hat seinen eigenen Spielstand.
+          {ONLINE ? (
+            <>Anmeldung mit echtem Konto (E-Mail + Passwort).<br />
+              Dein Fortschritt ist an dein Konto gebunden.</>
+          ) : (
+            <>Konten werden nur lokal auf diesem Gerät gespeichert.<br />
+              Jedes Konto hat seinen eigenen Spielstand.</>
+          )}
         </div>
       </div>
     </div>
