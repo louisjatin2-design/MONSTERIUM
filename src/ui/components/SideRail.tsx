@@ -39,16 +39,6 @@ export function SideRail() {
         onClick={() => EventBus.emit(GameEvents.OPEN_QUESTS, {})}
       />
       <RailButton
-        icon="🏝️" label="Inseln"
-        from="#3fb87a" to="#1f7a4a"
-        onClick={() => EventBus.emit(GameEvents.OPEN_ISLANDS_PANEL, {})}
-      />
-      <RailButton
-        icon="📦" label="Lager"
-        from="#d09a3f" to="#9a6a1f"
-        onClick={() => EventBus.emit(GameEvents.OPEN_STORAGE, {})}
-      />
-      <RailButton
         icon="📚" label="Kompendium"
         from="#3f6fd0" to="#1f3a96"
         onClick={() => EventBus.emit(GameEvents.OPEN_COMPENDIUM, {})}
