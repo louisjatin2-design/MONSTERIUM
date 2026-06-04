@@ -9,6 +9,7 @@ import { RARITY_RANK } from '@data/rarities';
 import type {
   OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan,
   Auction, NewAuction, NewClan, PvpState, PvpTeamMonster, PvpOpponent, PvpResult,
+  ClanMember, ClanMessage,
 } from './types';
 import { buildSelfProfile, getSelfId, getSelfName } from './profile';
 import { SupabaseOnlineService } from './supabaseService';
@@ -20,6 +21,7 @@ import {
 export type {
   OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan,
   Auction, NewAuction, NewClan, Currency, PvpState, PvpTeamMonster, PvpOpponent, PvpResult,
+  ClanMember, ClanMessage,
 } from './types';
 
 // ── Deterministische Mock-Welt ──────────────────────────────────────────────
@@ -75,16 +77,42 @@ function seedAuctions(): Auction[] {
   });
 }
 
+// Simulierte Clan-Mitglieder (Bots) je Clan, mit Elo.
+function seedClanMembers(): Record<string, ClanMember[]> {
+  const out: Record<string, ClanMember[]> = {};
+  MOCK_CLANS.forEach((c, ci) => {
+    const r = seeded(ci * 71 + 5);
+    const n = 4 + Math.floor(r() * 4);
+    out[c.id] = Array.from({ length: n }, (_, i) => ({
+      profileId: `bot_${ci}_${i}`,
+      name: BOT_NAMES[(ci * 3 + i) % BOT_NAMES.length] ?? 'Hüter',
+      elo: 800 + Math.floor(r() * 1800),
+    }));
+  });
+  return out;
+}
+
 class LocalOnlineService implements OnlineService {
   readonly kind = 'local' as const;
   private joinedClanId: string | null = null;
   private bots = makeBots();
   private auctions: Auction[] = seedAuctions();
+  private clanMembers: Record<string, ClanMember[]> = seedClanMembers();
+  private clanMessages: Record<string, ClanMessage[]> = {};
   // PvP-Zustand wird (mangels Backend) im Speicher gehalten.
   private pvpRating = PVP_START_RATING;
   private pvpWins = 0;
   private pvpLosses = 0;
   private defenseTeam: PvpTeamMonster[] | null = null;
+
+  // Mitglieder inkl. einem selbst (wenn beigetreten), nach Elo sortiert.
+  private membersOf(clanId: string): ClanMember[] {
+    const base = [...(this.clanMembers[clanId] ?? [])];
+    if (this.joinedClanId === clanId) {
+      base.push({ profileId: getSelfId(), name: getSelfName(), elo: this.pvpRating, isSelf: true });
+    }
+    return base.sort((a, b) => b.elo - a.elo);
+  }
 
   async getSelfProfile(): Promise<PlayerProfile> { return buildSelfProfile(); }
 
@@ -104,7 +132,14 @@ class LocalOnlineService implements OnlineService {
   async getFriends(): Promise<PlayerProfile[]> { return this.bots.slice(0, 5); }
 
   async listClans(): Promise<Clan[]> {
-    return MOCK_CLANS.map(c => this.joinedClanId === c.id ? { ...c, memberCount: c.memberCount + 1 } : c);
+    // Nach Gesamt-Elo der Mitglieder ranken.
+    return MOCK_CLANS
+      .map(c => {
+        const members = this.membersOf(c.id);
+        const totalElo = members.reduce((s, m) => s + m.elo, 0);
+        return { ...c, memberCount: members.length, totalElo };
+      })
+      .sort((a, b) => (b.totalElo ?? 0) - (a.totalElo ?? 0));
   }
 
   async joinClan(clanId: string): Promise<boolean> {
@@ -119,11 +154,40 @@ class LocalOnlineService implements OnlineService {
       description: input.description, trophies: 0, memberCount: 1, maxMembers: 30,
     };
     MOCK_CLANS.unshift(clan);
+    this.clanMembers[clan.id] = [];
     this.joinedClanId = clan.id;
     return clan;
   }
 
   getJoinedClanId(): string | null { return this.joinedClanId; }
+
+  async getClanMembers(clanId: string): Promise<ClanMember[]> { return this.membersOf(clanId); }
+
+  async leaveClan(clanId: string): Promise<boolean> {
+    if (this.joinedClanId !== clanId) return false;
+    this.joinedClanId = null;
+    return true;
+  }
+
+  async getClanMessages(clanId: string): Promise<ClanMessage[]> {
+    return this.clanMessages[clanId] ?? [];
+  }
+
+  async sendClanMessage(clanId: string, body: string): Promise<boolean> {
+    const text = body.trim();
+    if (!text) return false;
+    (this.clanMessages[clanId] ??= []).push({
+      id: `msg_${Date.now()}_${Math.floor(Math.random() * 1e4)}`,
+      profileId: getSelfId(), authorName: getSelfName(), body: text.slice(0, 500),
+      createdAt: new Date().toISOString(),
+    });
+    return true;
+  }
+
+  async getProfile(profileId: string): Promise<PlayerProfile | null> {
+    if (profileId === getSelfId()) return buildSelfProfile();
+    return this.bots.find(b => b.id === profileId) ?? null;
+  }
 
   async listAuctions(): Promise<Auction[]> {
     return this.auctions.filter(a => a.status === 'active');

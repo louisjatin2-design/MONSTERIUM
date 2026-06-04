@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   getOnlineService, type LeaderboardKind, type LeaderboardEntry,
   type PlayerProfile, type Clan, type Auction, type Currency,
+  type ClanMember, type ClanMessage,
 } from '../../net/onlineService';
 import { useGameStore } from '@store/gameStore';
 import { RARITY_COLORS } from '@data/rarities';
@@ -115,17 +116,18 @@ export function MultiplayerPanel({ onClose }: Props) {
           />
         )}
 
+
         {tab === 'auction' && <AuctionTab />}
       </div>
     </div>
   );
 }
 
-// ── Clans (Gruppe 10): Liste, Beitreten, Erstellen für 100 💎 ───────────────
+// ── Clans (Gruppe 10): Ranking, Beitreten/Verlassen, Mitglieder, Chat ───────
 const CLAN_COST = 100;
 function ClansTab({ clans, joined, onJoin, onChanged, onJoined }: {
   clans: Clan[]; joined: string | null;
-  onJoin: (id: string) => void; onChanged: () => void; onJoined: (id: string) => void;
+  onJoin: (id: string) => void; onChanged: () => void; onJoined: (id: string | null) => void;
 }) {
   const svc = getOnlineService();
   const diamonds = useGameStore(s => s.diamonds);
@@ -135,6 +137,20 @@ function ClansTab({ clans, joined, onJoin, onChanged, onJoined }: {
   const [desc, setDesc] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [browse, setBrowse] = useState(false);
+
+  const myClan = clans.find(c => c.id === joined) ?? null;
+
+  // Ist man in einem Clan und will ihn nicht gerade durchblättern → Detail zeigen.
+  if (myClan && !browse) {
+    return (
+      <ClanDetail
+        clan={myClan}
+        onBrowse={() => setBrowse(true)}
+        onLeft={() => { onJoined(null); onChanged(); }}
+      />
+    );
+  }
 
   const create = async () => {
     if (busy) return;
@@ -146,13 +162,19 @@ function ClansTab({ clans, joined, onJoin, onChanged, onJoined }: {
     if (clan) {
       spendDiamonds(CLAN_COST);
       onJoined(clan.id);
-      setName(''); setTag(''); setDesc(''); setMsg('✅ Clan erstellt!');
+      setName(''); setTag(''); setDesc(''); setMsg('✅ Clan erstellt!'); setBrowse(false);
       onChanged();
     } else setMsg('⚠️ Erstellen fehlgeschlagen (offline?).');
   };
 
   return (
     <>
+      {myClan && (
+        <button className="btn btn-info" style={{ marginBottom: 10, fontSize: 12 }} onClick={() => setBrowse(false)}>
+          ← Zurück zu meinem Clan
+        </button>
+      )}
+
       {/* Clan erstellen */}
       <div className="monster-card" style={{ marginBottom: 12, padding: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 900, color: '#8fc0ff', marginBottom: 6 }}>
@@ -173,27 +195,175 @@ function ClansTab({ clans, joined, onJoin, onChanged, onJoined }: {
         </button>
       </div>
 
-      {clans.map(c => (
+      {/* Ranking nach Gesamt-Elo (Kürzel vorangestellt) */}
+      <div style={{ fontSize: 12, fontWeight: 900, color: '#8fc0ff', marginBottom: 6 }}>Clan-Rangliste (Gesamt-Elo)</div>
+      {clans.map((c, i) => (
         <div key={c.id} className="monster-card" style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 24, textAlign: 'center', fontWeight: 900, color: i < 3 ? '#ffd700' : '#889' }}>{i + 1}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 900, fontSize: 14, color: '#8fc0ff' }}>[{c.tag}] {c.name}</div>
+              <div style={{ fontWeight: 900, fontSize: 14, color: '#8fc0ff' }}>
+                <span style={{ color: '#ffd700' }}>[{c.tag}]</span> {c.name}
+              </div>
               {c.description && <div style={{ fontSize: 11, color: '#9aa', marginTop: 2 }}>{c.description}</div>}
               <div style={{ fontSize: 11, color: '#778', marginTop: 2 }}>
-                🏆 {c.trophies.toLocaleString()} · 👥 {c.memberCount}/{c.maxMembers}
+                ⚔️ {(c.totalElo ?? 0).toLocaleString()} Elo · 👥 {c.memberCount}/{c.maxMembers}
               </div>
             </div>
             <button className="btn btn-primary" style={{ minWidth: 90 }}
               disabled={joined === c.id} onClick={() => onJoin(c.id)}>
-              {joined === c.id ? '✓ Beigetreten' : 'Beitreten'}
+              {joined === c.id ? '✓ Dabei' : 'Beitreten'}
             </button>
           </div>
         </div>
       ))}
-      <div style={{ fontSize: 11, color: '#778', textAlign: 'center', marginTop: 8 }}>
-        Clan-Kriege (wöchentlich, mit Ranglisten) folgen mit dem Server-Backend.
-      </div>
     </>
+  );
+}
+
+// ── Clan-Detailscreen: Mitglieder (mit Elo), Besuchen, Verlassen, Chat ──────
+function ClanDetail({ clan, onBrowse, onLeft }: { clan: Clan; onBrowse: () => void; onLeft: () => void }) {
+  const svc = getOnlineService();
+  const [members, setMembers] = useState<ClanMember[]>([]);
+  const [messages, setMessages] = useState<ClanMessage[]>([]);
+  const [draft, setDraft] = useState('');
+  const [visitId, setVisitId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const selfId = members.find(m => m.isSelf)?.profileId;
+
+  useEffect(() => { svc.getClanMembers(clan.id).then(setMembers); }, [svc, clan.id]);
+  // Chat alle 4s pollen.
+  useEffect(() => {
+    let alive = true;
+    const load = () => svc.getClanMessages(clan.id).then(m => { if (alive) setMessages(m); });
+    load();
+    const t = setInterval(load, 4000);
+    return () => { alive = false; clearInterval(t); };
+  }, [svc, clan.id]);
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    const ok = await svc.sendClanMessage(clan.id, text);
+    setBusy(false);
+    if (ok) { setDraft(''); svc.getClanMessages(clan.id).then(setMessages); }
+  };
+
+  const leave = async () => {
+    if (!confirm(`Clan [${clan.tag}] ${clan.name} wirklich verlassen?`)) return;
+    if (await svc.leaveClan(clan.id)) onLeft();
+  };
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: '#8fc0ff' }}>
+            <span style={{ color: '#ffd700' }}>[{clan.tag}]</span> {clan.name}
+          </div>
+          <div style={{ fontSize: 11, color: '#778' }}>
+            ⚔️ {(clan.totalElo ?? 0).toLocaleString()} Elo · 👥 {clan.memberCount}/{clan.maxMembers}
+          </div>
+        </div>
+        <button className="btn btn-info" style={{ fontSize: 11, padding: '5px 8px' }} onClick={onBrowse}>Andere Clans</button>
+        <button className="btn btn-danger" style={{ fontSize: 11, padding: '5px 8px' }} onClick={leave}>Verlassen</button>
+      </div>
+
+      {/* Mitglieder */}
+      <div style={{ fontSize: 12, fontWeight: 900, color: '#8fc0ff', margin: '6px 0' }}>Mitglieder</div>
+      {members.length === 0 && <div style={{ fontSize: 12, color: '#778' }}>Noch keine Mitglieder geladen.</div>}
+      {members.map((m, i) => (
+        <div key={m.profileId} className="monster-card" style={{
+          marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10,
+          border: m.isSelf ? '1px solid #ffd700' : undefined,
+        }}>
+          <div style={{ width: 22, textAlign: 'center', fontWeight: 900, color: i < 3 ? '#ffd700' : '#889' }}>{i + 1}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, color: m.isSelf ? '#ffd700' : '#fff' }}>
+              {m.name}{m.isSelf ? ' (Du)' : ''}
+            </div>
+            <div style={{ fontSize: 11, color: '#9aa' }}>⚔️ {m.elo.toLocaleString()} Elo</div>
+          </div>
+          {!m.isSelf && (
+            <button className="btn btn-info" style={{ fontSize: 11, padding: '4px 8px' }} onClick={() => setVisitId(m.profileId)}>
+              Besuchen
+            </button>
+          )}
+        </div>
+      ))}
+
+      {/* Chat */}
+      <div style={{ fontSize: 12, fontWeight: 900, color: '#8fc0ff', margin: '12px 0 6px' }}>Clan-Chat</div>
+      <div style={{
+        background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
+        padding: 8, height: 170, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6,
+      }}>
+        {messages.length === 0 && <div style={{ fontSize: 12, color: '#778', textAlign: 'center', marginTop: 60 }}>Noch keine Nachrichten — schreib die erste!</div>}
+        {messages.map(msg => {
+          const mine = msg.profileId === selfId;
+          return (
+            <div key={msg.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+              <div style={{ fontSize: 10, color: '#8fa0c0', marginBottom: 1, textAlign: mine ? 'right' : 'left' }}>{msg.authorName}</div>
+              <div style={{
+                background: mine ? 'rgba(63,127,208,0.35)' : 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '5px 9px',
+                fontSize: 13, color: '#fff', wordBreak: 'break-word',
+              }}>{msg.body}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+        <input value={draft} onChange={e => setDraft(e.target.value)} maxLength={500}
+          onKeyDown={e => { if (e.key === 'Enter') send(); }}
+          placeholder="Nachricht…" style={inputStyle('1 1 auto')} />
+        <button className="btn btn-primary" disabled={busy || !draft.trim()} onClick={send} style={{ fontSize: 12, padding: '6px 12px' }}>
+          Senden
+        </button>
+      </div>
+
+      {visitId && <ProfileModal profileId={visitId} onClose={() => setVisitId(null)} />}
+    </>
+  );
+}
+
+// Spieler-Profil eines Clan-Mitglieds (Besuchen).
+function ProfileModal({ profileId, onClose }: { profileId: string; onClose: () => void }) {
+  const svc = getOnlineService();
+  const [profile, setProfile] = useState<PlayerProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { svc.getProfile(profileId).then(p => { setProfile(p); setLoading(false); }); }, [svc, profileId]);
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.7)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} className="panel" style={{ position: 'relative', width: 'min(360px, calc(100vw - 32px))', padding: 18 }}>
+        <button className="close-btn" onClick={onClose}>✕</button>
+        {loading ? (
+          <div style={{ color: '#aab', textAlign: 'center', padding: 20 }}>Lade Profil…</div>
+        ) : !profile ? (
+          <div style={{ color: '#aab', textAlign: 'center', padding: 20 }}>Profil nicht gefunden.</div>
+        ) : (
+          <>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#ffd700', marginBottom: 4 }}>{profile.name}</div>
+            <div style={{ fontSize: 12, color: '#9aa', marginBottom: 10 }}>
+              Level {profile.playerLevel} · 🏆 {profile.trophies.toLocaleString()} · ⚔️ {profile.battlesWon} Siege
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#8fc0ff', marginBottom: 4 }}>Stärkste Monster</div>
+            {profile.topMonsters.length === 0 && <div style={{ fontSize: 12, color: '#778' }}>—</div>}
+            {profile.topMonsters.map((m, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#ddd', padding: '3px 0' }}>
+                <span>{m.name}</span>
+                <span style={{ color: '#9aa' }}>Lv {m.level} · {m.rarity}</span>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -10,7 +10,7 @@
 //  • PvP-Echtzeit, Trading & Clan-Kriege brauchen Realtime-Channels (Follow-up).
 import type {
   OnlineService, PlayerProfile, LeaderboardKind, LeaderboardEntry, Clan, Auction, NewAuction, NewClan,
-  PvpState, PvpTeamMonster, PvpOpponent, PvpResult,
+  PvpState, PvpTeamMonster, PvpOpponent, PvpResult, ClanMember, ClanMessage,
 } from './types';
 import { buildSelfProfile, getSelfId, getSelfName } from './profile';
 import {
@@ -110,18 +110,43 @@ export class SupabaseOnlineService implements OnlineService {
 
   async listClans(): Promise<Clan[]> {
     try {
-      // Mitgliederzahl über Resource-Embedding (clan_members(count)).
-      const res = await this.rest('clans?select=*,clan_members(count)&order=trophies.desc');
+      // Clans inkl. Mitglieder-IDs (Embedding), dann Gesamt-Elo aus pvp_teams.
+      const res = await this.rest('clans?select=*,clan_members(profile_id)');
       if (!res.ok) return [];
       const rows = (await res.json()) as any[];
-      // Eigene Clan-Mitgliedschaft cachen.
       void this.refreshJoinedClan();
-      return rows.map(r => ({
-        id: r.id, name: r.name, tag: r.tag, description: r.description ?? '',
-        trophies: r.trophies ?? 0, maxMembers: r.max_members ?? 30,
-        memberCount: Array.isArray(r.clan_members) ? (r.clan_members[0]?.count ?? 0) : 0,
-      }));
+
+      // Alle Mitglieder-IDs einsammeln und ihre Ratings in EINER Abfrage holen.
+      const allIds = new Set<string>();
+      for (const r of rows) for (const m of (r.clan_members ?? [])) allIds.add(m.profile_id);
+      const ratings = await this.ratingsFor([...allIds]);
+
+      return rows
+        .map(r => {
+          const members: { profile_id: string }[] = r.clan_members ?? [];
+          const totalElo = members.reduce((s, m) => s + (ratings[m.profile_id] ?? PVP_START_RATING), 0);
+          return {
+            id: r.id, name: r.name, tag: r.tag, description: r.description ?? '',
+            trophies: r.trophies ?? 0, maxMembers: r.max_members ?? 30,
+            memberCount: members.length, totalElo,
+          } as Clan;
+        })
+        .sort((a, b) => (b.totalElo ?? 0) - (a.totalElo ?? 0));
     } catch { return []; }
+  }
+
+  // Ratings (pvp_teams.rating) für mehrere Profile in einer Abfrage.
+  private async ratingsFor(ids: string[]): Promise<Record<string, number>> {
+    if (ids.length === 0) return {};
+    try {
+      const list = ids.map(id => encodeURIComponent(id)).join(',');
+      const res = await this.rest(`pvp_teams?select=profile_id,rating&profile_id=in.(${list})`);
+      if (!res.ok) return {};
+      const rows = (await res.json()) as { profile_id: string; rating: number }[];
+      const out: Record<string, number> = {};
+      for (const r of rows) out[r.profile_id] = r.rating ?? PVP_START_RATING;
+      return out;
+    } catch { return {}; }
   }
 
   private async refreshJoinedClan(): Promise<void> {
@@ -165,6 +190,67 @@ export class SupabaseOnlineService implements OnlineService {
   }
 
   getJoinedClanId(): string | null { return this.joinedClanId; }
+
+  async getClanMembers(clanId: string): Promise<ClanMember[]> {
+    try {
+      const res = await this.rest(`clan_members?clan_id=eq.${encodeURIComponent(clanId)}&select=profile_id,profiles(name)`);
+      if (!res.ok) return [];
+      const rows = (await res.json()) as any[];
+      const ratings = await this.ratingsFor(rows.map(r => r.profile_id));
+      const self = getSelfId();
+      return rows
+        .map(r => ({
+          profileId: r.profile_id,
+          name: r.profiles?.name ?? 'Hüter',
+          elo: ratings[r.profile_id] ?? PVP_START_RATING,
+          isSelf: r.profile_id === self,
+        }))
+        .sort((a, b) => b.elo - a.elo);
+    } catch { return []; }
+  }
+
+  async leaveClan(clanId: string): Promise<boolean> {
+    try {
+      const res = await this.rest(
+        `clan_members?clan_id=eq.${encodeURIComponent(clanId)}&profile_id=eq.${encodeURIComponent(getSelfId())}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok) return false;
+      this.joinedClanId = null;
+      return true;
+    } catch { return false; }
+  }
+
+  async getClanMessages(clanId: string): Promise<ClanMessage[]> {
+    try {
+      const res = await this.rest(`clan_messages?clan_id=eq.${encodeURIComponent(clanId)}&select=*&order=created_at.asc&limit=100`);
+      if (!res.ok) return [];
+      return ((await res.json()) as any[]).map(r => ({
+        id: r.id, profileId: r.profile_id, authorName: r.author_name, body: r.body, createdAt: r.created_at,
+      }));
+    } catch { return []; }
+  }
+
+  async sendClanMessage(clanId: string, body: string): Promise<boolean> {
+    const text = body.trim();
+    if (!text) return false;
+    try {
+      const res = await this.rest('clan_messages', {
+        method: 'POST',
+        body: JSON.stringify({ clan_id: clanId, profile_id: getSelfId(), author_name: getSelfName(), body: text.slice(0, 500) }),
+      });
+      return res.ok;
+    } catch { return false; }
+  }
+
+  async getProfile(profileId: string): Promise<PlayerProfile | null> {
+    try {
+      const res = await this.rest(`profiles?id=eq.${encodeURIComponent(profileId)}&select=*&limit=1`);
+      if (!res.ok) return null;
+      const rows = (await res.json()) as ProfileRow[];
+      return rows[0] ? this.rowToProfile(rows[0]) : null;
+    } catch { return null; }
+  }
 
   // ── Auktionshaus ──────────────────────────────────────────────────────────
   private rowToAuction(r: any): Auction {

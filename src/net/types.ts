@@ -38,6 +38,25 @@ export interface Clan {
   trophies: number;
   memberCount: number;
   maxMembers: number;
+  // Gruppe 10 — Clan-Ranking nach Gesamt-Elo (Summe der Mitglieder-Ratings).
+  totalElo?: number;
+}
+
+// Ein Clan-Mitglied mit seiner PvP-Elo.
+export interface ClanMember {
+  profileId: string;
+  name: string;
+  elo: number;
+  isSelf?: boolean;
+}
+
+// Eine Clan-Chat-Nachricht.
+export interface ClanMessage {
+  id: string;
+  profileId: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
 }
 
 // Eingabe zum Erstellen eines Clans.
@@ -121,6 +140,12 @@ export interface OnlineService {
   joinClan(clanId: string): Promise<boolean>;
   createClan(input: NewClan): Promise<Clan | null>;
   getJoinedClanId(): string | null;
+  // Clan-Detail: Mitglieder (mit Elo), Verlassen, Chat, Profil eines Spielers.
+  getClanMembers(clanId: string): Promise<ClanMember[]>;
+  leaveClan(clanId: string): Promise<boolean>;
+  getClanMessages(clanId: string): Promise<ClanMessage[]>;
+  sendClanMessage(clanId: string, body: string): Promise<boolean>;
+  getProfile(profileId: string): Promise<PlayerProfile | null>;
   // Auktionshaus
   listAuctions(): Promise<Auction[]>;
   createAuction(input: NewAuction): Promise<Auction | null>;
