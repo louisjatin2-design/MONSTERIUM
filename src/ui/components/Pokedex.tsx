@@ -9,6 +9,7 @@ import { getMonsterFaction, FACTION_COLORS, FACTION_ICONS, FACTION_LABELS, type 
 import type { RarityType, ElementType } from '@gtypes/game';
 import { MonsterDetail } from './MonsterDetail';
 import { HelpButton } from './HelpButton';
+import { CompendiumContent } from './CompendiumPanel';
 import '../styles/global.css';
 
 interface PokedexProps { onClose: () => void; }
@@ -23,6 +24,9 @@ const FACTION_ORDER: Faction[] = ['Good', 'Evil', 'Neutral'];
 export function Pokedex({ onClose }: PokedexProps) {
   const pokedexSeen = useGameStore(s => s.pokedexSeen);
   const monsters = useGameStore(s => s.monsters);
+  // "Monster" shows the Monsterpedia grid; "Kompendium" the trait/effect glossary
+  // (folded in here so the bottom rail doesn't need a separate Kompendium button).
+  const [tab, setTab] = useState<'monster' | 'kompendium'>('monster');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [rarityFilter, setRarityFilter] = useState<RarityType | 'All'>('All');
@@ -80,6 +84,18 @@ export function Pokedex({ onClose }: PokedexProps) {
         ]}
       />
 
+      {/* Tabs: Monster | Kompendium */}
+      <div style={{ display: 'flex', gap: 8, padding: '12px 14px 0', background: 'linear-gradient(135deg, #2a1148, #160828)' }}>
+        <PdxTab label="📖 Monster" active={tab === 'monster'} onClick={() => setTab('monster')} />
+        <PdxTab label="📚 Kompendium" active={tab === 'kompendium'} onClick={() => setTab('kompendium')} />
+      </div>
+
+      {tab === 'kompendium' ? (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <CompendiumContent />
+        </div>
+      ) : (
+      <>
       {/* Header with completion bar */}
       <div style={{
         padding: '14px 18px 10px',
@@ -218,7 +234,23 @@ export function Pokedex({ onClose }: PokedexProps) {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
+  );
+}
+
+function PdxTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{
+      flex: 1, padding: '8px 0', fontSize: 13, fontWeight: 900, cursor: 'pointer',
+      border: 'none', borderRadius: '8px 8px 0 0',
+      background: active ? 'rgba(119,68,204,0.3)' : 'rgba(0,0,0,0.25)',
+      color: active ? '#c79aff' : '#7a6a94',
+      borderBottom: active ? '2px solid #c79aff' : '2px solid transparent',
+    }}>
+      {label}
+    </button>
   );
 }
 

@@ -12,7 +12,27 @@ import '../styles/global.css';
 interface Props { onClose: () => void; }
 
 // ── Achievements / Trophäen (Gruppe 5) ──────────────────────────────────────
+// Standalone panel kept for any direct OPEN_ACHIEVEMENTS trigger; the same list
+// is also embedded as the "Trophäen" tab inside the Quests panel.
 export function AchievementsPanel({ onClose }: Props) {
+  return (
+    <div className="panel panel-modal panel-w-lg" style={{ display: 'flex', flexDirection: 'column' }}>
+      <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Trophäen"
+        tips={[
+          'Erfülle Meilensteine, um Trophäen und einmalige Belohnungen zu erhalten.',
+          'Abholbare Trophäen zeigen einen „Belohnung holen"-Button.',
+        ]}
+      />
+      <AchievementsContent />
+    </div>
+  );
+}
+
+// The trophy list + heading without any panel chrome, so it can be dropped into
+// the Quests panel's "Trophäen" tab.
+export function AchievementsContent() {
   const stats = useGameStore(s => s.stats);
   const monsters = useGameStore(s => s.monsters);
   const claimed = useGameStore(s => s.claimedAchievements);
@@ -38,18 +58,10 @@ export function AchievementsPanel({ onClose }: Props) {
   const done = ACHIEVEMENTS.filter(a => isAchievementComplete(a, snap)).length;
 
   return (
-    <div className="panel panel-modal panel-w-lg" style={{ display: 'flex', flexDirection: 'column' }}>
-      <button className="close-btn" onClick={onClose}>✕</button>
-      <HelpButton
-        title="Trophäen"
-        tips={[
-          'Erfülle Meilensteine, um Trophäen und einmalige Belohnungen zu erhalten.',
-          'Abholbare Trophäen zeigen einen „Belohnung holen"-Button.',
-        ]}
-      />
+    <>
       <div className="panel-title">🏆 Trophäen ({done}/{total})</div>
 
-      <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
+      <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4, flex: 1, minHeight: 0 }}>
         {ACHIEVEMENTS.map(a => {
           const prog = Math.min(achievementProgress(a, snap), a.threshold);
           const complete = isAchievementComplete(a, snap);
@@ -91,6 +103,6 @@ export function AchievementsPanel({ onClose }: Props) {
           );
         })}
       </div>
-    </div>
+    </>
   );
 }

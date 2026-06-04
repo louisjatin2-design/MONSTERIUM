@@ -7,7 +7,27 @@ import '../styles/global.css';
 
 interface IslandsPanelProps { onClose: () => void; }
 
+// Standalone panel kept for any direct OPEN_ISLANDS_PANEL trigger; the same list
+// is also embedded as the "Inseln" tab inside the shop (LADEN).
 export function IslandsPanel({ onClose }: IslandsPanelProps) {
+  return (
+    <div className="panel panel-modal panel-w-md" style={{ padding: 20, display: 'flex', flexDirection: 'column' }}>
+      <button className="close-btn" onClick={onClose}>✕</button>
+      <HelpButton
+        title="Inseln"
+        tips={[
+          'Alle freigeschalteten Inseln liegen jetzt zusammen auf einer großen Karte — du musst nicht mehr wechseln, sondern scrollst einfach hin und her.',
+          '„Besuchen" schwenkt die Kamera zu einer Insel; bauen kannst du direkt auf jeder Insel, indem du dort ein freies Feld antippst.',
+          'Neue Inseln schaltest du mit Gold frei und gewinnst so mehr Baufläche.',
+        ]}
+      />
+      <IslandsContent onClose={onClose} />
+    </div>
+  );
+}
+
+// The islands heading + list without panel chrome, for embedding in the shop tab.
+export function IslandsContent({ onClose }: { onClose: () => void }) {
   const unlocked      = useGameStore(s => s.unlockedIslands);
   const currentId     = useGameStore(s => s.currentIslandId);
   const gold          = useGameStore(s => s.gold);
@@ -31,16 +51,7 @@ export function IslandsPanel({ onClose }: IslandsPanelProps) {
   };
 
   return (
-    <div className="panel panel-modal panel-w-md" style={{ padding: 20, display: 'flex', flexDirection: 'column' }}>
-      <button className="close-btn" onClick={onClose}>✕</button>
-      <HelpButton
-        title="Inseln"
-        tips={[
-          'Alle freigeschalteten Inseln liegen jetzt zusammen auf einer großen Karte — du musst nicht mehr wechseln, sondern scrollst einfach hin und her.',
-          '„Besuchen" schwenkt die Kamera zu einer Insel; bauen kannst du direkt auf jeder Insel, indem du dort ein freies Feld antippst.',
-          'Neue Inseln schaltest du mit Gold frei und gewinnst so mehr Baufläche.',
-        ]}
-      />
+    <>
       <div className="panel-title">🏝️ Inseln</div>
       <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
         Gold: <span className="gold-text">🪙 {gold}</span>
@@ -87,6 +98,6 @@ export function IslandsPanel({ onClose }: IslandsPanelProps) {
           );
         })}
       </div>
-    </div>
+    </>
   );
 }

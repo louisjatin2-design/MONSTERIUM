@@ -8,11 +8,15 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { MONSTER_EMOJI } from '@data/monsterEmoji';
 import { RARITY_RANK } from '@data/rarities';
 import { HelpButton } from './HelpButton';
+import { AchievementsContent } from './AchievementsPanel';
 import '../styles/global.css';
 
 interface QuestPanelProps { onClose: () => void; }
 
+// Merged Aufträge + Trophäen panel — the two were folded together so the bottom
+// rail only needs one "Quests" button (Trophäen is reached via the tab here).
 export function QuestPanel({ onClose }: QuestPanelProps) {
+  const [tab, setTab] = useState<'quests' | 'trophies'>('quests');
   // Select primitives individually so Zustand never sees a fresh object.
   const playerLevel    = useGameStore(s => s.playerLevel);
   const storyProgress  = useGameStore(s => s.storyProgress);
@@ -70,25 +74,37 @@ export function QuestPanel({ onClose }: QuestPanelProps) {
         background: 'linear-gradient(135deg, #102a18, #06160d)',
         borderBottom: '2px solid #44bb66',
       }}>
-        <div style={{ fontSize: 19, fontWeight: 900, color: '#66ff99', textShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>
-          📋 Aufträge
-        </div>
-        <div style={{ fontSize: 12, color: '#9cc', marginTop: 2 }}>
-          {claimableCount > 0
-            ? `${claimableCount} Belohnung${claimableCount > 1 ? 'en' : ''} bereit zum Abholen!`
-            : 'Erfülle Ziele für Belohnungen.'}
+        {/* Tabs: Aufträge | Trophäen */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <TabChip label="📋 Aufträge" active={tab === 'quests'} onClick={() => setTab('quests')} />
+          <TabChip label="🏆 Trophäen" active={tab === 'trophies'} onClick={() => setTab('trophies')} />
         </div>
 
-        {/* Category filter */}
-        <div style={{ display: 'flex', gap: 4, marginTop: 10, flexWrap: 'wrap' }}>
-          <CatChip label="Alle" active={filter === 'All'} onClick={() => setFilter('All')} />
-          {QUEST_CATEGORIES.map(c => (
-            <CatChip key={c} label={c} active={filter === c} onClick={() => setFilter(c)} />
-          ))}
-        </div>
+        {tab === 'quests' && (
+          <>
+            <div style={{ fontSize: 12, color: '#9cc', marginTop: 8 }}>
+              {claimableCount > 0
+                ? `${claimableCount} Belohnung${claimableCount > 1 ? 'en' : ''} bereit zum Abholen!`
+                : 'Erfülle Ziele für Belohnungen.'}
+            </div>
+
+            {/* Category filter */}
+            <div style={{ display: 'flex', gap: 4, marginTop: 10, flexWrap: 'wrap' }}>
+              <CatChip label="Alle" active={filter === 'All'} onClick={() => setFilter('All')} />
+              {QUEST_CATEGORIES.map(c => (
+                <CatChip key={c} label={c} active={filter === c} onClick={() => setFilter(c)} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* List */}
+      {tab === 'trophies' ? (
+        <div style={{ overflowY: 'auto', padding: 14, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <AchievementsContent />
+        </div>
+      ) : (
+      /* Quest list */
       <div style={{ overflowY: 'auto', padding: 14, flex: 1, minHeight: 0 }}>
         {ordered.map(q => {
           const cur = questProgress(q, snap);
@@ -148,7 +164,22 @@ export function QuestPanel({ onClose }: QuestPanelProps) {
           );
         })}
       </div>
+      )}
     </div>
+  );
+}
+
+function TabChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{
+      flex: 1, padding: '8px 0', fontSize: 13, fontWeight: 900, cursor: 'pointer',
+      border: 'none', borderRadius: '8px 8px 0 0',
+      background: active ? 'rgba(68,221,102,0.22)' : 'rgba(0,0,0,0.25)',
+      color: active ? '#66ff99' : '#7a8a80',
+      borderBottom: active ? '2px solid #66ff99' : '2px solid transparent',
+    }}>
+      {label}
+    </button>
   );
 }
 

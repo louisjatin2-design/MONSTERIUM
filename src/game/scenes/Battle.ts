@@ -182,6 +182,9 @@ export class Battle extends Phaser.Scene {
     // Draw monster cards
     this.drawMonsterCards();
 
+    // Mirror the line-up to the optional 3D arena (?battle3d=1).
+    this.emit3dInit();
+
     // Announce the first wave when there's more than one to come.
     if (this.waves.length > 1) {
       this.time.delayedCall(1150, () => this.showWaveBanner());
@@ -719,6 +722,7 @@ export class Battle extends Phaser.Scene {
     });
     const hpLabel = this.hpLabels.get(c.instanceId);
     if (hpLabel) hpLabel.setText(`${Math.max(0, c.currentHp)}/${c.maxHp}`);
+    this.emit3dStats(c);
 
     // Faint the avatar once a combatant is knocked out.
     if (c.currentHp <= 0) this.playFaint(c.instanceId);
@@ -728,6 +732,7 @@ export class Battle extends Phaser.Scene {
 
   // Quick lunge of the attacker's avatar toward its target, then snap back.
   private playLunge(attackerId: string, toward: 'right' | 'left') {
+    EventBus.emit(GameEvents.BATTLE_3D_LUNGE, { attackerId });
     const avatar = this.avatars.get(attackerId);
     const home = this.avatarHomes.get(attackerId);
     if (!avatar || !home) return;
@@ -743,6 +748,7 @@ export class Battle extends Phaser.Scene {
 
   // Shake + white flash on a card that just took a hit.
   private playHitReaction(targetId: string) {
+    EventBus.emit(GameEvents.BATTLE_3D_HIT, { id: targetId });
     const avatar = this.avatars.get(targetId);
     const home = this.avatarHomes.get(targetId);
     if (avatar && home) {
@@ -807,6 +813,7 @@ export class Battle extends Phaser.Scene {
 
   // Fade out a defeated combatant's avatar completely, then raise a skull.
   private playFaint(instanceId: string) {
+    EventBus.emit(GameEvents.BATTLE_3D_FAINT, { id: instanceId });
     const avatar = this.avatars.get(instanceId);
     if (!avatar || avatar.getData('fainted')) return;
     avatar.setData('fainted', true);
@@ -859,6 +866,7 @@ export class Battle extends Phaser.Scene {
     ub.bar.setFillStyle(ready ? 0xffffff : 0xffd700);
     const icon = this.ultReadyIcons.get(c.instanceId);
     if (icon) icon.setText(ready ? '⚡ ULTIMA BEREIT ⚡' : '');
+    this.emit3dStats(c);
   }
 
   private updateEnergyBar(c: BattleCombatant) {
@@ -867,6 +875,31 @@ export class Battle extends Phaser.Scene {
     const ratio = Math.max(0, Math.min(1, c.energy / c.maxEnergy));
     this.tweens.add({ targets: eb.bar, width: eb.bg.width * ratio, duration: 300, ease: 'Quad.out' });
     eb.label.setText(`⚡${Math.round(c.energy)}`);
+    this.emit3dStats(c);
+  }
+
+  // ── 3D-Kampf-Bühne (Battle3DStage) bridge ──────────────────────────────────
+  // The Phaser battle stays authoritative; these lightweight emits let the
+  // optional Three.js arena (?battle3d=1) mirror the fight (line-ups + bars +
+  // hit/faint VFX) without coupling the combat logic to the renderer.
+  private emit3dInit() {
+    const toMember = (c: BattleCombatant, boss: boolean) => ({
+      id: c.instanceId, defId: c.defId, level: c.level, name: c.name, isPlayer: c.isPlayer, boss,
+    });
+    const finalWave = this.waveIndex >= this.waves.length - 1;
+    EventBus.emit(GameEvents.BATTLE_3D_INIT, {
+      players: this.playerCombatants.map(c => toMember(c, false)),
+      enemies: this.enemyCombatants.map((c, i) => toMember(c, !!this.data_.isBoss && finalWave && i === 0)),
+    });
+    [...this.playerCombatants, ...this.enemyCombatants].forEach(c => this.emit3dStats(c));
+  }
+
+  private emit3dStats(c: BattleCombatant) {
+    EventBus.emit(GameEvents.BATTLE_3D_STATS, {
+      id: c.instanceId, hp: c.currentHp, maxHp: c.maxHp,
+      energy: c.energy, maxEnergy: c.maxEnergy,
+      ult: c.ultCharge, ultCost: ultChargeCostFor(c.attackStat),
+    });
   }
 
   private startRound() {

@@ -33,6 +33,7 @@ import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPa
 import { LoginScreen } from '@ui/components/LoginScreen';
 import { UsernamePrompt } from '@ui/components/UsernamePrompt';
 import { World3D } from '@game/world3d/World3D';
+import { Battle3DStage } from '@game/world3d/Battle3DStage';
 import { EventBus, GameEvents } from '@game/EventBus';
 import { useGameStore } from '@store/gameStore';
 import { useAuthStore, isSupabaseConfigured } from '@store/authStore';
@@ -216,6 +217,10 @@ function Game() {
   // canvas and routes clicks through the same EventBus events; Phaser is kept
   // underneath for battles. Set ?world3d=0 to fall back to the 2D Phaser island.
   const world3dEnabled = typeof location === 'undefined' || new URLSearchParams(location.search).get('world3d') !== '0';
+  // Optional Three.js battle arena (free camera + 3D models). Opt-in via
+  // ?battle3d=1 — it renders the fight's top region in 3D while the Phaser
+  // battle (underneath) keeps driving the logic + the bottom attack controls.
+  const battle3dEnabled = typeof location !== 'undefined' && new URLSearchParams(location.search).get('battle3d') === '1';
 
   const isBattleActive = activePanel?.type === 'battle';
   const hasPanelOpen   = activePanel !== null && !isBattleActive;
@@ -229,6 +234,12 @@ function Game() {
       {/* Real 3D overworld (opt-in via ?world3d=1). Sits above Phaser and hides
           while a battle is active so the Phaser battle screen shows through. */}
       {world3dEnabled && <World3D hidden={isBattleActive} />}
+
+      {/* Optional 3D battle arena — only while a battle is active. Covers the
+          top ~70% so the Phaser battle's bottom attack controls stay tappable. */}
+      {battle3dEnabled && isBattleActive && (
+        <Battle3DStage style={{ bottom: '30%' }} />
+      )}
 
       {/* Backdrop: dims Phaser (and the floating rails) when a panel is open,
           and closes the panel when the empty area is tapped. */}
@@ -305,10 +316,6 @@ function Game() {
           <SideRail />
           <ActionRail
             onAttack={() => setActivePanel({ type: 'battleSelect' })}
-            onPokedex={() => setActivePanel({ type: 'pokedex' })}
-            onShop={() => setActivePanel({ type: 'shop' })}
-            onBreed={() => setActivePanel({ type: 'breeding' })}
-            onHatch={() => setActivePanel({ type: 'hatchery' })}
           />
         </>
       )}
@@ -407,6 +414,16 @@ function Game() {
 
       {/* First-run onboarding flow */}
       {showTutorial && <TutorialOverlay onClose={() => setTutorialDismissed(true)} />}
+
+      {/* Landscape-only gate — covers the screen while the device is held in
+          portrait (CSS-driven via @media (orientation: portrait)). */}
+      <div className="rotate-gate">
+        <div className="rotate-gate__icon">📱</div>
+        <div className="rotate-gate__title">Bitte drehen</div>
+        <div className="rotate-gate__text">
+          MONSTERIUM wird im Querformat gespielt. Drehe dein Gerät quer, um weiterzuspielen.
+        </div>
+      </div>
     </div>
   );
 }

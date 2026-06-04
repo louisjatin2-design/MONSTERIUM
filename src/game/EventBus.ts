@@ -39,4 +39,10 @@ export const GameEvents = {
   OPEN_SEASON_PASS:     'open-season-pass',    // Gruppe 5: Season Pass / Battle Pass
   OPEN_MULTIPLAYER:     'open-multiplayer',    // Gruppe 10: Bestenliste/Freunde/Clans
   OPEN_PVP_ARENA:       'open-pvp-arena',      // Gruppe 10: PvP-Arena (asynchrones PvP)
+  // ── 3D-Kampf-Bühne (Battle3DStage) — Phaser-Kampf → Three.js-Visualisierung ──
+  BATTLE_3D_INIT:       'battle-3d-init',       // team line-ups when a battle starts
+  BATTLE_3D_STATS:      'battle-3d-stats',      // a combatant's HP/Energy/Ult changed
+  BATTLE_3D_LUNGE:      'battle-3d-lunge',      // attacker lunges toward its target
+  BATTLE_3D_HIT:        'battle-3d-hit',        // a combatant just took a hit
+  BATTLE_3D_FAINT:      'battle-3d-faint',      // a combatant was knocked out
 } as const;

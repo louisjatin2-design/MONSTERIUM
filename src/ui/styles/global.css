@@ -224,38 +224,37 @@ button, .btn, .monster-card, .close-btn {
   touch-action: manipulation;
 }
 
-/* ── Floating side rails (ActionRail / SideRail) ──────────────────────
-   Positioned via CSS so media queries can shrink them on short (landscape
-   phone) viewports, and so they clear the iOS notch via safe-area insets. */
-.floating-rail {
+/* ── Corner action clusters (ActionRail = bottom-left, SideRail = bottom-right)
+   The old vertically-centred rails were replaced by two corner clusters that
+   anchor to the bottom corners of the screen. Each is scaled by the single
+   --ui-scale factor (src/ui/responsiveScale.ts) so it fits short screens and
+   clears the iOS home-bar / notch via the safe-area insets. */
+.corner-cluster {
   position: absolute;
-  /* Centre on the VISIBLE viewport (--vh tracks visualViewport, i.e. excludes
-     the mobile browser's address/tool bar). Using a raw 50% would centre on the
-     larger layout viewport, pushing the lowest side buttons underneath the
-     bottom toolbar / home-bar where they can't be tapped. */
-  top: calc(var(--vh, 1vh) * 50);
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
+  gap: 8px;
   z-index: 140;
   pointer-events: none;
 }
-.floating-rail--left {
+.corner-cluster--bl {
   left: calc(8px + env(safe-area-inset-left, 0px));
-  gap: 10px;
-  /* The single --ui-scale factor (computed in src/ui/responsiveScale.ts from
-     the live viewport) shrinks the rail to fit short screens and grows it a
-     touch on big monitors — continuously, no per-device breakpoints. */
-  transform: translateY(-50%) scale(var(--ui-scale, 1));
-  transform-origin: left center;
+  align-items: flex-start;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: bottom left;
   transition: transform 0.15s ease;
 }
-.floating-rail--right {
+.corner-cluster--br {
   right: calc(8px + env(safe-area-inset-right, 0px));
-  gap: 10px;
-  transform: translateY(-50%) scale(var(--ui-scale, 1));
-  transform-origin: right center;
+  align-items: flex-end;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: bottom right;
   transition: transform 0.15s ease;
 }
+/* A horizontal sub-row inside a cluster (e.g. KÄMPFEN + MULTI, or SEASON + LADEN).
+   Buttons bottom-align so the big primary button and the small one share a base. */
+.cluster-row { display: flex; gap: 8px; align-items: flex-end; }
 
 /* Top HUD shares the same responsive scale, but only ever shrinks (capped at 1)
    so its full-width row can never overflow the edges of a wide display. */
@@ -313,6 +312,37 @@ button, .btn, .monster-card, .close-btn {
 @media (max-width: 420px) {
   .panel-title { font-size: 17px; }
   .btn { padding: 7px 12px; font-size: 12px; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   LANDSCAPE-ONLY GATE
+   The game is designed for landscape. In portrait we cover everything with a
+   full-screen "please rotate" overlay so the UI is never used in a layout it
+   wasn't built for. Purely CSS-driven (the element is always in the DOM).
+   ═══════════════════════════════════════════════════════ */
+.rotate-gate { display: none; }
+@media (orientation: portrait) {
+  .rotate-gate {
+    display: flex;
+    position: fixed; inset: 0;
+    z-index: 99999;
+    flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 18px; padding: 32px; text-align: center;
+    background: radial-gradient(120% 90% at 50% 20%, #1a1430, #07060d 80%);
+    color: #e7ecf4;
+    pointer-events: auto;
+  }
+}
+.rotate-gate__icon {
+  font-size: 64px;
+  animation: rotateHint 2.4s ease-in-out infinite;
+}
+.rotate-gate__title { font-size: 22px; font-weight: 900; color: #ffd86b; letter-spacing: 0.04em; }
+.rotate-gate__text  { font-size: 14px; color: #b6bcc8; max-width: 320px; line-height: 1.5; }
+@keyframes rotateHint {
+  0%, 40%   { transform: rotate(0deg); }
+  60%, 100% { transform: rotate(-90deg); }
 }
 
 /* ── HUD responsive hooks ────────────────────────────────────────── */
