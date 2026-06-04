@@ -12,6 +12,7 @@ import type {
   OnlineService, PlayerProfile, LeaderboardKind, LeaderboardEntry, Clan, Auction, NewAuction,
 } from './types';
 import { buildSelfProfile, getSelfId, getSelfName } from './profile';
+import { getAccessToken } from '@store/authStore';
 
 interface ProfileRow {
   id: string; name: string; player_level: number; trophies: number;
@@ -32,11 +33,14 @@ export class SupabaseOnlineService implements OnlineService {
   }
 
   private async rest(path: string, init?: RequestInit): Promise<Response> {
+    // Mit eingeloggtem Spieler das User-Access-Token verwenden (auth.uid()
+    // verfügbar → ermöglicht spätere RLS-Härtung); sonst den anon-Key.
+    const token = getAccessToken() ?? this.key;
     return fetch(`${this.url}/rest/v1/${path}`, {
       ...init,
       headers: {
         apikey: this.key,
-        Authorization: `Bearer ${this.key}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         ...(init?.headers ?? {}),
       },
