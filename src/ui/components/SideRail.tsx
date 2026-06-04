@@ -101,10 +101,10 @@ function RailButton({
       title={label}
       style={{
         position: 'relative',
-        width: 56,
+        width: 58,
         background: `linear-gradient(160deg, ${from}, ${to})`,
-        border: '2px solid #e8b84a',
-        borderRadius: 14,
+        border: '2.5px solid #e8b84a',
+        borderRadius: 15,
         padding: '7px 0 5px',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
         cursor: 'pointer',
@@ -116,7 +116,7 @@ function RailButton({
         transform: pressed ? 'translateY(2px)' : 'translateY(0)',
         transition: 'transform 0.08s, box-shadow 0.08s',
       }}>
-      <span style={{ fontSize: 24, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>{icon}</span>
+      <span style={{ fontSize: 25, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>{icon}</span>
       <span style={{
         fontSize: 8.5, fontWeight: 900, color: '#fff',
         letterSpacing: '0.02em', textShadow: '0 1px 2px rgba(0,0,0,0.8)',
