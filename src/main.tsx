@@ -2,10 +2,15 @@ import React, { Component, type ReactNode, type ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { installResponsiveScaling } from '@ui/responsiveScale';
+import { installForceFullscreen } from '@ui/fullscreen';
 
 // Start the unified responsive display system before the first render so the
 // HUD and action rails are already fitted to the screen on the opening frame.
 installResponsiveScaling();
+
+// Force the browser into fullscreen on the player's first interaction so the
+// address/tab bar disappears and the game owns the whole screen.
+installForceFullscreen();
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   constructor(props: { children: ReactNode }) {
