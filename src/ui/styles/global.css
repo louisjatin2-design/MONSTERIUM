@@ -314,32 +314,9 @@ button, .btn, .monster-card, .close-btn {
   .btn { padding: 7px 12px; font-size: 12px; }
 }
 
-/* ═══════════════════════════════════════════════════════
-   LANDSCAPE-ONLY GATE
-   The game is designed for landscape. In portrait we cover everything with a
-   full-screen "please rotate" overlay so the UI is never used in a layout it
-   wasn't built for. Purely CSS-driven (the element is always in the DOM).
-   ═══════════════════════════════════════════════════════ */
-.rotate-gate { display: none; }
-@media (orientation: portrait) {
-  .rotate-gate {
-    display: flex;
-    position: fixed; inset: 0;
-    z-index: 99999;
-    flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 18px; padding: 32px; text-align: center;
-    background: radial-gradient(120% 90% at 50% 20%, #1a1430, #07060d 80%);
-    color: #e7ecf4;
-    pointer-events: auto;
-  }
-}
-.rotate-gate__icon {
-  font-size: 64px;
-  animation: rotateHint 2.4s ease-in-out infinite;
-}
-.rotate-gate__title { font-size: 22px; font-weight: 900; color: #ffd86b; letter-spacing: 0.04em; }
-.rotate-gate__text  { font-size: 14px; color: #b6bcc8; max-width: 320px; line-height: 1.5; }
+/* Landscape nudge animation — used by the dismissible RotateGate component
+   (src/ui/components/RotateGate.tsx). The gate itself is React-controlled so a
+   portrait device/preview is never permanently locked out of the game. */
 @keyframes rotateHint {
   0%, 40%   { transform: rotate(0deg); }
   60%, 100% { transform: rotate(-90deg); }
