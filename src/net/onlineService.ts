@@ -8,15 +8,18 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { RARITY_RANK } from '@data/rarities';
 import type {
   OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan,
-  Auction, NewAuction,
+  Auction, NewAuction, PvpState, PvpTeamMonster, PvpOpponent, PvpResult,
 } from './types';
 import { buildSelfProfile, getSelfId, getSelfName } from './profile';
 import { SupabaseOnlineService } from './supabaseService';
+import {
+  PVP_START_RATING, ratingDelta, applyRatingDelta, buildDefaultDefenseTeam, makeBotOpponent,
+} from './pvp';
 
 // Bestehende Importe (Panel) weiterhin von hier bedienbar.
 export type {
   OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan,
-  Auction, NewAuction, Currency,
+  Auction, NewAuction, Currency, PvpState, PvpTeamMonster, PvpOpponent, PvpResult,
 } from './types';
 
 // ── Deterministische Mock-Welt ──────────────────────────────────────────────
@@ -77,6 +80,11 @@ class LocalOnlineService implements OnlineService {
   private joinedClanId: string | null = null;
   private bots = makeBots();
   private auctions: Auction[] = seedAuctions();
+  // PvP-Zustand wird (mangels Backend) im Speicher gehalten.
+  private pvpRating = PVP_START_RATING;
+  private pvpWins = 0;
+  private pvpLosses = 0;
+  private defenseTeam: PvpTeamMonster[] | null = null;
 
   async getSelfProfile(): Promise<PlayerProfile> { return buildSelfProfile(); }
 
@@ -126,6 +134,33 @@ class LocalOnlineService implements OnlineService {
     if (!a) return false;
     a.status = 'sold';
     return true;
+  }
+
+  // ── PvP-Arena (simuliert) ───────────────────────────────────────────────────
+  async getPvpState(): Promise<PvpState> {
+    return {
+      rating: this.pvpRating,
+      wins: this.pvpWins,
+      losses: this.pvpLosses,
+      defenseTeam: this.defenseTeam ?? buildDefaultDefenseTeam(),
+    };
+  }
+
+  async setDefenseTeam(team: PvpTeamMonster[]): Promise<boolean> {
+    this.defenseTeam = team.slice(0, 3);
+    return true;
+  }
+
+  async findPvpOpponent(): Promise<PvpOpponent | null> {
+    // Offline gibt es nur simulierte Gegner.
+    return makeBotOpponent(this.pvpRating);
+  }
+
+  async reportPvpResult(_opponentId: string, won: boolean, opponentRating: number): Promise<PvpResult> {
+    const delta = ratingDelta(this.pvpRating, opponentRating, won);
+    this.pvpRating = applyRatingDelta(this.pvpRating, delta);
+    if (won) this.pvpWins += 1; else this.pvpLosses += 1;
+    return { won, ratingDelta: delta, newRating: this.pvpRating };
   }
 }
 

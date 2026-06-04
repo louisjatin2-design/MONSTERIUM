@@ -1,4 +1,5 @@
 import React from 'react';
+import { EventBus, GameEvents } from '@game/EventBus';
 import { HelpButton } from './HelpButton';
 import '../styles/global.css';
 
@@ -19,7 +20,8 @@ export function BattleSelectScreen({ onClose, onStory }: Props) {
         title="Kämpfen"
         tips={[
           'Story: kämpfe dich durch die Abenteuer-Karte mit Cutscenes und Belohnungen.',
-          'Multiplayer und Dungeons befinden sich noch in Arbeit (WIP).',
+          'Multiplayer: tritt in der PvP-Arena gegen die Teams anderer Spieler an und steige im Rating.',
+          'Dungeons befinden sich noch in Arbeit (WIP).',
         ]}
       />
       <div className="panel-title">⚔️ Kämpfen</div>
@@ -32,9 +34,10 @@ export function BattleSelectScreen({ onClose, onStory }: Props) {
           onClick={onStory}
         />
         <ModeCard
-          icon="🌐" title="Multiplayer" wip
-          desc="Echtzeit-PvP gegen andere Spieler. (In Arbeit)"
+          icon="🌐" title="Multiplayer"
+          desc="PvP-Arena: fordere die Verteidigungs-Teams anderer Spieler heraus und klettere im Rating."
           from="#3f8fd0" to="#1f4f96"
+          onClick={() => EventBus.emit(GameEvents.OPEN_PVP_ARENA, {})}
         />
         <ModeCard
           icon="🏰" title="Dungeons" wip

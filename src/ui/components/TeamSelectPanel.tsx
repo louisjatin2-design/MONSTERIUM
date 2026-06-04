@@ -18,6 +18,9 @@ export interface BattlePayload {
   storyIndex?: number;
   isBoss?: boolean;
   waves?: Array<{ enemyTeam: string[]; enemyLevels: number[] }>;
+  // PvP-Arena: gesetzt, wenn dies ein gewerteter Kampf gegen das Verteidigungs-
+  // Team eines anderen Spielers ist. Das Ergebnis wird ans Backend gemeldet.
+  pvp?: { opponentId: string; opponentName: string; opponentRating: number };
 }
 
 interface Props {

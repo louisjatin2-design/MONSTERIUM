@@ -42,7 +42,8 @@ export function MultiplayerPanel({ onClose }: Props) {
           'Bestenlisten ranken Spieler nach Trophäen, Siegen, seltensten Monstern oder Level.',
           'In der Freundesliste siehst du die stärksten Monster und Stats anderer Spieler.',
           'Tritt einem Clan bei, um an Clan-Kriegen teilzunehmen.',
-          'Hinweis: Online-Daten sind aktuell simuliert (lokaler Modus). Echtes PvP/Trading folgt mit dem Server-Backend.',
+          'PvP: Fordere die Teams anderer Spieler in der Arena heraus (Kämpfen → Multiplayer).',
+          'Hinweis: Ohne konfiguriertes Backend sind Online-Daten simuliert (lokaler Modus).',
         ]}
       />
 
@@ -100,7 +101,7 @@ export function MultiplayerPanel({ onClose }: Props) {
           <>
             {friends.map(f => <ProfileCard key={f.id} p={f} />)}
             <div style={{ fontSize: 11, color: '#778', textAlign: 'center', marginTop: 8 }}>
-              Echtes Hinzufügen von Freunden & PvP folgt mit dem Server-Backend.
+              PvP gegen andere Spieler findest du in der Arena (Kämpfen → Multiplayer).
             </div>
           </>
         )}
