@@ -3,7 +3,8 @@ import { persist } from 'zustand/middleware';
 import { activateSaveFor } from '@store/gameStore';
 import {
   isSupabaseConfigured, signUp as supaSignUp, signIn as supaSignIn,
-  signOut as supaSignOut, refreshSession, type AuthSession,
+  signOut as supaSignOut, refreshSession, usernameToEmail, USERNAME_RE,
+  type AuthSession,
 } from '../net/auth';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -85,11 +86,11 @@ const MIN_USERNAME = 3;
 const MIN_PASSWORD = 4;
 
 // Eine erfolgreiche Supabase-Anmeldung in den Store schreiben. currentUser wird
-// die E-Mail (Anzeige + Spielstand-Namespace); die User-ID bindet die Online-
-// Identität (Profile/Auktionen).
-function loginWithSession(set: (p: Partial<AuthStore>) => void, session: AuthSession): void {
-  set({ currentUser: session.email, session });
-  activateSaveFor(session.email);
+// der angezeigte Benutzername (auch Spielstand-Namespace); die User-ID bindet
+// die Online-Identität (Profile/Auktionen).
+function loginWithSession(set: (p: Partial<AuthStore>) => void, session: AuthSession, displayName: string): void {
+  set({ currentUser: displayName, session });
+  activateSaveFor(displayName);
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -105,17 +106,21 @@ export const useAuthStore = create<AuthStore>()(
           return { ok: false, error: `Das Passwort muss mindestens ${MIN_PASSWORD} Zeichen haben.` };
         }
 
-        // ── Supabase-Auth (echte Accounts) ──────────────────────────────────
+        // ── Supabase-Auth (echte Accounts, Benutzername-Login) ───────────────
         if (isSupabaseConfigured()) {
-          if (!/^\S+@\S+\.\S+$/.test(id)) {
-            return { ok: false, error: 'Bitte gib eine gültige E-Mail-Adresse ein.' };
+          if (!USERNAME_RE.test(id)) {
+            return { ok: false, error: 'Benutzername: 3–30 Zeichen, nur Buchstaben, Zahlen, . _ -' };
           }
-          const res = await supaSignUp(id, password);
-          if ('error' in res) return { ok: false, error: res.error };
+          const res = await supaSignUp(usernameToEmail(id), password);
+          if ('error' in res) {
+            const taken = /already|registered|exists/i.test(res.error);
+            return { ok: false, error: taken ? 'Diesen Benutzernamen gibt es bereits.' : res.error };
+          }
           if ('needsConfirm' in res) {
-            return { ok: true, info: 'Konto erstellt! Bitte bestätige deine E-Mail und melde dich dann an.' };
+            // Synthetische E-Mail kann nicht bestätigt werden → Admin-Hinweis.
+            return { ok: false, error: 'Registrierung erfordert E-Mail-Bestätigung. Bitte in Supabase „Confirm email" deaktivieren.' };
           }
-          loginWithSession(set, res.session);
+          loginWithSession(set, res.session, id);
           return { ok: true };
         }
 
@@ -142,9 +147,12 @@ export const useAuthStore = create<AuthStore>()(
         const id = identifier.trim();
 
         if (isSupabaseConfigured()) {
-          const res = await supaSignIn(id, password);
-          if ('error' in res) return { ok: false, error: res.error };
-          loginWithSession(set, res.session);
+          const res = await supaSignIn(usernameToEmail(id), password);
+          if ('error' in res) {
+            const bad = /invalid|credentials|not.*found/i.test(res.error);
+            return { ok: false, error: bad ? 'Benutzername oder Passwort falsch.' : res.error };
+          }
+          loginWithSession(set, res.session, id);
           return { ok: true };
         }
 
