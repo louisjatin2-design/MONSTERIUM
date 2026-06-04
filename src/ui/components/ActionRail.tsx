@@ -1,4 +1,5 @@
 import React from 'react';
+import { EventBus, GameEvents } from '@game/EventBus';
 
 interface ActionRailProps {
   onAttack:  () => void;
@@ -8,20 +9,26 @@ interface ActionRailProps {
   onHatch:   () => void;
 }
 
+// Each button either maps to one of the action props (`key`) or fires an
+// EventBus panel-open event directly (`event`). Inseln/Lager moved down from
+// the right rail so both rails carry the same number of buttons (7 each).
 const BUTTONS: Array<{
   icon: string;
   label: string;
-  key: keyof ActionRailProps;
   from: string;
   to: string;
   border: string;
   primary?: boolean;
+  key?: keyof ActionRailProps;
+  event?: string;
 }> = [
   { icon: '⚔️', label: 'KÄMPFEN',    key: 'onAttack',  from: '#ff5a4a', to: '#c41f1f', border: '#ffb070', primary: true },
   { icon: '💞', label: 'ZÜCHTEN',    key: 'onBreed',   from: '#ff5ab0', to: '#c4287a', border: '#ffb0e0' },
   { icon: '🥚', label: 'BRUTKAMMER', key: 'onHatch',   from: '#4accd8', to: '#1f8ab8', border: '#90e0ff' },
   { icon: '📖', label: 'MONSTER',    key: 'onPokedex', from: '#5a8ae8', to: '#2850b8', border: '#90b8ff' },
   { icon: '🛒', label: 'LADEN',      key: 'onShop',    from: '#e8b04a', to: '#b87c1f', border: '#ffe090' },
+  { icon: '🏝️', label: 'INSELN',     event: GameEvents.OPEN_ISLANDS_PANEL, from: '#3fb87a', to: '#1f7a4a', border: '#90e0b0' },
+  { icon: '📦', label: 'LAGER',      event: GameEvents.OPEN_STORAGE,       from: '#d09a3f', to: '#9a6a1f', border: '#ffe0a0' },
 ];
 
 // Floating vertical action column on the LEFT edge. Replaces the old
@@ -32,14 +39,14 @@ export function ActionRail(props: ActionRailProps) {
     <div className="floating-rail floating-rail--left">
       {BUTTONS.map(btn => (
         <RailButton
-          key={btn.key}
+          key={btn.label}
           icon={btn.icon}
           label={btn.label}
           from={btn.from}
           to={btn.to}
           border={btn.border}
           primary={btn.primary}
-          onClick={props[btn.key]}
+          onClick={btn.key ? props[btn.key] : () => EventBus.emit(btn.event!, {})}
         />
       ))}
     </div>
