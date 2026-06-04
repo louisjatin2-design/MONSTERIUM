@@ -15,8 +15,12 @@ Gemergt nach `claude/monster-breeding-game-53GjL`:
 - ✅ **Gruppe 5** komplett: Season Pass (#60), Relationship-/Bindungs-Tasks (#63),
      Element-Futter Lv100+ über Tempel (#64). (TODO: ab Legendär+ seltenheitsspezifisch.)
 - ✅ **Gruppe 8**: Crate-Shop + Glücksrad-Politur (#65). Offen: Auktionshaus (mit Gr. 10-Backend).
-- ✅ **Gruppe 10**: Multiplayer-Grundgerüst (Service-Abstraktion + lokaler Mock; Bestenliste/
-     Freunde/Clans) (#68). Offen: echtes Firebase/Supabase-Backend, PvP/Trading/Clan-Kriege.
+- ✅ **Gruppe 10**: Multiplayer-Grundgerüst (#68) + **echtes Supabase-Backend** (#73:
+     Migrationen profiles/clans/clan_members + RLS, REST-Adapter, Auto-Umschaltung via
+     `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`). Offen: Supabase-Auth + RLS-Härtung,
+     Echtzeit-PvP/Trading/Clan-Kriege, Auktionshaus.
+     ⚠️ Nutzer-To-do: GitHub-Repo-Secrets `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
+     setzen; Migration aufs Supabase-Projekt anwenden.
 - ✅ **Gruppe 13**: Monster-Detail als MBCC-Dossier (#57). Offen: echte Artworks, restl. Mobiloptimierung.
 - ⏳ **Gruppe 11** (Saisonale Monster/Events): offen.
 
