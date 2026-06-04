@@ -40,12 +40,12 @@ export function ActionRail(props: ActionRailProps) {
   return (
     <div className="corner-cluster corner-cluster--bl">
       <RailButton
-        icon="📦" label="LAGER" size="sm"
+        icon="📦" iconName="lager" label="LAGER" size="sm"
         from="#d09a3f" to="#9a6a1f" border="#ffe0a0"
         onClick={() => EventBus.emit(GameEvents.OPEN_STORAGE, {})}
       />
       <RailButton
-        icon="📋" label="QUESTS" size="sm"
+        icon="📋" iconName="quests" label="QUESTS" size="sm"
         from="#3f8fd0" to="#1f4f96" border="#90b8ff"
         badge={claimableQuests > 0 ? claimableQuests : undefined}
         badgeColor="#44dd66"
@@ -53,12 +53,12 @@ export function ActionRail(props: ActionRailProps) {
       />
       <div className="cluster-row">
         <RailButton
-          icon="⚔️" label="KÄMPFEN" size="lg" primary
+          icon="⚔️" iconName="kaempfen" label="KÄMPFEN" size="lg" primary
           from="#ff5a4a" to="#c41f1f" border="#ffb070"
           onClick={props.onAttack}
         />
         <RailButton
-          icon="🌐" label="MULTI" size="sm"
+          icon="🌐" iconName="multiplayer" label="MULTI" size="sm"
           from="#3f7fd0" to="#1f3f7a" border="#90b8ff"
           onClick={() => EventBus.emit(GameEvents.OPEN_MULTIPLAYER, {})}
         />

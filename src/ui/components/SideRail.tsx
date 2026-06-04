@@ -15,18 +15,18 @@ export function SideRail() {
   return (
     <div className="corner-cluster corner-cluster--br">
       <RailButton
-        icon="🎪" label="EVENTS" size="sm"
+        icon="🎪" iconName="events" label="EVENTS" size="sm"
         from="#7a3fd0" to="#4a1f96" border="#c79aff"
         onClick={() => EventBus.emit(GameEvents.OPEN_EVENTS, {})}
       />
       <div className="cluster-row">
         <RailButton
-          icon="🎟️" label="PASS" size="sm"
+          icon="🎟️" iconName="pass" label="PASS" size="sm"
           from="#d03f9a" to="#7a1f5f" border="#ffa0d8"
           onClick={() => EventBus.emit(GameEvents.OPEN_SEASON_PASS, {})}
         />
         <RailButton
-          icon="🛒" label="LADEN" size="md"
+          icon="🛒" iconName="laden" label="LADEN" size="md"
           from="#e8b04a" to="#b87c1f" border="#ffe090"
           onClick={() => EventBus.emit(GameEvents.OPEN_SHOP, {})}
         />
