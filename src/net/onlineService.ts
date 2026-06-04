@@ -8,12 +8,16 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { RARITY_RANK } from '@data/rarities';
 import type {
   OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan,
+  Auction, NewAuction,
 } from './types';
-import { buildSelfProfile } from './profile';
+import { buildSelfProfile, getSelfId, getSelfName } from './profile';
 import { SupabaseOnlineService } from './supabaseService';
 
 // Bestehende Importe (Panel) weiterhin von hier bedienbar.
-export type { OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan } from './types';
+export type {
+  OnlineService, PlayerProfile, ProfileMonster, LeaderboardKind, LeaderboardEntry, Clan,
+  Auction, NewAuction, Currency,
+} from './types';
 
 // ── Deterministische Mock-Welt ──────────────────────────────────────────────
 const BOT_NAMES = [
@@ -51,10 +55,28 @@ const MOCK_CLANS: Clan[] = [
   { id: 'clan_dawnseekers', name: 'Dawnseekers', tag: 'DAWN', description: 'Beschützer-Gilde, Einsteiger willkommen.', trophies: 9800, memberCount: 11, maxMembers: 30 },
 ];
 
+// Ein paar simulierte Start-Auktionen (Bot-Verkäufer) für den Offline-Modus.
+function seedAuctions(): Auction[] {
+  const picks = ALL_DEF_IDS.slice(0, 6);
+  return picks.map((defId, i) => {
+    const d = MONSTER_DEFS[defId];
+    const r = seeded(i * 131 + 7);
+    const currency: 'gold' | 'diamonds' = r() < 0.5 ? 'gold' : 'diamonds';
+    return {
+      id: `seed_${i}`, sellerId: `bot_${i}`, sellerName: BOT_NAMES[i] ?? 'Händler',
+      defId, monsterName: d?.name ?? defId, level: 5 + Math.floor(r() * 90),
+      rankStars: Math.floor(r() * 4), rarity: d?.rarity ?? 'Common',
+      price: currency === 'gold' ? 1000 + Math.floor(r() * 20000) : 10 + Math.floor(r() * 90),
+      currency, status: 'active' as const, createdAt: new Date(Date.now() - i * 3600_000).toISOString(),
+    };
+  });
+}
+
 class LocalOnlineService implements OnlineService {
   readonly kind = 'local' as const;
   private joinedClanId: string | null = null;
   private bots = makeBots();
+  private auctions: Auction[] = seedAuctions();
 
   async getSelfProfile(): Promise<PlayerProfile> { return buildSelfProfile(); }
 
@@ -84,6 +106,27 @@ class LocalOnlineService implements OnlineService {
   }
 
   getJoinedClanId(): string | null { return this.joinedClanId; }
+
+  async listAuctions(): Promise<Auction[]> {
+    return this.auctions.filter(a => a.status === 'active');
+  }
+
+  async createAuction(input: NewAuction): Promise<Auction | null> {
+    const a: Auction = {
+      id: `auc_${Date.now()}_${Math.floor(Math.random() * 1e4)}`,
+      sellerId: getSelfId(), sellerName: getSelfName(),
+      ...input, status: 'active', createdAt: new Date().toISOString(),
+    };
+    this.auctions.unshift(a);
+    return a;
+  }
+
+  async buyAuction(id: string): Promise<boolean> {
+    const a = this.auctions.find(x => x.id === id && x.status === 'active');
+    if (!a) return false;
+    a.status = 'sold';
+    return true;
+  }
 }
 
 let instance: OnlineService | null = null;

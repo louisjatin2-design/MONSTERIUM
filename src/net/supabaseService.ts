@@ -9,9 +9,9 @@
 //    Sobald Supabase-Auth genutzt wird: RLS auf auth.uid() = id verschärfen.
 //  • PvP-Echtzeit, Trading & Clan-Kriege brauchen Realtime-Channels (Follow-up).
 import type {
-  OnlineService, PlayerProfile, LeaderboardKind, LeaderboardEntry, Clan,
+  OnlineService, PlayerProfile, LeaderboardKind, LeaderboardEntry, Clan, Auction, NewAuction,
 } from './types';
-import { buildSelfProfile, getSelfId } from './profile';
+import { buildSelfProfile, getSelfId, getSelfName } from './profile';
 
 interface ProfileRow {
   id: string; name: string; player_level: number; trophies: number;
@@ -139,4 +139,54 @@ export class SupabaseOnlineService implements OnlineService {
   }
 
   getJoinedClanId(): string | null { return this.joinedClanId; }
+
+  // ── Auktionshaus ──────────────────────────────────────────────────────────
+  private rowToAuction(r: any): Auction {
+    return {
+      id: r.id, sellerId: r.seller_id, sellerName: r.seller_name, defId: r.def_id,
+      monsterName: r.monster_name, level: r.level, rankStars: r.rank_stars,
+      rarity: r.rarity, price: r.price, currency: r.currency,
+      status: r.status, createdAt: r.created_at,
+    };
+  }
+
+  async listAuctions(): Promise<Auction[]> {
+    try {
+      const res = await this.rest('auctions?select=*&status=eq.active&order=created_at.desc&limit=50');
+      if (!res.ok) return [];
+      return ((await res.json()) as any[]).map(r => this.rowToAuction(r));
+    } catch { return []; }
+  }
+
+  async createAuction(input: NewAuction): Promise<Auction | null> {
+    try {
+      await this.upsertSelf();
+      const res = await this.rest('auctions', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          seller_id: getSelfId(), seller_name: getSelfName(), def_id: input.defId,
+          monster_name: input.monsterName, level: input.level, rank_stars: input.rankStars,
+          rarity: input.rarity, price: input.price, currency: input.currency, status: 'active',
+        }),
+      });
+      if (!res.ok) return null;
+      const rows = (await res.json()) as any[];
+      return rows[0] ? this.rowToAuction(rows[0]) : null;
+    } catch { return null; }
+  }
+
+  async buyAuction(id: string): Promise<boolean> {
+    try {
+      // Atomar: nur eine noch aktive Auktion kann gekauft werden (status=active).
+      const res = await this.rest(`auctions?id=eq.${encodeURIComponent(id)}&status=eq.active`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ status: 'sold', buyer_id: getSelfId() }),
+      });
+      if (!res.ok) return false;
+      const rows = (await res.json()) as any[];
+      return rows.length > 0; // 0 → schon verkauft
+    } catch { return false; }
+  }
 }
