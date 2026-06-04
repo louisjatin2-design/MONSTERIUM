@@ -40,6 +40,35 @@ export interface Clan {
   maxMembers: number;
 }
 
+// ── Auktionshaus (Gruppe 8/10) ──────────────────────────────────────────────
+export type Currency = 'gold' | 'diamonds';
+
+export interface Auction {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  defId: string;
+  monsterName: string;
+  level: number;
+  rankStars: number;
+  rarity: string;
+  price: number;
+  currency: Currency;
+  status: 'active' | 'sold';
+  createdAt: string;
+}
+
+// Eingabe zum Einstellen eines Monsters ins Auktionshaus.
+export interface NewAuction {
+  defId: string;
+  monsterName: string;
+  level: number;
+  rankStars: number;
+  rarity: string;
+  price: number;
+  currency: Currency;
+}
+
 export interface OnlineService {
   readonly kind: 'local' | 'supabase';
   getSelfProfile(): Promise<PlayerProfile>;
@@ -48,4 +77,8 @@ export interface OnlineService {
   listClans(): Promise<Clan[]>;
   joinClan(clanId: string): Promise<boolean>;
   getJoinedClanId(): string | null;
+  // Auktionshaus
+  listAuctions(): Promise<Auction[]>;
+  createAuction(input: NewAuction): Promise<Auction | null>;
+  buyAuction(id: string): Promise<boolean>;
 }

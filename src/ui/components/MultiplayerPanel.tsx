@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   getOnlineService, type LeaderboardKind, type LeaderboardEntry,
-  type PlayerProfile, type Clan,
+  type PlayerProfile, type Clan, type Auction, type Currency,
 } from '../../net/onlineService';
+import { useGameStore } from '@store/gameStore';
 import { RARITY_COLORS } from '@data/rarities';
 import { MONSTER_DEFS } from '@data/monsters';
 import { HelpButton } from './HelpButton';
@@ -10,7 +11,7 @@ import '../styles/global.css';
 
 interface Props { onClose: () => void; }
 
-type Tab = 'leaderboard' | 'friends' | 'clans';
+type Tab = 'leaderboard' | 'friends' | 'clans' | 'auction';
 
 const LB_LABELS: Record<LeaderboardKind, string> = {
   trophies: '🏆 Trophäen', battlesWon: '⚔️ Siege', rarest: '💎 Seltenste', level: '⭐ Level',
@@ -56,6 +57,7 @@ export function MultiplayerPanel({ onClose }: Props) {
           <TabBtn label="Bestenliste" active={tab === 'leaderboard'} onClick={() => setTab('leaderboard')} />
           <TabBtn label="Freunde" active={tab === 'friends'} onClick={() => setTab('friends')} />
           <TabBtn label="Clans" active={tab === 'clans'} onClick={() => setTab('clans')} />
+          <TabBtn label="Auktion" active={tab === 'auction'} onClick={() => setTab('auction')} />
         </div>
       </div>
 
@@ -130,8 +132,120 @@ export function MultiplayerPanel({ onClose }: Props) {
             </div>
           </>
         )}
+
+        {tab === 'auction' && <AuctionTab />}
       </div>
     </div>
+  );
+}
+
+// ── Auktionshaus (Gruppe 8/10) ──────────────────────────────────────────────
+function AuctionTab() {
+  const svc = getOnlineService();
+  const monsters = useGameStore(s => s.monsters);
+  const gold = useGameStore(s => s.gold);
+  const diamonds = useGameStore(s => s.diamonds);
+  const spendGold = useGameStore(s => s.spendGold);
+  const spendDiamonds = useGameStore(s => s.spendDiamonds);
+  const removeMonster = useGameStore(s => s.removeMonster);
+  const grantMonster = useGameStore(s => s.grantMonster);
+
+  const [auctions, setAuctions] = useState<Auction[]>([]);
+  const [sellId, setSellId] = useState<string>('');
+  const [price, setPrice] = useState<number>(1000);
+  const [currency, setCurrency] = useState<Currency>('gold');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const refresh = () => svc.listAuctions().then(setAuctions);
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, []);
+
+  const ownList = Object.values(monsters);
+
+  const sell = async () => {
+    const m = monsters[sellId];
+    if (!m || price <= 0 || busy) return;
+    const def = MONSTER_DEFS[m.defId];
+    setBusy(true);
+    const created = await svc.createAuction({
+      defId: m.defId, monsterName: m.name ?? def?.name ?? m.defId,
+      level: m.level, rankStars: m.rankStars ?? 0, rarity: def?.rarity ?? 'Common',
+      price, currency,
+    });
+    setBusy(false);
+    if (created) { removeMonster(sellId); setSellId(''); setMsg('✅ Eingestellt!'); refresh(); }
+    else setMsg('⚠️ Einstellen fehlgeschlagen (offline?).');
+  };
+
+  const buy = async (a: Auction) => {
+    if (busy) return;
+    if (a.currency === 'gold' && gold < a.price) { setMsg('Zu wenig Gold.'); return; }
+    if (a.currency === 'diamonds' && diamonds < a.price) { setMsg('Zu wenig Diamanten.'); return; }
+    setBusy(true);
+    const ok = await svc.buyAuction(a.id);
+    setBusy(false);
+    if (!ok) { setMsg('⚠️ Schon verkauft.'); refresh(); return; }
+    if (a.currency === 'gold') spendGold(a.price); else spendDiamonds(a.price);
+    grantMonster(a.defId, a.level, a.rankStars, a.monsterName);
+    setMsg(`✅ ${a.monsterName} (Lv ${a.level}) gekauft!`);
+    refresh();
+  };
+
+  return (
+    <>
+      <div style={{ fontSize: 11, color: '#aaa', marginBottom: 10 }}>
+        Verkaufe Monster an andere Spieler oder kaufe ihre — Preise in 🪙 Gold oder 💎 Diamanten.
+      </div>
+      {msg && <div style={{ fontSize: 12, color: '#ffd700', textAlign: 'center', marginBottom: 8 }}>{msg}</div>}
+
+      {/* Einstellen */}
+      <div className="monster-card" style={{ marginBottom: 12, padding: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 900, color: '#8fc0ff', marginBottom: 6 }}>Monster einstellen</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={sellId} onChange={e => setSellId(e.target.value)}
+            style={{ flex: '1 1 140px', background: 'rgba(0,0,0,0.4)', color: '#fff', border: '1px solid #5a3a8a', borderRadius: 6, padding: '6px 8px', fontSize: 12 }}>
+            <option value="">— Monster wählen —</option>
+            {ownList.map(m => (
+              <option key={m.instanceId} value={m.instanceId}>
+                {(m.name ?? MONSTER_DEFS[m.defId]?.name ?? m.defId)} · Lv {m.level}
+              </option>
+            ))}
+          </select>
+          <input type="number" min={1} value={price} onChange={e => setPrice(Math.max(1, Number(e.target.value)))}
+            style={{ width: 90, background: 'rgba(0,0,0,0.4)', color: '#fff', border: '1px solid #5a3a8a', borderRadius: 6, padding: '6px 8px', fontSize: 12 }} />
+          <button className="btn" onClick={() => setCurrency(c => c === 'gold' ? 'diamonds' : 'gold')}
+            style={{ padding: '6px 10px', fontSize: 12 }}>
+            {currency === 'gold' ? '🪙' : '💎'}
+          </button>
+          <button className="btn btn-gold" disabled={!sellId || busy} onClick={sell} style={{ padding: '6px 12px', fontSize: 12 }}>
+            Einstellen
+          </button>
+        </div>
+      </div>
+
+      {/* Angebote */}
+      <div style={{ fontSize: 12, fontWeight: 900, color: '#8fc0ff', marginBottom: 6 }}>Aktuelle Angebote</div>
+      {auctions.length === 0 && <div style={{ color: '#778', fontSize: 12 }}>Keine aktiven Auktionen.</div>}
+      {auctions.map(a => {
+        const col = RARITY_COLORS[a.rarity as keyof typeof RARITY_COLORS] ?? '#888';
+        const affordable = a.currency === 'gold' ? gold >= a.price : diamonds >= a.price;
+        return (
+          <div key={a.id} className="monster-card" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: 13 }}>
+                {a.monsterName} <span style={{ color: col, fontSize: 11 }}>· {a.rarity}</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#9aa' }}>
+                Lv {a.level}{a.rankStars > 0 ? ` · ${'★'.repeat(a.rankStars)}` : ''} · Verkäufer: {a.sellerName}
+              </div>
+            </div>
+            <button className="btn btn-primary" disabled={busy || !affordable} onClick={() => buy(a)} style={{ minWidth: 96, fontSize: 12 }}>
+              {a.currency === 'gold' ? `🪙 ${a.price.toLocaleString()}` : `💎 ${a.price}`}
+            </button>
+          </div>
+        );
+      })}
+    </>
   );
 }
 

@@ -15,7 +15,7 @@ import {
   getUnlockedMoves, getMaxAttackSlots, getNextEvolutionStage,
   pickRandomNewAttack, getTrainableAttacks, getAttackTrainCost,
   getEvolutionStageName, getEffectiveMaxLevel, canRankUp,
-  EVOLUTION_LEVELS,
+  EVOLUTION_LEVELS, EVOLUTION_ORDER,
 } from '@systems/ProgressionSystem';
 import { calculateBreedOutcomes, rollBreedOutcome } from '@systems/BreedingSystem';
 import { getLevelReward } from '@data/levelRewards';
@@ -201,6 +201,10 @@ interface GameStoreActions {
   addMonster: (defId: string, isUnique?: boolean, parentIds?: [string, string]) => MonsterInstance;
   feedMonster: (instanceId: string, foodAmount: number) => void;
   sellMonster: (instanceId: string) => number;
+  /** Gruppe 10 — Auktionshaus: ein Monster mit gegebenem Stand erzeugen (Kauf). */
+  grantMonster: (defId: string, level: number, rankStars: number, name?: string) => string | null;
+  /** Gruppe 10 — Auktionshaus: ein Monster entfernen (Einstellen ins Auktionshaus). */
+  removeMonster: (instanceId: string) => void;
   assignToHabitat: (monsterId: string, habitatId: string) => void;
   removeFromHabitat: (monsterId: string) => void;
   addXpToMonster: (instanceId: string, amount: number) => void;
@@ -668,6 +672,46 @@ export const useGameStore = create<GameStore>()(
           }
         });
         return instance;
+      },
+
+      // Gruppe 10 — Auktionshaus: erzeugt ein Monster mit gegebenem Level/Rang/
+      // Namen (z. B. beim Kauf aus dem Auktionshaus). Stage, Slots, Werte und
+      // gelernte Attacken werden aus dem Level abgeleitet.
+      grantMonster: (defId, level, rankStars, name) => {
+        const def = MONSTER_DEFS[defId];
+        if (!def) return null;
+        const lvl = Math.max(1, Math.min(level, 150));
+        let stage: EvolutionStage = 'Baby';
+        for (const st of EVOLUTION_ORDER) if (lvl >= EVOLUTION_LEVELS[st]) stage = st;
+        const slots = getMaxAttackSlots(stage);
+        const moves = getUnlockedMoves(defId, lvl);
+        const equipped = (moves.length ? moves : def.availableMoveIds).slice(0, slots).filter(Boolean);
+        const maxHp = Math.floor(def.baseStats.hp * (1 + (lvl - 1) * 0.08));
+        const id = 'm_' + uid();
+        const instance: MonsterInstance = {
+          instanceId: id, defId, level: lvl, xp: 0, stage,
+          equippedMoveIds: equipped, knownMoveIds: Array.from(new Set([...equipped, ...moves])),
+          maxAttackSlots: slots, currentHp: maxHp, maxHp,
+          statusEffects: [], habitatId: null, relationshipScores: {},
+          isUnique: false, name: name || def.name, rankStars: rankStars ?? 0,
+        };
+        set((s) => {
+          s.monsters[id] = instance;
+          if (!s.pokedexSeen.includes(defId)) s.pokedexSeen.push(defId);
+        });
+        return id;
+      },
+
+      // Gruppe 10 — Auktionshaus: Monster aus dem Bestand entfernen (Einstellen).
+      removeMonster: (instanceId) => {
+        set((s) => {
+          const m = s.monsters[instanceId];
+          if (!m) return;
+          if (m.habitatId && s.buildings[m.habitatId]) {
+            s.buildings[m.habitatId].monsterIds = s.buildings[m.habitatId].monsterIds.filter(id => id !== instanceId);
+          }
+          delete s.monsters[instanceId];
+        });
       },
 
       feedMonster: (instanceId, foodAmount) => {
