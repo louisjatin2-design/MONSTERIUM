@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useGameStore } from '@store/gameStore';
 import { useAuthStore } from '@store/authStore';
 import { EventBus, GameEvents } from '@game/EventBus';
+import { uiIcon } from '../uiIcons';
 import '../styles/global.css';
 
 interface HUDProps {
@@ -119,7 +120,12 @@ export function HUD(_props: HUDProps) {
           cursor: 'pointer', touchAction: 'manipulation',
           boxShadow: '0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25)',
         }}>
-        <span style={{ fontSize: 22, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>📖</span>
+        {uiIcon('monster') ? (
+          <img src={uiIcon('monster')} alt="Monster" draggable={false}
+            style={{ width: 30, height: 30, objectFit: 'contain', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))', pointerEvents: 'none' }} />
+        ) : (
+          <span style={{ fontSize: 22, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>📖</span>
+        )}
         <span style={{ fontSize: 8, fontWeight: 900, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.85)' }}>MONSTER</span>
       </button>
 

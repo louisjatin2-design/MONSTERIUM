@@ -1,4 +1,5 @@
 import React from 'react';
+import { uiIcon } from '../uiIcons';
 
 // Shared floating action button used by the corner clusters (bottom-left
 // "fight" group and bottom-right "shop" group). One component, three sizes, so
@@ -12,10 +13,13 @@ const SIZE_SPEC: Record<RailButtonSize, { w: number; icon: number; label: number
 };
 
 export function RailButton({
-  icon, label, from, to, border = '#e8b84a', size = 'md', primary, badge,
+  icon, iconName, label, from, to, border = '#e8b84a', size = 'md', primary, badge,
   badgeColor = '#ff3355', onClick,
 }: {
   icon: string;
+  // Optional named image slot — drop src/assets/ui/icons/<iconName>.png to use a
+  // custom icon image instead of the emoji (see src/ui/uiIcons.ts).
+  iconName?: string;
   label: string;
   from: string;
   to: string;
@@ -28,6 +32,7 @@ export function RailButton({
 }) {
   const [pressed, setPressed] = React.useState(false);
   const s = SIZE_SPEC[size];
+  const img = uiIcon(iconName);
 
   return (
     <button
@@ -62,7 +67,12 @@ export function RailButton({
         transition: 'transform 0.08s, box-shadow 0.08s',
         animation: primary && !pressed ? 'primaryPulse 1.8s ease-in-out infinite' : 'none',
       }}>
-      <span style={{ fontSize: s.icon, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>{icon}</span>
+      {img ? (
+        <img src={img} alt={label} draggable={false}
+          style={{ width: s.icon * 1.35, height: s.icon * 1.35, objectFit: 'contain', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))', pointerEvents: 'none' }} />
+      ) : (
+        <span style={{ fontSize: s.icon, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>{icon}</span>
+      )}
       <span style={{
         fontSize: s.label, fontWeight: 900, color: '#fff',
         letterSpacing: '0.02em', textShadow: '0 1px 2px rgba(0,0,0,0.85)',

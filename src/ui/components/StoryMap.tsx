@@ -295,11 +295,17 @@ function StoryCutscene({ index, world, onClose, onContinue }: {
     <div style={{
       position: 'absolute', inset: 0, zIndex: 20,
       background: `radial-gradient(120% 90% at 50% 10%, ${world.bgTo}cc, rgba(0,0,0,0.92) 65%)`,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      padding: 24, animation: 'ptnFadeIn 0.3s ease both',
+      overflowY: 'auto',
+      animation: 'ptnFadeIn 0.3s ease both',
     }}>
-      <button className="close-btn" onClick={onClose} style={{ top: 14, right: 16 }}>✕</button>
+      <button className="close-btn" onClick={onClose} style={{ top: 14, right: 16, zIndex: 1 }}>✕</button>
 
+      {/* minHeight:100% centres the cutscene when it fits, but lets it grow and
+          scroll on a short landscape screen so the action buttons stay reachable. */}
+      <div style={{
+        minHeight: '100%', boxSizing: 'border-box', padding: 24,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      }}>
       <div style={{ fontSize: 11, letterSpacing: '0.3em', color: world.accent, marginBottom: 6 }}>
         {world.emoji} {world.name.toUpperCase()}
       </div>
@@ -335,6 +341,7 @@ function StoryCutscene({ index, world, onClose, onContinue }: {
           {last ? '⚔️ Kampf beginnen' : 'Weiter →'}
         </button>
       </div>
+      </div>
     </div>
   );
 }
@@ -353,65 +360,76 @@ function BattleDetail({ index, world, onClose, onStart }: {
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         width: '100%', maxWidth: 360,
+        // Fit the popup to the (possibly short, landscape) viewport and lay it
+        // out as header → scrollable middle → fixed footer, so the ⚔️ Kämpfen
+        // button is ALWAYS visible (previously it could slip off-screen on a
+        // short landscape phone, leaving the player stuck on the node).
+        maxHeight: 'calc(var(--vh, 1vh) * 100 - 24px)',
+        display: 'flex', flexDirection: 'column',
         background: `linear-gradient(160deg, ${world.bgFrom}, ${world.bgTo})`,
         border: `2px solid ${world.accent}`, borderRadius: 16,
         padding: 16, boxShadow: `0 0 30px ${world.pathColor}`,
       }}>
-        <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginBottom: 6 }}>
+        <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginBottom: 6, flexShrink: 0 }}>
           {battle.name}
         </div>
-        <div style={{ fontSize: 12, color: '#cbb6e8', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 12 }}>
-          {battle.description}
-        </div>
 
-        {battle.waves && battle.waves.length > 1 && (
-          <div style={{
-            fontSize: 12, fontWeight: 800, color: '#ffce54', marginBottom: 12,
-            padding: '6px 10px', borderRadius: 8, textAlign: 'center',
-            background: 'rgba(255,206,84,0.12)', border: '1px solid rgba(255,206,84,0.4)',
-          }}>
-            🌊 {battle.waves.length} Wellen — mehrere Kämpfe hintereinander!
+        {/* Scrollable middle — description, enemies and rewards. */}
+        <div style={{ overflowY: 'auto', minHeight: 0, flex: 1 }}>
+          <div style={{ fontSize: 12, color: '#cbb6e8', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 12 }}>
+            {battle.description}
           </div>
-        )}
 
-        {/* Enemy line-up */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {battle.enemyMonsterDefs.map((id, j) => {
-            const def = MONSTER_DEFS[id];
-            return (
-              <div key={j} style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{
-                  width: 52, height: 52, margin: '0 auto', borderRadius: '50%',
-                  background: 'rgba(0,0,0,0.4)',
-                  border: `2px solid ${def ? RARITY_COLORS[def.rarity] : '#555'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26,
-                }}>
-                  {MONSTER_EMOJI[id] ?? '👾'}
-                </div>
-                <div style={{ fontSize: 10, color: '#ddd', marginTop: 3 }}>{def?.name ?? id}</div>
-                <div style={{ fontSize: 10, color: '#888' }}>Lv {battle.enemyLevels[j]}</div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Rewards */}
-        <div style={{
-          display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center',
-          fontSize: 12, color: '#ffd700', marginBottom: 14,
-          padding: '8px', background: 'rgba(0,0,0,0.3)', borderRadius: 8,
-        }}>
-          <span>🪙 {battle.rewards.gold.toLocaleString()}</span>
-          <span>⭐ {battle.rewards.xp.toLocaleString()}</span>
-          {battle.rewards.diamonds ? <span>💎 {battle.rewards.diamonds}</span> : null}
-          {battle.rewards.monsterDefId && (
-            <span style={{ color: '#88ffaa' }}>
-              🥚 {MONSTER_EMOJI[battle.rewards.monsterDefId]} {MONSTER_DEFS[battle.rewards.monsterDefId]?.name}
-            </span>
+          {battle.waves && battle.waves.length > 1 && (
+            <div style={{
+              fontSize: 12, fontWeight: 800, color: '#ffce54', marginBottom: 12,
+              padding: '6px 10px', borderRadius: 8, textAlign: 'center',
+              background: 'rgba(255,206,84,0.12)', border: '1px solid rgba(255,206,84,0.4)',
+            }}>
+              🌊 {battle.waves.length} Wellen — mehrere Kämpfe hintereinander!
+            </div>
           )}
+
+          {/* Enemy line-up */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {battle.enemyMonsterDefs.map((id, j) => {
+              const def = MONSTER_DEFS[id];
+              return (
+                <div key={j} style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{
+                    width: 52, height: 52, margin: '0 auto', borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.4)',
+                    border: `2px solid ${def ? RARITY_COLORS[def.rarity] : '#555'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26,
+                  }}>
+                    {MONSTER_EMOJI[id] ?? '👾'}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#ddd', marginTop: 3 }}>{def?.name ?? id}</div>
+                  <div style={{ fontSize: 10, color: '#888' }}>Lv {battle.enemyLevels[j]}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Rewards */}
+          <div style={{
+            display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center',
+            fontSize: 12, color: '#ffd700',
+            padding: '8px', background: 'rgba(0,0,0,0.3)', borderRadius: 8,
+          }}>
+            <span>🪙 {battle.rewards.gold.toLocaleString()}</span>
+            <span>⭐ {battle.rewards.xp.toLocaleString()}</span>
+            {battle.rewards.diamonds ? <span>💎 {battle.rewards.diamonds}</span> : null}
+            {battle.rewards.monsterDefId && (
+              <span style={{ color: '#88ffaa' }}>
+                🥚 {MONSTER_EMOJI[battle.rewards.monsterDefId]} {MONSTER_DEFS[battle.rewards.monsterDefId]?.name}
+              </span>
+            )}
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Fixed footer — always visible. */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, flexShrink: 0 }}>
           <button className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.12)', color: '#ddd' }}
             onClick={onClose}>Zurück</button>
           <button className="btn btn-primary" style={{ flex: 2 }} onClick={onStart}>
