@@ -241,7 +241,7 @@ button, .btn, .monster-card, .close-btn {
 }
 .floating-rail--left {
   left: calc(8px + env(safe-area-inset-left, 0px));
-  gap: 9px;
+  gap: 10px;
   /* The single --ui-scale factor (computed in src/ui/responsiveScale.ts from
      the live viewport) shrinks the rail to fit short screens and grows it a
      touch on big monitors — continuously, no per-device breakpoints. */

@@ -89,8 +89,8 @@ function RailButton({
       }}>
       <span style={{ fontSize: 25, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>{icon}</span>
       <span style={{
-        fontSize: 8, fontWeight: 900, color: '#fff',
-        letterSpacing: '0.01em', textShadow: '0 1px 2px rgba(0,0,0,0.85)',
+        fontSize: 8.5, fontWeight: 900, color: '#fff',
+        letterSpacing: '0.02em', textShadow: '0 1px 2px rgba(0,0,0,0.85)',
         whiteSpace: 'nowrap',
       }}>{label}</span>
     </button>
