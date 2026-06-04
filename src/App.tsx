@@ -32,6 +32,7 @@ import { BattleSelectScreen } from '@ui/components/BattleSelectScreen';
 import { TeamSelectPanel, type BattlePayload } from '@ui/components/TeamSelectPanel';
 import { LoginScreen } from '@ui/components/LoginScreen';
 import { UsernamePrompt } from '@ui/components/UsernamePrompt';
+import { RotateGate } from '@ui/components/RotateGate';
 import { World3D } from '@game/world3d/World3D';
 import { Battle3DStage } from '@game/world3d/Battle3DStage';
 import { EventBus, GameEvents } from '@game/EventBus';
@@ -415,15 +416,9 @@ function Game() {
       {/* First-run onboarding flow */}
       {showTutorial && <TutorialOverlay onClose={() => setTutorialDismissed(true)} />}
 
-      {/* Landscape-only gate — covers the screen while the device is held in
-          portrait (CSS-driven via @media (orientation: portrait)). */}
-      <div className="rotate-gate">
-        <div className="rotate-gate__icon">📱</div>
-        <div className="rotate-gate__title">Bitte drehen</div>
-        <div className="rotate-gate__text">
-          MONSTERIUM wird im Querformat gespielt. Drehe dein Gerät quer, um weiterzuspielen.
-        </div>
-      </div>
+      {/* Landscape nudge — dismissible, so a portrait device/preview is never
+          permanently locked out of the game. */}
+      <RotateGate />
     </div>
   );
 }

@@ -20,26 +20,29 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 // Vite resolves these globs at build time to a map of { '/src/assets/.../x.glb':
 // 'https://.../x.glb' }. Empty folders → empty maps → procedural fallback. The
 // `eager` form gives us the final asset URL strings directly.
-const MODEL_URLS = import.meta.glob('/src/assets/monsters3d/*.glb', {
-  eager: true, query: '?url', import: 'default',
-}) as Record<string, string>;
-
-const ANIM_URLS = import.meta.glob('/src/assets/animations/*.glb', {
-  eager: true, query: '?url', import: 'default',
-}) as Record<string, string>;
-
 // Build filename → url lookups (lowercased, without extension/path) so callers
 // can ask by convention name regardless of where Vite hashed the asset to.
 function baseName(path: string): string {
   const file = path.split('/').pop() ?? path;
   return file.replace(/\.glb$/i, '').toLowerCase();
 }
-const modelByName = new Map<string, string>(
-  Object.entries(MODEL_URLS).map(([p, url]) => [baseName(p), url]),
-);
-const animByName = new Map<string, string>(
-  Object.entries(ANIM_URLS).map(([p, url]) => [baseName(p), url]),
-);
+
+// Wrapped so a discovery problem can never crash module load — empty/missing
+// folders just mean "no custom models" (procedural fallback).
+const modelByName = new Map<string, string>();
+const animByName = new Map<string, string>();
+try {
+  const MODEL_URLS = import.meta.glob('/src/assets/monsters3d/*.glb', {
+    eager: true, query: '?url', import: 'default',
+  }) as Record<string, string>;
+  for (const [p, url] of Object.entries(MODEL_URLS)) modelByName.set(baseName(p), url);
+} catch (err) { console.warn('[monsterModels] model discovery failed', err); }
+try {
+  const ANIM_URLS = import.meta.glob('/src/assets/animations/*.glb', {
+    eager: true, query: '?url', import: 'default',
+  }) as Record<string, string>;
+  for (const [p, url] of Object.entries(ANIM_URLS)) animByName.set(baseName(p), url);
+} catch (err) { console.warn('[monsterModels] anim discovery failed', err); }
 
 /** True if a custom model file exists for this monster def id. */
 export function hasMonsterModel(defId: string): boolean {
@@ -51,7 +54,12 @@ export function availableAnimations(): string[] {
   return [...animByName.keys()];
 }
 
-const loader = new GLTFLoader();
+// Lazily constructed on first actual use so nothing runs at module-load time.
+let loader: GLTFLoader | null = null;
+function getLoader(): GLTFLoader {
+  if (!loader) loader = new GLTFLoader();
+  return loader;
+}
 
 export interface LoadedModel {
   scene: THREE.Group;
@@ -63,7 +71,7 @@ const animCache = new Map<string, Promise<THREE.AnimationClip[]>>();
 
 function loadGltf(url: string): Promise<LoadedModel> {
   return new Promise((resolve, reject) => {
-    loader.load(
+    getLoader().load(
       url,
       gltf => resolve({ scene: gltf.scene as unknown as THREE.Group, animations: gltf.animations }),
       undefined,

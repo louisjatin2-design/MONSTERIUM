@@ -11,18 +11,22 @@
 // time via Vite's import.meta.glob; if a slot has no file, the button keeps its
 // emoji fallback.
 // ---------------------------------------------------------------------------
-const ICON_URLS = import.meta.glob('/src/assets/ui/icons/*.{png,webp,jpg,jpeg,svg}', {
-  eager: true, query: '?url', import: 'default',
-}) as Record<string, string>;
-
 function baseName(path: string): string {
   const file = path.split('/').pop() ?? path;
   return file.replace(/\.(png|webp|jpe?g|svg)$/i, '').toLowerCase();
 }
 
-const byName = new Map<string, string>(
-  Object.entries(ICON_URLS).map(([p, url]) => [baseName(p), url]),
-);
+// Wrapped so a problem here can never crash the whole app at module-load time —
+// missing/empty folder just means "no custom icons" (emoji fallback).
+const byName = new Map<string, string>();
+try {
+  const ICON_URLS = import.meta.glob('/src/assets/ui/icons/*.{png,webp,jpg,jpeg,svg}', {
+    eager: true, query: '?url', import: 'default',
+  }) as Record<string, string>;
+  for (const [p, url] of Object.entries(ICON_URLS)) byName.set(baseName(p), url);
+} catch (err) {
+  console.warn('[uiIcons] icon discovery failed', err);
+}
 
 /** URL of the custom icon for a button slot, or undefined to use the emoji. */
 export function uiIcon(name: string | undefined): string | undefined {
