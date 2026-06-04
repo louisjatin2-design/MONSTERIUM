@@ -14,7 +14,8 @@ Gemergt nach `claude/monster-breeding-game-53GjL`:
      Offen: Nachkampf-Outro (Battle-Ende-Wiring).
 - ✅ **Gruppe 5** komplett: Season Pass (#60), Relationship-/Bindungs-Tasks (#63),
      Element-Futter Lv100+ über Tempel (#64). (TODO: ab Legendär+ seltenheitsspezifisch.)
-- ✅ **Gruppe 8**: Crate-Shop + Glücksrad-Politur (#65). Offen: Auktionshaus (mit Gr. 10-Backend).
+- ✅ **Gruppe 8**: Crate-Shop + Glücksrad-Politur (#65) + **Auktionshaus** (Monster-Handel via
+     Supabase, #75). Offen: Item-/Rüstungs-Auktionen, Erlös-Gutschrift an Verkäufer (Auth).
 - ✅ **Gruppe 10**: Multiplayer-Grundgerüst (#68) + **echtes Supabase-Backend** (#73:
      Migrationen profiles/clans/clan_members + RLS, REST-Adapter, Auto-Umschaltung via
      `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`). Offen: Supabase-Auth + RLS-Härtung,
