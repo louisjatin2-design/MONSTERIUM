@@ -450,6 +450,34 @@ export function World3D({ hidden }: { hidden: boolean }) {
     };
     fit();
 
+    // --- top-down lock for building / placement --------------------------
+    // When the build menu (or placement/move) is open the camera glides to a
+    // straight top-down view and island rotation is disabled, so the player
+    // can pick a tile precisely without the world spinning under their finger.
+    let topDown = false;
+    let savedCamPos: THREE.Vector3 | null = null;
+    let camAnim: { from: THREE.Vector3; to: THREE.Vector3; t: number; dur: number } | null = null;
+    const topDownPos = () => {
+      const def = ISLAND_DEFS[useGameStore.getState().currentIslandId];
+      const g = def ? islandGrid(def) : { cols: 20, rows: 15 };
+      const span = Math.max(g.cols, g.rows);
+      // Tiny z-offset keeps OrbitControls out of its gimbal-lock singularity.
+      return new THREE.Vector3(controls.target.x, span * 1.5, controls.target.z + 0.01);
+    };
+    const setTopDown = (on: boolean) => {
+      if (on === topDown) return;
+      topDown = on;
+      if (on) {
+        savedCamPos = camera.position.clone();
+        camAnim = { from: camera.position.clone(), to: topDownPos(), t: 0, dur: 0.45 };
+        controls.enableRotate = false;
+      } else {
+        camAnim = { from: camera.position.clone(), to: savedCamPos ?? topDownPos(), t: 0, dur: 0.45 };
+        savedCamPos = null;
+        controls.enableRotate = true;
+      }
+    };
+
     // Rebuild only when the rendered slices actually change.
     let lastKey = '';
     const sliceKey = () => {
@@ -495,19 +523,45 @@ export function World3D({ hidden }: { hidden: boolean }) {
         }
       });
     };
+    // The tile the ghost currently hovers over, plus whether it's placeable.
+    // Placement is no longer committed on tap — a tap only positions the ghost;
+    // the player commits via the React "Confirm Placement" button.
+    let pending: { col: number; row: number; valid: boolean } | null = null;
     const enterMode = (m: Mode) => {
       mode = m;
-      if (m.kind === 'place' || m.kind === 'move') makeGhost(m.defId);
-      else removeGhost();
+      pending = null;
+      if (m.kind === 'place' || m.kind === 'move') {
+        makeGhost(m.defId);
+        // Confirm starts disabled until a valid tile is picked.
+        EventBus.emit(GameEvents.PLACEMENT_VALIDITY, { ready: false });
+      } else {
+        removeGhost();
+      }
     };
-    const onEnterPlacement = (d: { defId: string }) => enterMode({ kind: 'place', defId: d.defId });
+    const onEnterPlacement = (d: { defId: string }) => { enterMode({ kind: 'place', defId: d.defId }); setTopDown(true); };
     const onEnterMove = (d: { instanceId: string }) => {
       const b = useGameStore.getState().buildings[d.instanceId];
-      if (b) enterMode({ kind: 'move', instanceId: d.instanceId, defId: b.defId });
+      if (b) { enterMode({ kind: 'move', instanceId: d.instanceId, defId: b.defId }); setTopDown(true); }
     };
-    const onPanelClosed = () => enterMode({ kind: 'normal' });
+    // Opening the build menu (tap on empty ground) also swings to top-down.
+    const onOpenBuildMenu = () => setTopDown(true);
+    const onPanelClosed = () => { enterMode({ kind: 'normal' }); setTopDown(false); };
+    // React "Confirm Placement" button → commit the building at the ghost tile.
+    const onConfirmPlacement = () => {
+      if (mode.kind !== 'place' && mode.kind !== 'move') return;
+      if (!pending || !pending.valid) return;
+      const s = useGameStore.getState();
+      const ignore = mode.kind === 'move' ? mode.instanceId : undefined;
+      if (!canPlace(mode.defId, pending.col, pending.row, ignore)) return;
+      const ok = mode.kind === 'place'
+        ? s.placeBuilding(mode.defId, s.currentIslandId, pending.col, pending.row) !== null
+        : s.moveBuilding(mode.instanceId, pending.col, pending.row);
+      if (ok) { enterMode({ kind: 'normal' }); EventBus.emit(GameEvents.PANEL_CLOSED, {}); }
+    };
     EventBus.on(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
     EventBus.on(GameEvents.ENTER_MOVE_MODE, onEnterMove);
+    EventBus.on(GameEvents.OPEN_BUILD_MENU, onOpenBuildMenu);
+    EventBus.on(GameEvents.CONFIRM_PLACEMENT, onConfirmPlacement);
     EventBus.on(GameEvents.PANEL_CLOSED, onPanelClosed);
 
     function canPlace(defId: string, col: number, row: number, ignoreId?: string): boolean {
@@ -545,6 +599,22 @@ export function World3D({ hidden }: { hidden: boolean }) {
       return { col, row };
     };
 
+    // Move the ghost onto tile `t` and record whether that spot is placeable.
+    // Used by both hover (desktop) and tap (touch) — committing is a separate
+    // explicit step via the Confirm Placement button.
+    const positionGhost = (t: { col: number; row: number }) => {
+      if ((mode.kind !== 'place' && mode.kind !== 'move') || !ghost) return;
+      ghost.visible = true;
+      const def = BUILDING_DEFS[mode.defId];
+      const grid = islandGrid(ISLAND_DEFS[useGameStore.getState().currentIslandId]);
+      const w0 = gridToWorld(t.col + def.tilesW / 2, t.row + def.tilesH / 2, grid);
+      ghost.position.set(w0.x, TOP_Y, w0.z);
+      const valid = canPlace(mode.defId, t.col, t.row, mode.kind === 'move' ? mode.instanceId : undefined);
+      tintGhost(valid);
+      pending = { col: t.col, row: t.row, valid };
+      EventBus.emit(GameEvents.PLACEMENT_VALIDITY, { ready: valid });
+    };
+
     let downX = 0, downY = 0, downT = 0;
     const onDown = (e: PointerEvent) => { downX = e.clientX; downY = e.clientY; downT = performance.now(); };
     const onMove = (e: PointerEvent) => {
@@ -552,31 +622,21 @@ export function World3D({ hidden }: { hidden: boolean }) {
       setNdc(e);
       const t = groundTile();
       if (!t) { ghost.visible = false; return; }
-      ghost.visible = true;
-      const def = BUILDING_DEFS[mode.defId];
-      const grid = islandGrid(ISLAND_DEFS[useGameStore.getState().currentIslandId]);
-      const w0 = gridToWorld(t.col + def.tilesW / 2, t.row + def.tilesH / 2, grid);
-      ghost.position.set(w0.x, TOP_Y, w0.z);
-      tintGhost(canPlace(mode.defId, t.col, t.row, mode.kind === 'move' ? mode.instanceId : undefined));
+      positionGhost(t);
     };
     const onUp = (e: PointerEvent) => {
-      const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
-      if (moved > 6 || performance.now() - downT > 500) return; // a drag → orbit
       setNdc(e);
 
-      // Placement / move: a tap drops the building on a valid tile.
+      // Placement / move: a tap only positions the ghost. The player commits
+      // afterwards with the Confirm Placement button.
       if (mode.kind === 'place' || mode.kind === 'move') {
         const t = groundTile();
-        if (!t) return;
-        const ignore = mode.kind === 'move' ? mode.instanceId : undefined;
-        if (!canPlace(mode.defId, t.col, t.row, ignore)) return;
-        const s = useGameStore.getState();
-        const ok = mode.kind === 'place'
-          ? s.placeBuilding(mode.defId, s.currentIslandId, t.col, t.row) !== null
-          : s.moveBuilding(mode.instanceId, t.col, t.row);
-        if (ok) { enterMode({ kind: 'normal' }); EventBus.emit(GameEvents.PANEL_CLOSED, {}); }
+        if (t) positionGhost(t);
         return;
       }
+
+      const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
+      if (moved > 6 || performance.now() - downT > 500) return; // a drag → orbit
 
       const findTagged = (list: THREE.Object3D[], key: string) => {
         const hits = raycaster.intersectObjects(list, true);
@@ -752,6 +812,15 @@ export function World3D({ hidden }: { hidden: boolean }) {
         sp.position.set(ud.mon.position.x, ud.mon.position.y + ud.top + k * 0.9, ud.mon.position.z);
         (sp.material as THREE.SpriteMaterial).opacity = 1 - k * k;
       }
+
+      // Glide the camera toward / away from the top-down build view.
+      if (camAnim) {
+        camAnim.t += dt;
+        const k = Math.min(1, camAnim.t / camAnim.dur);
+        const e = k * k * (3 - 2 * k); // smoothstep
+        camera.position.lerpVectors(camAnim.from, camAnim.to, e);
+        if (k >= 1) camAnim = null;
+      }
       controls.update();
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
@@ -773,6 +842,8 @@ export function World3D({ hidden }: { hidden: boolean }) {
       renderer.domElement.removeEventListener('pointerup', onUp);
       EventBus.off(GameEvents.ENTER_PLACEMENT_MODE, onEnterPlacement);
       EventBus.off(GameEvents.ENTER_MOVE_MODE, onEnterMove);
+      EventBus.off(GameEvents.OPEN_BUILD_MENU, onOpenBuildMenu);
+      EventBus.off(GameEvents.CONFIRM_PLACEMENT, onConfirmPlacement);
       EventBus.off(GameEvents.PANEL_CLOSED, onPanelClosed);
       unsub();
       controls.dispose();
