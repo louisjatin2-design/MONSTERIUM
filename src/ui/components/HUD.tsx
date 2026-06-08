@@ -107,27 +107,58 @@ export function HUD(_props: HUDProps) {
       </button>
 
       {/* ── Monster button — sits directly right of the profile ──
-          Opens the Monsterpedia (which now also holds the Kompendium tab). */}
-      <button
-        onClick={() => EventBus.emit(GameEvents.OPEN_POKEDEX, {})}
-        title="Monster"
-        style={{
-          flexShrink: 0, pointerEvents: 'auto',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
-          width: 50, height: 50, padding: 0,
-          background: 'linear-gradient(160deg, #5a8ae8, #2850b8)',
-          border: '2px solid #90b8ff', borderRadius: 13,
-          cursor: 'pointer', touchAction: 'manipulation',
-          boxShadow: '0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25)',
-        }}>
-        {uiIcon('monster') ? (
-          <img src={uiIcon('monster')} alt="Monster" draggable={false}
-            style={{ width: 30, height: 30, objectFit: 'contain', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))', pointerEvents: 'none' }} />
-        ) : (
+          Opens the Monsterpedia (which now also holds the Kompendium tab).
+          When a custom monster.png is dropped in, the round neon emblem becomes
+          the button itself (circle-cropped) instead of an icon stuffed inside a
+          blue box — matching the corner-rail emblem buttons. */}
+      {uiIcon('monster') ? (
+        <button
+          onClick={() => EventBus.emit(GameEvents.OPEN_POKEDEX, {})}
+          title="Monster"
+          className="emblem-btn"
+          style={{
+            flexShrink: 0, pointerEvents: 'auto',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            background: 'transparent', border: 'none', padding: 0,
+            cursor: 'pointer', touchAction: 'manipulation',
+            // @ts-expect-error custom prop consumed by the emblem glow
+            '--glow': '#90b8ff',
+          }}>
+          <span className="emblem-disc" style={{
+            position: 'relative', width: 50, height: 50, borderRadius: '50%', overflow: 'hidden',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.6), 0 0 12px -2px #90b8ff, inset 0 0 0 1.5px rgba(255,255,255,0.14)',
+          }}>
+            <img src={uiIcon('monster')} alt="Monster" draggable={false}
+              style={{ position: 'absolute', inset: '-5%', width: '110%', height: '110%', objectFit: 'cover', pointerEvents: 'none' }} />
+            <span style={{
+              position: 'absolute', inset: 0, borderRadius: '50%', pointerEvents: 'none',
+              background: 'radial-gradient(120% 70% at 50% -10%, rgba(255,255,255,0.30), transparent 55%)',
+            }} />
+          </span>
+          <span style={{
+            fontSize: 8.5, fontWeight: 900, color: '#fff', letterSpacing: '0.04em', lineHeight: 1.2,
+            textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+            background: 'linear-gradient(180deg, rgba(10,12,20,0.82), rgba(10,12,20,0.6))',
+            border: '1px solid rgba(255,255,255,0.16)', borderRadius: 999, padding: '1px 7px',
+          }}>MONSTER</span>
+        </button>
+      ) : (
+        <button
+          onClick={() => EventBus.emit(GameEvents.OPEN_POKEDEX, {})}
+          title="Monster"
+          style={{
+            flexShrink: 0, pointerEvents: 'auto',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+            width: 50, height: 50, padding: 0,
+            background: 'linear-gradient(160deg, #5a8ae8, #2850b8)',
+            border: '2px solid #90b8ff', borderRadius: 13,
+            cursor: 'pointer', touchAction: 'manipulation',
+            boxShadow: '0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25)',
+          }}>
           <span style={{ fontSize: 22, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>📖</span>
-        )}
-        <span style={{ fontSize: 8, fontWeight: 900, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.85)' }}>MONSTER</span>
-      </button>
+          <span style={{ fontSize: 8, fontWeight: 900, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.85)' }}>MONSTER</span>
+        </button>
+      )}
 
       {/* ── Resource pills — fill the rest of the top row right of the profile ── */}
       <div style={{
