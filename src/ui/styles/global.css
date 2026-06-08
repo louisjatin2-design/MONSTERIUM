@@ -122,6 +122,25 @@
   50%      { box-shadow: 0 5px 20px rgba(255,140,60,0.8),  inset 0 1px 0 rgba(255,255,255,0.35); }
 }
 
+/* ── Round emblem buttons (RailButton EMBLEM mode) ───────────────────────────
+   The custom neon-disc artwork is the whole button. Give it a subtle hover lift
+   and let the PRIMARY emblem (KÄMPFEN) breathe with a pulsing red halo so it
+   stays the obvious call-to-action. */
+.emblem-btn .emblem-disc { will-change: transform, box-shadow; }
+@media (hover: hover) {
+  .emblem-btn:hover .emblem-disc { transform: translateY(-1px) scale(1.05); }
+}
+@keyframes emblemPulse {
+  0%, 100% { box-shadow: 0 5px 16px rgba(0,0,0,0.6), 0 0 14px -2px rgba(255,90,60,0.55), inset 0 0 0 1.5px rgba(255,255,255,0.14); }
+  50%      { box-shadow: 0 6px 22px rgba(0,0,0,0.6), 0 0 26px  2px rgba(255,120,60,0.95), inset 0 0 0 1.5px rgba(255,255,255,0.20); }
+}
+.emblem-btn--primary .emblem-disc { animation: emblemPulse 1.8s ease-in-out infinite; }
+.emblem-btn--primary:active .emblem-disc { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .emblem-btn--primary .emblem-disc { animation: none; }
+}
+
 /* ═══════════════════════════════════════════════════════
    MONSTER DETAIL — full-screen "tab" (its own screen, not a popup):
    the monster sits on the LEFT, all its info/skills on the RIGHT,
