@@ -27,7 +27,7 @@ import { attachMonsterModel } from './monsterModels';
 import { buildLowPolyBuilding } from '../../proto3d/lowpolyBuilding';
 import { buildLowPolyIsland, buildObstacle, gridToWorld, worldToGrid, islandGrid, TOP_Y } from '../../proto3d/lowpolyIsland';
 
-function monsterSpec(defId: string, id: string): MonsterVisualSpec {
+function monsterSpec(defId: string, id: string, stage?: MonsterVisualSpec['stage']): MonsterVisualSpec {
   const def = MONSTER_DEFS[defId];
   const el = def?.elements[0] ?? 'Fire';
   return {
@@ -38,6 +38,8 @@ function monsterSpec(defId: string, id: string): MonsterVisualSpec {
     rarityRank: RARITY_RANK[def?.rarity ?? 'Common'],
     // Gruppe 2: Fraktion treibt die sichtbaren Gut/Böse-Designmerkmale.
     faction: def ? getMonsterFaction(def) : 'Neutral',
+    // Evolutionsstufe → eigenes Modell pro Alter (Baby/Juvenile/Adult/Elder).
+    stage,
   };
 }
 
@@ -416,7 +418,7 @@ export function World3D({ hidden }: { hidden: boolean }) {
           const habitatScale = 0.28 + Math.min(def.tilesW, def.tilesH) * 0.04;
           const stageMul = inst.stage === 'Baby' ? 0.8 : inst.stage === 'Juvenile' ? 0.92 : inst.stage === 'Elder' ? 1.12 : 1;
           const sizeMul = habitatScale * stageMul * (1 + rarityRank * 0.08 + Math.min(inst.level ?? 1, 100) * 0.0015);
-          const m = buildLowPolyMonster(monsterSpec(inst.defId, mid));
+          const m = buildLowPolyMonster(monsterSpec(inst.defId, mid, inst.stage));
           m.scale.setScalar(sizeMul);
           // Drop-in swap: if a custom GLB exists for this monster (see
           // src/assets/monsters3d/), replace the procedural body with it.
