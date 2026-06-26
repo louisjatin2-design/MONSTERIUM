@@ -19,14 +19,24 @@ import { MONSTER_DEFS } from '@data/monsters';
 import { ELEMENT_COLORS } from '@data/elements';
 import { RARITY_COLORS, RARITY_RANK } from '@data/rarities';
 import { getMonsterFaction } from '@data/factions';
-import { buildLowPolyMonster, type MonsterVisualSpec } from '../../proto3d/lowpolyMonster';
+import { buildLowPolyMonster, type MonsterVisualSpec, type VisualStage } from '../../proto3d/lowpolyMonster';
 import { attachMonsterModel } from './monsterModels';
+import { EVOLUTION_LEVELS } from '@systems/ProgressionSystem';
+
+// Combatants only carry a level here, so derive the visual evolution stage from
+// it (same thresholds the rest of the game uses) → a different model per age.
+function stageForLevel(level: number): VisualStage {
+  if (level >= EVOLUTION_LEVELS.Elder) return 'Elder';
+  if (level >= EVOLUTION_LEVELS.Adult) return 'Adult';
+  if (level >= EVOLUTION_LEVELS.Juvenile) return 'Juvenile';
+  return 'Baby';
+}
 
 interface InitMember { id: string; defId: string; level: number; name: string; isPlayer: boolean; boss?: boolean; }
 interface InitPayload { players: InitMember[]; enemies: InitMember[]; }
 interface StatsPayload { id: string; hp: number; maxHp: number; energy: number; maxEnergy: number; ult: number; ultCost: number; }
 
-function monsterSpec(defId: string, id: string): MonsterVisualSpec {
+function monsterSpec(defId: string, id: string, level: number): MonsterVisualSpec {
   const def = MONSTER_DEFS[defId];
   const el = def?.elements[0] ?? 'Fire';
   return {
@@ -36,6 +46,7 @@ function monsterSpec(defId: string, id: string): MonsterVisualSpec {
     accentColor: parseInt((RARITY_COLORS[def?.rarity ?? 'Common']).replace('#', ''), 16),
     rarityRank: RARITY_RANK[def?.rarity ?? 'Common'],
     faction: def ? getMonsterFaction(def) : 'Neutral',
+    stage: stageForLevel(level),
   };
 }
 
@@ -182,7 +193,7 @@ export function Battle3DStage({ hidden, style }: { hidden?: boolean; style?: CSS
     }
 
     function makeUnit(m: InitMember, pos: THREE.Vector3, facing: number): StageUnit {
-      const group = buildLowPolyMonster(monsterSpec(m.defId, m.id));
+      const group = buildLowPolyMonster(monsterSpec(m.defId, m.id, m.level));
       const baseScale = m.boss ? 2.1 : 1.35;
       group.scale.setScalar(baseScale);
       group.position.copy(pos);
